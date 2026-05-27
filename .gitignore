@@ -1,0 +1,19 @@
+# References & external reference repositories (strictly ignored)
+references/
+_refs/
+*.orig
+*.ref
+testdata/local/
+bin/
+build/bin/
+dist/
+node_modules/
+*.exe
+*.dll
+*.so
+*.dylib
+*.db
+*.sqlite
+*.sqlite3
+*.log
+coverage.out
