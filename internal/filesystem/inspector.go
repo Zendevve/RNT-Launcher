@@ -20,19 +20,20 @@ var (
 
 // FileInfo contains comprehensive metadata, structural properties, and categorization for a Doom mod or IWAD file.
 type FileInfo struct {
-	Path        string       `json:"path"`
-	Filename    string       `json:"filename"`
-	Size        int64        `json:"size"`
-	ModTime     time.Time    `json:"modTime"`
-	SHA256      string       `json:"sha256"`
-	Format      string       `json:"format"`     // "IWAD", "PWAD", "PK3", "IPK3", "ZIP", "PK7", "7Z", "DEH", "BEX", "UNKNOWN"
-	Category    string       `json:"category"`   // "Gameplay", "Megawads", "Maps", "Audio", "Textures", "Mods", "Other"
-	IsIWAD      bool         `json:"isIwad"`
-	LumpCount   int          `json:"lumpCount"`
-	Maps        []string     `json:"maps"`
-	Structures  []string     `json:"structures"`
-	WADInfo     *WADInfo     `json:"wadInfo,omitempty"`
-	ArchiveInfo *ArchiveInfo `json:"archiveInfo,omitempty"`
+	Path            string       `json:"path"`
+	Filename        string       `json:"filename"`
+	Size            int64        `json:"size"`
+	ModTime         time.Time    `json:"modTime"`
+	SHA256          string       `json:"sha256"`
+	Format          string       `json:"format"`     // "IWAD", "PWAD", "PK3", "IPK3", "ZIP", "PK7", "7Z", "DEH", "BEX", "UNKNOWN"
+	Category        string       `json:"category"`   // "Gameplay", "Megawads", "Maps", "Audio", "Textures", "Mods", "Other"
+	IsIWAD          bool         `json:"isIwad"`
+	LumpCount       int          `json:"lumpCount"`
+	Maps            []string     `json:"maps"`
+	Structures      []string     `json:"structures"`
+	InspectionError string       `json:"inspectionError,omitempty"`
+	WADInfo         *WADInfo     `json:"wadInfo,omitempty"`
+	ArchiveInfo     *ArchiveInfo `json:"archiveInfo,omitempty"`
 }
 
 // DetermineCategory applies heuristic rules to classify a file into a user-friendly category.
@@ -156,6 +157,8 @@ func InspectReader(r io.ReaderAt, size int64, filename string, modTime time.Time
 			info.LumpCount = wadInfo.LumpCount
 			info.Maps = wadInfo.Maps
 			info.Structures = wadInfo.Structures
+		} else {
+			info.InspectionError = err.Error()
 		}
 	case "PK3", "IPK3", "ZIP", "PK7", "7Z":
 		archiveInfo, err := InspectArchiveReader(r, size, filename)
@@ -164,12 +167,13 @@ func InspectReader(r io.ReaderAt, size int64, filename string, modTime time.Time
 			info.LumpCount = archiveInfo.EntryCount
 			info.Maps = archiveInfo.Maps
 			info.Structures = archiveInfo.Structures
+		} else {
+			info.InspectionError = err.Error()
 		}
 	case "DEH", "BEX":
 		info.LumpCount = 1
 		info.Structures = []string{"DEHACKED"}
 	}
-
 	info.Category = DetermineCategory(info.Format, info.Maps, info.Structures, info.Filename)
 	return info, nil
 }

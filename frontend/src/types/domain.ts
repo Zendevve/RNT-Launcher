@@ -312,3 +312,69 @@ export interface FileInfo {
     hasDecorate: boolean
   }
 }
+
+export type DiagnosticSeverity = 'error' | 'warning' | 'info'
+export type DiagnosticCategory = 'database' | 'engine' | 'iwad' | 'library' | 'profile'
+
+export interface DiagnosticIssue {
+  id: string
+  category: DiagnosticCategory
+  severity: DiagnosticSeverity
+  title: string
+  description: string
+  targetId?: string
+  target_id?: string
+  targetPath?: string
+  target_path?: string
+  canRepair: boolean
+  can_repair?: boolean
+  repairAction?: string
+  repair_action?: string
+  repairDescription?: string
+  repair_description?: string
+}
+
+export interface DatabaseHealth {
+  status: string
+  path: string
+  integrityCheck: string
+  integrity_check?: string
+  modCount: number
+  mod_count?: number
+  iwadCount: number
+  iwad_count?: number
+  engineCount: number
+  engine_count?: number
+  profileCount: number
+  profile_count?: number
+  historyCount: number
+  history_count?: number
+}
+
+export interface DiagnosticsSummary {
+  totalIssues: number
+  total_issues?: number
+  errorCount: number
+  error_count?: number
+  warningCount: number
+  warning_count?: number
+  infoCount: number
+  info_count?: number
+}
+
+export interface DiagnosticsReport {
+  overallStatus: 'healthy' | 'warning' | 'error' | string
+  overall_status?: string
+  database: DatabaseHealth
+  issues: DiagnosticIssue[]
+  summary: DiagnosticsSummary
+  generatedAt: string
+  generated_at?: string
+}
+
+export interface LogEntry {
+  timestamp: string
+  level: string
+  message: string
+  fields?: Record<string, unknown>
+}

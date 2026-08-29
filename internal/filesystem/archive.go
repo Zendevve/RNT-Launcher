@@ -124,6 +124,11 @@ func InspectArchiveReader(r io.ReaderAt, size int64, filenameOrExt string) (*Arc
 	}
 
 	for _, f := range zipReader.File {
+		// Zip-Slip security guard: reject path traversal and absolute paths
+		if strings.Contains(f.Name, "..") || strings.HasPrefix(f.Name, "/") || strings.HasPrefix(f.Name, "\\") {
+			continue
+		}
+
 		cleanPath := strings.ReplaceAll(f.Name, "\\", "/")
 		cleanPath = strings.Trim(cleanPath, "/")
 		if cleanPath == "" {

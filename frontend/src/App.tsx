@@ -9,6 +9,7 @@ import {
   Modal,
   Input,
   Badge,
+  OnboardingWizard,
 } from './components';
 import { DashboardView } from './features/dashboard';
 import { LibraryView } from './features/library';
@@ -17,6 +18,7 @@ import { EnginesView } from './features/engines';
 import { IWADsView } from './features/iwads';
 import { HistoryView } from './features/history';
 import { SettingsView } from './features/settings';
+import { DiagnosticsView } from './features/diagnostics';
 import { api } from './services/api';
 import { Mod, Profile, Engine, IWAD, ScanResult, LaunchRecord, ScanProgress } from './types';
 import {
@@ -31,9 +33,15 @@ import {
 
 function AppContent() {
   const toast = useToast();
+  const notify = (message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+    if (type === 'success') toast.success(message);
+    else if (type === 'error') toast.error(message);
+    else if (type === 'warning') toast.warning(message);
+    else toast.info(message);
+  };
   const [activeView, setActiveView] = useState<NavViewId>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
+  const [hasDismissedOnboarding, setHasDismissedOnboarding] = useState(false);
   // Global counts for sidebar badges
   const [counts, setCounts] = useState<{
     mods: number;
@@ -274,6 +282,10 @@ function AppContent() {
       title: 'Launch History',
       subtitle: 'Past game sessions, duration, and telemetry',
     },
+    diagnostics: {
+      title: 'System Diagnostics & Health',
+      subtitle: 'Database integrity, missing file detection, and profile repair',
+    },
     settings: {
       title: 'Settings',
       subtitle: 'Content scan directories and application preferences',
@@ -304,6 +316,7 @@ function AppContent() {
           isScanning={isScanning}
           showSearch={true}
           searchPlaceholder="Global Search (Ctrl+K)..."
+          onSearchClick={() => setIsSearchModalOpen(true)}
           onSearchChange={(q) => {
             setGlobalSearchQuery(q);
             if (q.trim()) setIsSearchModalOpen(true);
@@ -332,18 +345,32 @@ function AppContent() {
         {/* Dynamic View Content */}
         <main className="flex-1 overflow-hidden relative">
           {activeView === 'dashboard' && (
-            <DashboardView
-              onNavigateToLibrary={() => setActiveView('library')}
-              onNavigateToProfiles={() => setActiveView('profiles')}
-              onSelectProfile={(profileId) => {
-                setSelectedProfileId(profileId);
-                setActiveView('profiles');
-              }}
-              onCreateProfile={() => {
-                setSelectedProfileId(null);
-                setActiveView('profiles');
-              }}
-            />
+            <div className="h-full overflow-y-auto">
+              {counts.engines === 0 && counts.iwads === 0 && !hasDismissedOnboarding && (
+                <div className="p-6 pb-0 max-w-7xl mx-auto">
+                  <OnboardingWizard
+                    onComplete={() => {
+                      setHasDismissedOnboarding(true);
+                      refreshData();
+                    }}
+                    onNavigate={(tab) => setActiveView(tab as NavViewId)}
+                    onNotify={(msg, type) => notify(msg, type)}
+                  />
+                </div>
+              )}
+              <DashboardView
+                onNavigateToLibrary={() => setActiveView('library')}
+                onNavigateToProfiles={() => setActiveView('profiles')}
+                onSelectProfile={(profileId) => {
+                  setSelectedProfileId(profileId);
+                  setActiveView('profiles');
+                }}
+                onCreateProfile={() => {
+                  setSelectedProfileId(null);
+                  setActiveView('profiles');
+                }}
+              />
+            </div>
           )}
 
           {activeView === 'library' && <LibraryView />}
@@ -356,10 +383,12 @@ function AppContent() {
 
           {activeView === 'history' && <HistoryView />}
 
+          {activeView === 'diagnostics' && (
+            <DiagnosticsView onNotify={(msg, type) => notify(msg, type)} />
+          )}
           {activeView === 'settings' && <SettingsView />}
         </main>
       </div>
-
       {/* Global Search Modal (Ctrl+K) */}
       {isSearchModalOpen && (
         <Modal

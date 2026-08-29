@@ -257,20 +257,21 @@ func (s *LauncherService) LaunchProfileEntity(ctx context.Context, p *domain.Pro
 	s.mu.Unlock()
 
 	// 6. Emit start event
+	recCopy := *record
 	if s.emitter != nil {
-		s.emitter("launch:start", record)
+		s.emitter("launch:start", &recCopy)
 	}
 
 	// 7. Monitor process lifecycle in background goroutine
-	go s.monitorProcess(launchID, handle, record, startTime)
+	go s.monitorProcess(launchID, handle, recCopy, startTime)
 
 	// 8. Return initial launch record immediately
-	return record, nil
+	return &recCopy, nil
 }
 
 // monitorProcess runs in a background goroutine, waiting for process completion,
 // computing elapsed duration, persisting the final LaunchRecord to history, and emitting the exit event.
-func (s *LauncherService) monitorProcess(launchID string, handle ProcessHandle, record *domain.LaunchRecord, startTime time.Time) {
+func (s *LauncherService) monitorProcess(launchID string, handle ProcessHandle, record domain.LaunchRecord, startTime time.Time) {
 	exitCode, waitErr := handle.Wait()
 	finishedAt := time.Now().UTC()
 	durationMs := finishedAt.Sub(startTime).Milliseconds()
@@ -295,12 +296,12 @@ func (s *LauncherService) monitorProcess(launchID string, handle ProcessHandle, 
 
 	// Persist to history repository
 	if s.history != nil {
-		_ = s.history.Add(*record)
+		_ = s.history.Add(record)
 	}
 
 	// Emit exit event
 	if s.emitter != nil {
-		s.emitter("launch:exit", record)
+		s.emitter("launch:exit", &record)
 	}
 }
 
@@ -333,32 +334,36 @@ func (s *LauncherService) GetActiveLaunch(id string) (*ActiveLaunch, bool) {
 
 // KillLaunch forcefully terminates an active launch by its launch ID.
 func (s *LauncherService) KillLaunch(id string) error {
-	s.mu.Lock()
+	s.mu.RLock()
 	active, exists := s.active[id]
-	s.mu.Unlock()
+	var handle ProcessHandle
+	if exists && active != nil {
+		handle = active.handle
+	}
+	s.mu.RUnlock()
 
 	if !exists {
 		return fmt.Errorf("active launch %q not found", id)
 	}
 
-	if active.handle != nil {
-		return active.handle.Kill()
+	if handle != nil {
+		return handle.Kill()
 	}
 	return nil
 }
 
 // KillAll terminates all currently active engine processes.
 func (s *LauncherService) KillAll() error {
-	s.mu.Lock()
+	s.mu.RLock()
 	launches := make([]*ActiveLaunch, 0, len(s.active))
 	for _, a := range s.active {
 		launches = append(launches, a)
 	}
-	s.mu.Unlock()
+	s.mu.RUnlock()
 
 	var errs []string
 	for _, a := range launches {
-		if a.handle != nil {
+		if a != nil && a.handle != nil {
 			if err := a.handle.Kill(); err != nil {
 				errs = append(errs, fmt.Sprintf("%s (PID %d): %v", a.ID, a.Pid, err))
 			}

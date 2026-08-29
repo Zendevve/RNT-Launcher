@@ -58,13 +58,31 @@ export const LoadOrderItem: React.FC<LoadOrderItemProps> = ({
   return (
     <div
       draggable
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowUp' && (e.altKey || e.ctrlKey)) {
+          e.preventDefault();
+          onMoveUp(index);
+        } else if (e.key === 'ArrowDown' && (e.altKey || e.ctrlKey)) {
+          e.preventDefault();
+          onMoveDown(index);
+        } else if (e.key === ' ' && e.target === e.currentTarget) {
+          e.preventDefault();
+          onToggle(mod.modId, !mod.enabled);
+        } else if (e.key === 'Delete' || e.key === 'Backspace') {
+          if (e.target === e.currentTarget) {
+            e.preventDefault();
+            onRemove(mod.modId);
+          }
+        }
+      }}
       onDragStart={(e) => onDragStart(e, index)}
       onDragOver={(e) => onDragOver(e, index)}
       onDragLeave={onDragLeave}
       onDrop={(e) => onDrop(e, index)}
       onDragEnd={onDragEnd}
       className={clsx(
-        'group relative flex items-center gap-3 px-3.5 py-2.5 rounded-md border transition-all duration-150',
+        'group relative flex items-center gap-3 px-3.5 py-2.5 rounded-md border transition-all duration-150 focus:outline-none focus:ring-1 focus:ring-red-500/60',
         mod.enabled
           ? 'bg-doom-surface border-doom-border hover:border-doom-border-bright text-doom-text'
           : 'bg-zinc-900/50 border-zinc-800/80 text-zinc-500 opacity-60 hover:opacity-80',

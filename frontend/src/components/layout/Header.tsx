@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
 import { Search, RefreshCw, Play, X, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -9,6 +9,7 @@ export interface HeaderProps {
   subtitle?: string;
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
+  onSearchClick?: () => void;
   searchPlaceholder?: string;
   showSearch?: boolean;
   onQuickScan?: () => void;
@@ -25,6 +26,7 @@ export const Header: React.FC<HeaderProps> = ({
   subtitle,
   searchQuery = '',
   onSearchChange,
+  onSearchClick,
   searchPlaceholder = 'Search library, profiles, engines...',
   showSearch = true,
   onQuickScan,
@@ -37,20 +39,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Global Ctrl+K / Cmd+K listener to focus search input
-  useEffect(() => {
-    if (!showSearch || !onSearchChange) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showSearch, onSearchChange]);
+  // Handled globally in App.tsx
 
   const isMac =
     typeof window !== 'undefined' &&
@@ -93,14 +82,14 @@ export const Header: React.FC<HeaderProps> = ({
               ref={searchInputRef}
               type="text"
               value={searchQuery}
+              onClick={() => onSearchClick?.()}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder={searchPlaceholder}
               className={cn(
-                'w-full h-8 pl-9 pr-14 bg-doom-bg/80 text-doom-text placeholder:text-doom-muted/60 text-xs rounded border border-doom-border',
+                'w-full h-8 pl-9 pr-14 bg-doom-bg/80 text-doom-text placeholder:text-doom-muted/60 text-xs rounded border border-doom-border cursor-pointer',
                 'hover:border-doom-border-bright focus:border-doom-red focus:ring-1 focus:ring-doom-red focus:outline-none transition-colors'
               )}
             />
-
             {searchQuery ? (
               <button
                 type="button"

@@ -11,12 +11,14 @@ import (
 	"sync"
 
 	"rnt-launcher/internal/database"
+	"rnt-launcher/internal/diagnostics"
 	"rnt-launcher/internal/domain"
 	"rnt-launcher/internal/engines"
 	"rnt-launcher/internal/filesystem"
 	"rnt-launcher/internal/history"
 	"rnt-launcher/internal/iwads"
 	"rnt-launcher/internal/launcher"
+	"rnt-launcher/internal/logger"
 	"rnt-launcher/internal/profiles"
 	"rnt-launcher/internal/scanner"
 	"rnt-launcher/internal/settings"
@@ -43,10 +45,11 @@ type App struct {
 	validatorService *validator.ValidatorService
 	launcherService  *launcher.LauncherService
 	scannerService   *scanner.ScannerService
-	historyService   *history.HistoryService
-	settingsService  *settings.SettingsService
-	isScanning       bool
-	scanMu           sync.Mutex
+	historyService     *history.HistoryService
+	settingsService    *settings.SettingsService
+	diagnosticsService *diagnostics.DiagnosticsService
+	isScanning         bool
+	scanMu             sync.Mutex
 }
 
 // NewApp creates a new App application struct
@@ -56,8 +59,11 @@ func NewApp() *App {
 	}
 }
 
-// Close releases open resources such as SQLite DB handle
+// Close releases open resources such as active engine processes and SQLite DB handle
 func (a *App) Close() {
+	if a.launcherService != nil {
+		_ = a.launcherService.KillAll()
+	}
 	if a.db != nil {
 		_ = a.db.Close()
 		a.db = nil
@@ -146,6 +152,15 @@ func (a *App) startup(ctx context.Context) {
 
 	a.historyService = history.NewHistoryService(a.historyRepo)
 	a.settingsService = settings.NewSettingsService(a.settingsRepo)
+	a.diagnosticsService = diagnostics.NewDiagnosticsService(
+		a.db,
+		a.engineRepo,
+		a.iwadRepo,
+		a.modRepo,
+		a.profileRepo,
+		a.historyRepo,
+		a.dbPath,
+	)
 
 	// Check if AutoScanOnStartup is enabled
 	go func() {
@@ -343,7 +358,7 @@ func (a *App) KillLaunch(id string) error {
 // Scanner API
 // -------------------------------------------------------------
 
-func (a *App) StartScan() (*domain.ScanResult, error) {
+func (a *App) StartScan() (scanRes *domain.ScanResult, scanErr error) {
 	a.scanMu.Lock()
 	if a.isScanning {
 		a.scanMu.Unlock()
@@ -353,6 +368,16 @@ func (a *App) StartScan() (*domain.ScanResult, error) {
 	a.scanMu.Unlock()
 
 	defer func() {
+		if r := recover(); r != nil {
+			scanRes = &domain.ScanResult{
+				DiscoveredMods:    0,
+				DiscoveredIWADs:   0,
+				DiscoveredEngines: 0,
+				Errors:            []string{fmt.Sprintf("internal scan panic: %v", r)},
+			}
+			scanErr = fmt.Errorf("scan panic: %v", r)
+			a.emitSafe("scan:complete", scanRes)
+		}
 		a.scanMu.Lock()
 		a.isScanning = false
 		a.scanMu.Unlock()
@@ -369,7 +394,6 @@ func (a *App) StartScan() (*domain.ScanResult, error) {
 	}
 
 	res, err := a.scannerService.ScanAll(a.ctx, progressCallback)
-
 	a.emitSafe("scan:complete", res)
 
 	return res, err
@@ -479,4 +503,31 @@ func (a *App) OpenPathInExplorer(path string) error {
 	default:
 		return exec.Command("xdg-open", targetDir).Start()
 	}
+}
+
+// -------------------------------------------------------------
+// System Diagnostics & Health API
+// -------------------------------------------------------------
+
+func (a *App) RunDiagnostics() (*domain.DiagnosticsReport, error) {
+	if a.diagnosticsService == nil {
+		return nil, fmt.Errorf("diagnostics service is not initialized")
+	}
+	return a.diagnosticsService.RunDiagnostics(a.ctx)
+}
+
+func (a *App) RepairDiagnosticIssue(action string, targetID string) error {
+	if a.diagnosticsService == nil {
+		return fmt.Errorf("diagnostics service is not initialized")
+	}
+	return a.diagnosticsService.Repair(a.ctx, action, targetID)
+}
+
+func (a *App) GetSystemLogs() ([]logger.LogEntry, error) {
+	return logger.GetRecentLogs(), nil
+}
+
+func (a *App) ClearSystemLogs() error {
+	logger.ClearLogs()
+	return nil
 }

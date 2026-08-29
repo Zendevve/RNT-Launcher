@@ -32,7 +32,13 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const showToast = useCallback(
     ({ type, title, message, duration = 4000 }: Omit<ToastMessage, 'id'>) => {
       const id = Math.random().toString(36).substring(2, 9);
-      setToasts((prev) => [...prev, { id, type, title, message, duration }]);
+      setToasts((prev) => {
+        const next = [...prev, { id, type, title, message, duration }];
+        if (next.length > 5) {
+          return next.slice(next.length - 5);
+        }
+        return next;
+      });
       if (duration > 0) {
         setTimeout(() => {
           removeToast(id);

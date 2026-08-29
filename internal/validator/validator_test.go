@@ -809,3 +809,109 @@ func TestValidatorService_MultipleErrorsAndWarningsPriority(t *testing.T) {
 		t.Errorf("expected at least 2 warnings, got %d", len(res.Warnings()))
 	}
 }
+
+func TestValidatorService_CorruptAndZeroByteFiles(t *testing.T) {
+	tempDir, svc, engineRepo, iwadRepo, _, _ := setupTestEnvironment(t)
+
+	// 1. Create a 0-byte IWAD
+	zeroIwadPath := filepath.Join(tempDir, "zero.wad")
+	_ = os.WriteFile(zeroIwadPath, []byte{}, 0644)
+
+	zeroIWAD := &domain.IWAD{
+		ID:   "iwad-zero",
+		Name: "Zero IWAD",
+		Path: zeroIwadPath,
+	}
+	_ = iwadRepo.Create(zeroIWAD)
+
+	// Valid Engine
+	engPath := filepath.Join(tempDir, "gzdoom.exe")
+	_ = os.WriteFile(engPath, []byte("dummy exe"), 0755)
+	eng := &domain.Engine{
+		ID:         "eng-valid",
+		Name:       "GZDoom",
+		Executable: engPath,
+		Family:     domain.EngineFamilyGZDoom,
+	}
+	_ = engineRepo.Create(eng)
+
+	// 0-byte Mod file
+	zeroModPath := filepath.Join(tempDir, "empty.pk3")
+	_ = os.WriteFile(zeroModPath, []byte{}, 0644)
+
+	profile := &domain.Profile{
+		ID:       "prof-zero-files",
+		EngineID: eng.ID,
+		IWADID:   zeroIWAD.ID,
+		Mods: []domain.ProfileMod{
+			{
+				ID:      "pm-zero",
+				ModID:   "mod-zero",
+				ModName: "Empty Mod",
+				ModPath: zeroModPath,
+				Enabled: true,
+				Order:   0,
+			},
+		},
+	}
+
+	res, err := svc.ValidateProfileEntity(context.Background(), profile)
+	if err != nil {
+		t.Fatalf("unexpected validation error: %v", err)
+	}
+
+	if res.Status != domain.ValidationStatusCannotLaunch {
+		t.Errorf("expected CANNOT_LAUNCH on zero-byte IWAD, got %s", res.Status)
+	}
+}
+
+func TestValidatorService_MovedAndDeletedFiles(t *testing.T) {
+	tempDir, svc, engineRepo, iwadRepo, _, _ := setupTestEnvironment(t)
+
+	engPath := filepath.Join(tempDir, "engine.exe")
+	_ = os.WriteFile(engPath, []byte("dummy exe"), 0755)
+	eng := &domain.Engine{ID: "eng-1", Name: "Engine", Executable: engPath}
+	_ = engineRepo.Create(eng)
+
+	iwadPath := filepath.Join(tempDir, "doom2.wad")
+	_ = os.WriteFile(iwadPath, []byte("IWAD\x01\x00\x00\x00\x0C\x00\x00\x00"), 0644)
+	iwad := &domain.IWAD{ID: "iwad-1", Name: "DOOM2", Path: iwadPath}
+	_ = iwadRepo.Create(iwad)
+
+	modPath := filepath.Join(tempDir, "tempmod.pk3")
+	_ = os.WriteFile(modPath, []byte("PK\x05\x06\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"), 0644)
+
+	profile := &domain.Profile{
+		ID:       "prof-del",
+		EngineID: eng.ID,
+		IWADID:   iwad.ID,
+		Mods: []domain.ProfileMod{
+			{
+				ID:      "pm-1",
+				ModID:   "mod-1",
+				ModPath: modPath,
+				Enabled: true,
+			},
+		},
+	}
+
+	// Initial validation should be READY
+	res, err := svc.ValidateProfileEntity(context.Background(), profile)
+	if err != nil || res.Status != domain.ValidationStatusReady {
+		t.Fatalf("expected initial READY status, got %v (err: %v)", res.Status, err)
+	}
+
+	// Now delete mod file from disk to simulate moved/deleted file
+	_ = os.Remove(modPath)
+
+	resAfter, err := svc.ValidateProfileEntity(context.Background(), profile)
+	if err != nil {
+		t.Fatalf("unexpected validation error: %v", err)
+	}
+	if resAfter.Status != domain.ValidationStatusCannotLaunch {
+		t.Errorf("expected CANNOT_LAUNCH after file deleted from disk, got %s", resAfter.Status)
+	}
+	if !resAfter.HasErrors() {
+		t.Errorf("expected validation errors for missing mod file")
+	}
+}

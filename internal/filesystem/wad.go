@@ -81,9 +81,9 @@ func InspectWADReader(r io.ReaderAt, size int64) (*WADInfo, error) {
 		return nil, ErrCorruptWADDirectory
 	}
 
-	const maxSanityLumps = 1_000_000
+	const maxSanityLumps = 100_000
 	if numLumps > maxSanityLumps {
-		return nil, fmt.Errorf("%w: lump count %d exceeds safety limit", ErrCorruptWADDirectory, numLumps)
+		return nil, fmt.Errorf("%w: lump count %d exceeds safety limit (%d)", ErrCorruptWADDirectory, numLumps, maxSanityLumps)
 	}
 
 	dirSize := int64(numLumps) * 16

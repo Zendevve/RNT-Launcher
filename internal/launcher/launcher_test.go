@@ -1038,3 +1038,68 @@ func TestOSProcessRunner_ContextCanceled(t *testing.T) {
 		t.Fatal("expected error when context is canceled")
 	}
 }
+
+func TestLauncherService_AbnormalProcessExit(t *testing.T) {
+	profileRepo := newMockProfileRepo()
+	historyRepo := newMockHistoryRepo()
+
+	var exitEventReceived *domain.LaunchRecord
+	var mu sync.Mutex
+	emitter := func(event string, data any) {
+		if event == "launch:exit" {
+			if rec, ok := data.(*domain.LaunchRecord); ok {
+				mu.Lock()
+				exitEventReceived = rec
+				mu.Unlock()
+			}
+		}
+	}
+
+	// Runner that exits immediately with error code 255
+	runner := &mockProcessRunner{
+		handleFn: func(executable string, args []string, workingDir string) (ProcessHandle, error) {
+			return newMockProcessHandle(9999, 255, errors.New("exit status 255"), 10*time.Millisecond), nil
+		},
+	}
+
+	val := &mockValidator{}
+
+	service := NewLauncherService(val, profileRepo, historyRepo, runner, emitter)
+
+	p := &domain.Profile{ID: "p-abnormal", Name: "Abnormal Profile", EngineID: "e1", IWADID: "i1"}
+	_ = profileRepo.Create(p)
+
+	record, err := service.LaunchProfile(context.Background(), p.ID)
+	if err != nil {
+		t.Fatalf("failed to launch: %v", err)
+	}
+
+	if record.ID == "" {
+		t.Errorf("expected non-empty launch ID")
+	}
+
+	// Wait for process to complete
+	time.Sleep(50 * time.Millisecond)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if exitEventReceived == nil {
+		t.Fatalf("expected launch:exit event to be emitted")
+	}
+
+	if exitEventReceived.Status != domain.LaunchStatusFailed {
+		t.Errorf("expected LaunchStatusFailed, got %s", exitEventReceived.Status)
+	}
+	if exitEventReceived.ExitCode != 255 {
+		t.Errorf("expected ExitCode 255, got %d", exitEventReceived.ExitCode)
+	}
+
+	// Check history record was persisted
+	historyList, err := historyRepo.List(10)
+	if err != nil || len(historyList) != 1 {
+		t.Fatalf("expected 1 history record, got %d (err: %v)", len(historyList), err)
+	}
+	if historyList[0].Status != domain.LaunchStatusFailed {
+		t.Errorf("expected history record status failed, got %s", historyList[0].Status)
+	}
+}

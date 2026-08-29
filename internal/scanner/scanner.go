@@ -15,10 +15,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
 	"rnt-launcher/internal/database"
 	"rnt-launcher/internal/domain"
 	"rnt-launcher/internal/filesystem"
+	"rnt-launcher/internal/logger"
 )
 
 var versionRegex = regexp.MustCompile(`(?i)(?:version\s*|v|\bg|woof!\s*|doom\s*)?(\d+\.\d+(?:\.\d+)*(?:-[a-zA-Z0-9_.-]+)?)`)
@@ -61,14 +61,25 @@ func (s *ScannerService) ScanAll(ctx context.Context, progressFn func(current in
 }
 
 // ScanDirectories performs a full scan across provided Mod, IWAD, and Engine directories.
-func (s *ScannerService) ScanDirectories(ctx context.Context, modDirs, iwadDirs, engineDirs []string, progressFn func(current int, total int, currentFile string)) (*domain.ScanResult, error) {
+func (s *ScannerService) ScanDirectories(ctx context.Context, modDirs, iwadDirs, engineDirs []string, progressFn func(current int, total int, currentFile string)) (res *domain.ScanResult, retErr error) {
+	if ctx != nil && ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
 	result := &domain.ScanResult{
-		DiscoveredMods:    0,
 		DiscoveredIWADs:   0,
 		DiscoveredEngines: 0,
 		Errors:            make([]string, 0),
 	}
 
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Errorf("scanner panic recovered: %v", r)
+			result.Errors = append(result.Errors, fmt.Sprintf("scanner panic recovered: %v", r))
+			res = result
+			retErr = fmt.Errorf("scanner panic: %v", r)
+		}
+	}()
 	// 1. Scan IWAD Directories
 	for _, dir := range iwadDirs {
 		select {
@@ -136,7 +147,7 @@ func (s *ScannerService) ScanDirectories(ctx context.Context, modDirs, iwadDirs,
 		}
 
 		validModDirs = append(validModDirs, cleanDir)
-		candidates := s.collectModFiles(cleanDir)
+		candidates := s.collectModFiles(ctx, cleanDir)
 		allModFiles = append(allModFiles, candidates...)
 	}
 
@@ -171,8 +182,11 @@ func (s *ScannerService) ScanDirectories(ctx context.Context, modDirs, iwadDirs,
 	return result, nil
 }
 
-// ScanModDirectory scans a single directory recursively for mod files (and auto-categorizes IWADs found).
 func (s *ScannerService) ScanModDirectory(ctx context.Context, dir string, progressFn func(current int, total int, currentFile string)) (int, error) {
+	if ctx != nil && ctx.Err() != nil {
+		return 0, ctx.Err()
+	}
+
 	cleanDir := filepath.Clean(dir)
 	stat, err := os.Stat(cleanDir)
 	if err != nil {
@@ -182,7 +196,7 @@ func (s *ScannerService) ScanModDirectory(ctx context.Context, dir string, progr
 		return 0, errors.New("path is not a directory")
 	}
 
-	candidates := s.collectModFiles(cleanDir)
+	candidates := s.collectModFiles(ctx, cleanDir)
 	total := len(candidates)
 	discovered := 0
 
@@ -207,8 +221,11 @@ func (s *ScannerService) ScanModDirectory(ctx context.Context, dir string, progr
 	return discovered, nil
 }
 
-// ScanIWADDirectory scans a single directory recursively for base game IWADs.
 func (s *ScannerService) ScanIWADDirectory(ctx context.Context, dir string) (int, error) {
+	if ctx != nil && ctx.Err() != nil {
+		return 0, ctx.Err()
+	}
+
 	cleanDir := filepath.Clean(dir)
 	stat, err := os.Stat(cleanDir)
 	if err != nil {
@@ -222,6 +239,9 @@ func (s *ScannerService) ScanIWADDirectory(ctx context.Context, dir string) (int
 	err = filepath.WalkDir(cleanDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
+		}
+		if ctx != nil && ctx.Err() != nil {
+			return ctx.Err()
 		}
 		if d.IsDir() {
 			if strings.HasPrefix(d.Name(), ".") && path != cleanDir {
@@ -272,8 +292,11 @@ func (s *ScannerService) ScanIWADDirectory(ctx context.Context, dir string) (int
 	return discovered, nil
 }
 
-// ScanEngineDirectory scans a single directory recursively for Doom source port executables.
 func (s *ScannerService) ScanEngineDirectory(ctx context.Context, dir string) (int, error) {
+	if ctx != nil && ctx.Err() != nil {
+		return 0, ctx.Err()
+	}
+
 	cleanDir := filepath.Clean(dir)
 	stat, err := os.Stat(cleanDir)
 	if err != nil {
@@ -291,6 +314,9 @@ func (s *ScannerService) ScanEngineDirectory(ctx context.Context, dir string) (i
 	err = filepath.WalkDir(cleanDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
+		}
+		if ctx != nil && ctx.Err() != nil {
+			return ctx.Err()
 		}
 		if d.IsDir() {
 			if strings.HasPrefix(d.Name(), ".") && path != cleanDir {
@@ -406,11 +432,14 @@ func (s *ScannerService) ImportFile(ctx context.Context, filePath string) (*doma
 }
 
 // collectModFiles gathers all mod files in a directory recursively.
-func (s *ScannerService) collectModFiles(dir string) []string {
+func (s *ScannerService) collectModFiles(ctx context.Context, dir string) []string {
 	var candidates []string
 	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
+		}
+		if ctx != nil && ctx.Err() != nil {
+			return ctx.Err()
 		}
 		if d.IsDir() {
 			if strings.HasPrefix(d.Name(), ".") && path != dir {

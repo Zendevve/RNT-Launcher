@@ -6,13 +6,13 @@ import {
   Cpu,
   Disc,
   Clock,
+  Activity,
   Settings,
   ChevronLeft,
   ChevronRight,
   Flame,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
-
 export type NavViewId =
   | 'dashboard'
   | 'library'
@@ -20,8 +20,8 @@ export type NavViewId =
   | 'engines'
   | 'iwads'
   | 'history'
+  | 'diagnostics'
   | 'settings';
-
 export interface NavItemConfig {
   id: NavViewId;
   label: string;
@@ -96,6 +96,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'History',
       icon: <Clock className="w-5 h-5 flex-shrink-0" />,
       badge: counts.history,
+    },
+    {
+      id: 'diagnostics',
+      label: 'Diagnostics',
+      icon: <Activity className="w-5 h-5 flex-shrink-0" />,
+      badge: counts.warnings ? counts.warnings : undefined,
+      badgeVariant: counts.warnings ? 'warning' : undefined,
     },
     {
       id: 'settings',

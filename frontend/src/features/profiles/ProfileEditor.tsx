@@ -94,7 +94,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
     setWorkingDir(profile.workingDir || '');
     setIsFavorite(profile.isFavorite || false);
     setHasUnsavedChanges(false);
-  }, [profile.id]);
+  }, [profile.id, profile.name, profile.updatedAt, profile.updated_at]);
 
   // Split arguments into tokens for visual badge display
   const parsedArguments = useMemo(() => {
@@ -123,10 +123,10 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
     }
   }, [profile.id]);
 
-  // Initial validation when profile loads or updates
+  // Initial validation when profile loads or dependencies change
   useEffect(() => {
     runValidation();
-  }, [profile.id, runValidation]);
+  }, [profile.id, profile.mods, profile.engineId, profile.iwadId, runValidation]);
 
   // Save changes to profile
   const handleSave = async (overrides?: Partial<Profile>) => {

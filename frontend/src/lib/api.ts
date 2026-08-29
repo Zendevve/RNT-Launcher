@@ -17,6 +17,8 @@ import type {
   ScanResult,
   Settings,
   ValidationResult,
+  DiagnosticsReport,
+  LogEntry,
 } from '../types/domain'
 
 interface WailsAppBridge {
@@ -383,6 +385,38 @@ async function mockCall<T>(methodName: string, ...args: unknown[]): Promise<T> {
     case 'openPathInExplorer': {
       return undefined as T
     }
+    case 'runDiagnostics': {
+      return {
+        overallStatus: 'healthy',
+        database: {
+          status: 'healthy',
+          path: 'C:/Users/natha/AppData/Roaming/rnt-launcher/rnt-launcher.db',
+          integrityCheck: 'ok',
+          modCount: 0,
+          iwadCount: 2,
+          engineCount: 1,
+          profileCount: 0,
+          historyCount: 0,
+        },
+        issues: [],
+        summary: {
+          totalIssues: 0,
+          errorCount: 0,
+          warningCount: 0,
+          infoCount: 0,
+        },
+        generatedAt: new Date().toISOString(),
+      } as T
+    }
+    case 'repairDiagnosticIssue': {
+      return undefined as T
+    }
+    case 'getSystemLogs': {
+      return [] as T
+    }
+    case 'clearSystemLogs': {
+      return undefined as T
+    }
     default:
       return undefined as T
   }
@@ -466,5 +500,12 @@ export const api = {
     callBackend<string>('OpenFileDialog', title, defaultDir, extensions),
   openDirectoryDialog: (title: string = 'Select Directory', defaultDir: string = ''): Promise<string> =>
     callBackend<string>('OpenDirectoryDialog', title, defaultDir),
+
+  // Diagnostics & Health
+  runDiagnostics: (): Promise<DiagnosticsReport> => callBackend<DiagnosticsReport>('RunDiagnostics'),
+  repairDiagnosticIssue: (action: string, targetId: string = ''): Promise<void> =>
+    callBackend<void>('RepairDiagnosticIssue', action, targetId),
+  getSystemLogs: (): Promise<LogEntry[]> => callBackend<LogEntry[]>('GetSystemLogs'),
+  clearSystemLogs: (): Promise<void> => callBackend<void>('ClearSystemLogs'),
   openPathInExplorer: (path: string): Promise<void> => callBackend<void>('OpenPathInExplorer', path),
 }

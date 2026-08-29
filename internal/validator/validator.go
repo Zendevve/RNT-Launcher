@@ -160,12 +160,18 @@ func (s *ValidatorService) ValidateProfileEntity(ctx context.Context, p *domain.
 					fmt.Sprintf("IWAD file not found: %s", iwadPath),
 					"iwad",
 				)
+			} else if fi.Size() == 0 {
+				result.AddItem(
+					domain.ValidationSeverityError,
+					"CORRUPT_IWAD",
+					fmt.Sprintf("IWAD file %s is 0 bytes", filepath.Base(iwadPath)),
+					"iwad",
+				)
 			} else {
 				result.IWAD = iwad
 			}
 		}
 	}
-
 	// ----------------------------------------------------
 	// Rule 3 & 4: Mods & Duplicate Detection
 	// ----------------------------------------------------
@@ -232,6 +238,7 @@ func (s *ValidatorService) ValidateProfileEntity(ctx context.Context, p *domain.
 				fmt.Sprintf("Duplicate mod in load order: %s", modName),
 				target,
 			)
+			seenPaths[cleanPathKey] = true
 		} else {
 			if cleanPathKey != "" {
 				seenPaths[cleanPathKey] = true
@@ -241,14 +248,20 @@ func (s *ValidatorService) ValidateProfileEntity(ctx context.Context, p *domain.
 			}
 		}
 
-		// Rule 3: File existence & Readability
-		var fileMissing bool
+		fileMissing := false
 		if modPath == "" {
 			fileMissing = true
 		} else {
 			fi, statErr := os.Stat(modPath)
 			if statErr != nil || fi.IsDir() {
 				fileMissing = true
+			} else if fi.Size() == 0 && pm.Enabled {
+				result.AddItem(
+					domain.ValidationSeverityError,
+					"CORRUPT_MOD",
+					fmt.Sprintf("Mod file %s is 0 bytes", filepath.Base(modPath)),
+					target,
+				)
 			}
 		}
 

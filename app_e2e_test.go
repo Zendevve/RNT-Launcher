@@ -239,3 +239,152 @@ func TestEndToEndUserWorkflow(t *testing.T) {
 		t.Fatalf("Expected READY status for imported profile, got %s", revalRes.Status)
 	}
 }
+
+func TestApp_PersistenceAcrossRestarts(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "persistent_rnt.db")
+
+	// Phase 1: First Run — Seed Data
+	app1 := NewApp()
+	app1.SetDBPath(dbPath)
+	app1.startup(context.Background())
+	engExe := filepath.Join(tempDir, "gzdoom.exe")
+	_ = os.WriteFile(engExe, []byte("dummy exe"), 0755)
+	eng1, err := app1.AddEngine(domain.Engine{
+		Name:       "GZDoom 4.14",
+		Executable: engExe,
+		Version:    "4.14.0",
+		Family:     domain.EngineFamilyGZDoom,
+	})
+	if err != nil {
+		t.Fatalf("failed to create engine in app1: %v", err)
+	}
+
+	iwadPath := filepath.Join(tempDir, "doom2.wad")
+	createTestWAD(t, iwadPath, true, []string{"MAP01"})
+	iwad1, err := app1.RegisterIWADFile(iwadPath)
+	if err != nil {
+		t.Fatalf("failed to register iwad in app1: %v", err)
+	}
+
+	modPath := filepath.Join(tempDir, "mod1.pk3")
+	createTestPK3(t, modPath, map[string]string{"mapinfo.txt": "map MAP01 \"Test\" {}"})
+	mod1, err := app1.ImportModFile(modPath)
+	if err != nil {
+		t.Fatalf("failed to import mod in app1: %v", err)
+	}
+
+	prof1, err := app1.CreateProfile(domain.Profile{
+		Name:        "Campaign Profile",
+		Description: "Story playthrough",
+		EngineID:    eng1.ID,
+		IWADID:      iwad1.ID,
+	})
+	if err != nil {
+		t.Fatalf("failed to create profile in app1: %v", err)
+	}
+
+	err = app1.AddModToProfile(prof1.ID, mod1.ID)
+	if err != nil {
+		t.Fatalf("failed to add mod to profile: %v", err)
+	}
+
+	// Close App1 cleanly
+	app1.Close()
+
+	// Phase 2: Second Run — Restart app on same SQLite file
+	app2 := NewApp()
+	app2.SetDBPath(dbPath)
+	app2.startup(context.Background())
+	defer app2.Close()
+
+	// Verify Engine persisted
+	engs, err := app2.ListEngines()
+	if err != nil || len(engs) != 1 || engs[0].ID != eng1.ID {
+		t.Fatalf("Engine did not persist across restarts: %v (err: %v)", engs, err)
+	}
+
+	// Verify IWAD persisted
+	iwads, err := app2.ListIWADs()
+	if err != nil || len(iwads) != 1 || iwads[0].ID != iwad1.ID {
+		t.Fatalf("IWAD did not persist across restarts: %v (err: %v)", iwads, err)
+	}
+
+	// Verify Mod persisted
+	mods, err := app2.ListMods(domain.ModFilter{})
+	if err != nil || len(mods) != 1 || mods[0].ID != mod1.ID {
+		t.Fatalf("Mod did not persist across restarts: %v (err: %v)", mods, err)
+	}
+
+	// Verify Profile persisted with load order
+	profs, err := app2.ListProfiles()
+	if err != nil || len(profs) != 1 || profs[0].ID != prof1.ID {
+		t.Fatalf("Profile did not persist across restarts: %v (err: %v)", profs, err)
+	}
+	if len(profs[0].Mods) != 1 || profs[0].Mods[0].ModID != mod1.ID {
+		t.Fatalf("Profile mods did not persist across restarts: %+v", profs[0].Mods)
+	}
+
+	// Verify Diagnostics runs clean on restarted app
+	diagReport, err := app2.RunDiagnostics()
+	if err != nil {
+		t.Fatalf("RunDiagnostics failed on restarted app: %v", err)
+	}
+	if diagReport.OverallStatus == "error" {
+		t.Fatalf("Unexpected error status in diagnostics: %+v", diagReport.Summary)
+	}
+}
+
+func TestApp_FailureScenariosAndDiagnostics(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "failures_rnt.db")
+
+	app := NewApp()
+	app.SetDBPath(dbPath)
+	app.startup(context.Background())
+	defer app.Close()
+
+	// 1. Launching non-existent profile returns error
+	_, err := app.LaunchProfile("ghost-profile-id")
+	if err == nil {
+		t.Errorf("expected error launching non-existent profile")
+	}
+
+	emptyProf, err := app.CreateProfile(domain.Profile{
+		Name: "Incomplete Profile",
+	})
+
+	valRes, err := app.ValidateProfile(emptyProf.ID)
+	if err != nil {
+		t.Fatalf("validate failed: %v", err)
+	}
+	if valRes.CanLaunch() {
+		t.Errorf("expected empty profile CanLaunch() == false")
+	}
+
+	// 3. Diagnostics identifies missing files and repairs
+	diagReport, err := app.RunDiagnostics()
+	if err != nil {
+		t.Fatalf("RunDiagnostics failed: %v", err)
+	}
+	if diagReport == nil {
+		t.Fatalf("expected non-nil DiagnosticsReport")
+	}
+
+	// 4. Test System Logs retrieval and clearing
+	logs, err := app.GetSystemLogs()
+	if err != nil {
+		t.Fatalf("GetSystemLogs failed: %v", err)
+	}
+	_ = logs
+
+	err = app.ClearSystemLogs()
+	if err != nil {
+		t.Fatalf("ClearSystemLogs failed: %v", err)
+	}
+
+	clearedLogs, err := app.GetSystemLogs()
+	if err != nil || len(clearedLogs) != 0 {
+		t.Fatalf("expected 0 logs after clear, got %d (err: %v)", len(clearedLogs), err)
+	}
+}
