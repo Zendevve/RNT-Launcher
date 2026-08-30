@@ -14,55 +14,55 @@ Built with an interface-agnostic Go application core, embedded SQLite metadata d
 
 ---
 
-## ⚡ Key Features
+## Key Features
 
-### 🚀 1-Click Launch Cockpit & Dashboard
+### 1-Click Launch Cockpit & Dashboard
 - Launch your favorite and recent profiles instantly with one click.
 - Live system status overview displaying active source ports, base IWADs, and mod counts.
 - Recent launch feed showing duration, completion status, and timestamps.
 - Quick scan trigger with a live progressive scan banner.
 
-### 📦 Mod Library & Drag-and-Drop
+### Mod Library & Drag-and-Drop
 - Recursive background directory scanner for `.wad`, `.pk3`, `.pk7`, `.ipk3`, `.zip`, `.deh`, and `.bex` files.
 - Instant search across mod names, filenames, and absolute paths (<100ms response time).
 - Categorization and filtering by format (`.wad`, `.pk3`, `.zip`, etc.) and mod type (*Gameplay*, *Maps*, *Megawads*, *Weapons*, *Monsters*, *Textures*, *Audio*, *UI*, *Utility*).
 - Seamless Drag-and-Drop ingestion directly into the library without moving or altering user files on disk.
 
-### 🔍 Deep Mod Inspector
+### Deep Mod Inspector
 - **Binary WAD Header Inspection**: Extracts lump counts, identifies map markers (`MAP01`–`MAP99`, `E1M1`–`E4M9`), and validates IWAD/PWAD magic.
 - **Archive Marker Detection**: Traverses PK3/ZIP archives to detect structural landmarks (`ZSCRIPT`, `DECORATE`, `MAPINFO`, `SNDINFO`, `TEXTURES`, `GLDEFS`).
 - **Streaming SHA-256 Hasher**: Computes cryptographic checksums in the background for duplicate identification.
 - One-click actions to open containing folders, view file details, toggle favorites, and add mods directly to profiles.
 
-### 🎯 Profiles & Draggable Load Ordering
+### Profiles & Draggable Load Ordering
 - Configure independent launch configurations combining an engine executable, base IWAD, ordered mod list, custom launch arguments, and working directories.
 - **Visual Load Order Manager**: Drag-and-drop reordering, keyboard navigation (`↑`/`↓`), move to top/bottom, and individual mod enable/disable toggling.
 - **Profile Management**: Clone, duplicate, edit, search, favorite, and delete profiles.
 
-### 🛡️ Pre-Launch Validation Engine
+### Pre-Launch Validation Engine
 Never fail at launch time. The pre-flight validator executes 5 core verification rules before process creation:
 1. **Engine Rule**: Checks if the source port executable exists and is accessible.
 2. **IWAD Rule**: Verifies base game IWAD presence and readability.
 3. **Mod File Rule**: Validates disk presence for all enabled and disabled mods.
 4. **Duplicate Rule**: Flags duplicate mods in the load order.
 5. **Working Directory Rule**: Validates custom working directory paths.
-- Computes aggregate launch statuses: `READY` (🟢), `READY WITH WARNINGS` (🟡), or `CANNOT LAUNCH` (🔴) with an expandable breakdown.
+- Computes aggregate launch statuses: `READY`, `READY WITH WARNINGS`, or `CANNOT LAUNCH` with an expandable breakdown.
 
-### ⚙️ Multi-Engine & IWAD Managers
+### Multi-Engine & IWAD Managers
 - **Source Port Manager**: Register multiple versions of any engine (GZDoom, Zandronum, DSDA-Doom, Woof!, Crispy Doom, Chocolate Doom, PrBoom+, etc.).
 - **Automatic Version Detection**: Executes `--version` / `-version` probes with execution timeouts to identify engine versions and families.
 - **IWAD Manager**: Auto-identifies base games (*Doom*, *Doom II*, *TNT*, *Plutonia*, *Heretic*, *Hexen*, *Strife*, *FreeDoom*).
 
-### 📄 Portable Profile Specification (YAML v1)
+### Portable Profile Specification (YAML v1)
 - Export complete profile definitions into human-readable YAML specification version 1.
 - Import profiles with automated dependency resolution matching local engines, IWADs, and mods by ID, name, or filename, generating warning diagnostics for missing content.
 
-### 📊 Launch Telemetry & History
+### Launch Telemetry & History
 - Direct process execution with `exec.Command` using structured arguments (`-iwad`, `-file`, custom parameters) with **no shell interpolation**.
 - Asynchronous process monitoring capturing exit codes, runtime duration, and timestamps.
 - Aggregated gameplay statistics: total launches, total playtime, and last played sessions.
 
-### ⌨️ Desktop Ergonomics & Shortcuts
+### Desktop Ergonomics & Shortcuts
 - `Ctrl+K`: Global spotlight search across all profiles, mods, engines, and IWADs.
 - `Ctrl+Enter`: 1-click launch of the active or favorite profile.
 - `Ctrl+S`: Save active profile.
@@ -71,7 +71,7 @@ Never fail at launch time. The pre-flight validator executes 5 core verification
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -101,7 +101,7 @@ Never fail at launch time. The pre-flight validator executes 5 core verification
 
 ---
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 | Layer | Technology | Description |
 |---|---|---|
@@ -116,7 +116,7 @@ Never fail at launch time. The pre-flight validator executes 5 core verification
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 - **Go**: 1.23 or higher
@@ -161,19 +161,19 @@ Never fail at launch time. The pre-flight validator executes 5 core verification
 
 ---
 
-## ☕ Support & Donations
+## Support & Donations
 
 If you find RNT Launcher helpful for organizing and launching your Doom setup, consider buying me a coffee to support continued development:
 
 <a href="https://buymeacoffee.com/zendevve">
-  <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=☕&slug=zendevve&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" alt="Buy Me A Coffee" />
+  <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&slug=zendevve&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" alt="Buy Me A Coffee" />
 </a>
 
 Link: [https://buymeacoffee.com/zendevve](https://buymeacoffee.com/zendevve)
 
 ---
 
-## 📜 License
+## License
 
 Copyright (c) 2026 Zendevve. All rights reserved.
 

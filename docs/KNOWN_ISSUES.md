@@ -3,7 +3,7 @@
 **Version**: 0.1.0 (MVP)  
 **Last Updated**: August 2026  
 
-This document logs architectural design decisions, accepted non-blocking edge cases, and scope boundaries explicitly deferred to future release versions in compliance with `PRD.MD`.
+This document logs architectural design decisions, accepted non-blocking edge cases, and scope boundaries explicitly deferred to future release versions in compliance with `docs/PRD.md`.
 
 ---
 

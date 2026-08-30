@@ -1,7 +1,7 @@
 # RNT Launcher — PRD Compliance Audit
 
 **Version Audited**: 0.1.0 (MVP)  
-**Target Specification**: `PRD.MD` (v0.1.0, 133 Sections + Milestones A–F + Definition of Done)  
+**Target Specification**: `docs/PRD.md` (v0.1.0, 133 Sections + Milestones A–F + Definition of Done)  
 **Audit Date**: August 2026  
 **Auditor**: RNT Launcher Engineering & Quality Assurance  
 
@@ -123,4 +123,4 @@
 ---
 
 ## 3. Conclusion & Recommendation
-The RNT Launcher codebase satisfies 100% of all MVP functional requirements specified in `PRD.MD`. Release readiness is verified with 0 blocking architectural defects.
+The RNT Launcher codebase satisfies 100% of all MVP functional requirements specified in `docs/PRD.md`. Release readiness is verified with 0 blocking architectural defects.
