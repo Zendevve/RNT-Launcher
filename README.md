@@ -7,6 +7,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-06B6D4?style=flat&logo=tailwindcss)](https://tailwindcss.com)
 [![SQLite](https://img.shields.io/badge/SQLite-CGo--Free-003B57?style=flat&logo=sqlite)](https://sqlite.org)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Support-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/zendevve)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=flat&logo=discord&logoColor=white)](https://discord.gg/Y4rDyTScPe)
 
 **RNT Launcher** is a modern, fast, local-first cross-platform desktop application for organizing, configuring, validating, and launching Doom games and modifications.
 
@@ -36,7 +37,7 @@ Built with an interface-agnostic Go application core, embedded SQLite metadata d
 
 ### Profiles & Draggable Load Ordering
 - Configure independent launch configurations combining an engine executable, base IWAD, ordered mod list, custom launch arguments, and working directories.
-- **Visual Load Order Manager**: Drag-and-drop reordering, keyboard navigation (`↑`/`↓`), move to top/bottom, and individual mod enable/disable toggling.
+- **Visual Load Order Manager**: Drag-and-Drop reordering, keyboard navigation (`↑`/`↓`), move to top/bottom, and individual mod enable/disable toggling.
 - **Profile Management**: Clone, duplicate, edit, search, favorite, and delete profiles.
 
 ### Pre-Launch Validation Engine
@@ -158,6 +159,16 @@ Never fail at launch time. The pre-flight validator executes 5 core verification
    cd frontend && npm run build && cd ..
    go build -o rnt-launcher.exe .
    ```
+
+---
+
+## Community & Feedback
+
+Join our Discord server to discuss Rip n' Tear Launcher, report issues, and try out early test builds:
+
+[![Join Discord](https://img.shields.io/badge/Discord-Rip%20n'%20Tear%20Launcher-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/Y4rDyTScPe)
+
+Invite link: [https://discord.gg/Y4rDyTScPe](https://discord.gg/Y4rDyTScPe)
 
 ---
 
