@@ -120,7 +120,7 @@ export const IWADModal: React.FC<IWADModalProps> = ({
   const [size, setSize] = useState<number>(0);
   const [sha256, setSha256] = useState<string>('');
 
-  const [isRegistering, setIsRegistering] = useState(false);
+  const [isInspecting, setIsInspecting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [copiedHash, setCopiedHash] = useState(false);
 
@@ -145,34 +145,34 @@ export const IWADModal: React.FC<IWADModalProps> = ({
     }
   }, [isOpen, iwad]);
 
-  // Inspect or register WAD file to extract lumps, sha256 and auto-detect type
+  // Inspect WAD file to extract lumps, sha256 and auto-detect type without persisting
   const inspectWADFile = useCallback(
     async (filePath: string) => {
       const cleanPath = filePath.trim();
       if (!cleanPath) return;
 
-      setIsRegistering(true);
+      setIsInspecting(true);
       try {
-        const registered = await api.registerIWADFile(cleanPath);
-        if (registered) {
-          setName(registered.name);
-          setType(registered.type);
-          setLumpCount(registered.lumpCount ?? 0);
-          setSize(registered.size ?? 0);
-          setSha256(registered.sha256 || '');
+        const inspected = await api.inspectIWADFile(cleanPath);
+        if (inspected) {
+          setName(inspected.name);
+          setType(inspected.type);
+          setLumpCount(inspected.lumpCount ?? 0);
+          setSize(inspected.size ?? 0);
+          setSha256(inspected.sha256 || '');
 
-          const typeOption = IWAD_TYPES.find((t) => t.id === registered.type);
-          const lumps = registered.lumpCount ?? 0;
+          const typeOption = IWAD_TYPES.find((t) => t.id === inspected.type);
+          const lumps = inspected.lumpCount ?? 0;
           toast.success(
             'IWAD Identified',
-            `Recognized as ${typeOption ? typeOption.label : registered.type} (${lumps.toLocaleString()} lumps)`
+            `Recognized as ${typeOption ? typeOption.label : inspected.type} (${lumps.toLocaleString()} lumps)`
           );
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Could not inspect IWAD header';
         toast.warning('IWAD Identification Note', message);
       } finally {
-        setIsRegistering(false);
+        setIsInspecting(false);
       }
     },
     [toast]
@@ -309,11 +309,12 @@ export const IWADModal: React.FC<IWADModalProps> = ({
               variant="secondary"
               size="md"
               onClick={handleBrowseIWAD}
-              isLoading={isRegistering}
+              isLoading={isInspecting}
               leftIcon={<FolderOpen className="h-4 w-4 text-doom-amber" />}
             >
               Browse WAD...
             </Button>
+
           </div>
         </div>
 

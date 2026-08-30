@@ -1,3 +1,4 @@
+import { FULL_VERSION } from '../../version';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Settings as SettingsIcon,
@@ -564,7 +565,7 @@ export const SettingsView: React.FC = () => {
                   Release Version
                 </span>
                 <span className="font-mono text-zinc-200 font-semibold text-xs mt-0.5 block">
-                  v0.1.0 (MVP)
+                  {FULL_VERSION}
                 </span>
               </div>
             </div>

@@ -1,3 +1,4 @@
+import { FULL_VERSION } from '../../version';
 import React from 'react';
 import {
   LayoutDashboard,
@@ -252,7 +253,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {systemStatus?.ready !== false ? 'ENGINE READY' : 'SETUP REQUIRED'}
                 </span>
               </div>
-              <span className="font-mono text-[9px] text-doom-muted">v1.0</span>
+              <span className="font-mono text-[9px] text-doom-muted">{FULL_VERSION}</span>
             </div>
 
             {systemStatus?.engineName && (

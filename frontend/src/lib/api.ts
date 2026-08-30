@@ -273,6 +273,22 @@ async function mockCall<T>(methodName: string, ...args: unknown[]): Promise<T> {
       if (!found) throw new Error(`IWAD with id ${id} not found`)
       return found as T
     }
+    case 'inspectIWADFile': {
+      const path = (args[0] as string) || ''
+      const filename = path.replace(/\\/g, '/').split('/').pop() || 'DOOM2.WAD'
+      const isFreedoom2 = filename.toUpperCase().includes('FREEDOOM2')
+      return {
+        id: '',
+        name: isFreedoom2 ? 'Freedoom: Phase 2' : filename,
+        path,
+        type: isFreedoom2 ? 'freedoom2' : 'doom2',
+        lumpCount: 3000,
+        size: 15000000,
+        sha256: 'mock-sha256-hash',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      } as T
+    }
     case 'listEngines': {
       return getMockStorage<Engine[]>('engines', DEFAULT_MOCK_ENGINES) as T
     }
@@ -554,6 +570,7 @@ export const api = {
   listIWADs: (): Promise<IWAD[]> => callBackend<IWAD[]>('ListIWADs'),
   getIWAD: (id: string): Promise<IWAD> => callBackend<IWAD>('GetIWAD', id),
   registerIWADFile: (path: string): Promise<IWAD> => callBackend<IWAD>('RegisterIWADFile', path),
+  inspectIWADFile: (path: string): Promise<IWAD> => callBackend<IWAD>('InspectIWADFile', path),
   addIWAD: (iwad: Partial<IWAD>): Promise<IWAD> => callBackend<IWAD>('AddIWAD', iwad),
   updateIWAD: (iwad: IWAD): Promise<void> => callBackend<void>('UpdateIWAD', iwad),
   deleteIWAD: (id: string): Promise<void> => callBackend<void>('DeleteIWAD', id),

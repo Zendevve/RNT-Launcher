@@ -60,6 +60,25 @@ func (s *IWADService) Add(ctx context.Context, iwad domain.IWAD) (*domain.IWAD, 
 		}
 	}
 
+	existing, err := s.repo.GetByPath(iwad.Path)
+	if err == nil && existing != nil {
+		existing.Name = iwad.Name
+		existing.Type = iwad.Type
+		if iwad.LumpCount > 0 {
+			existing.LumpCount = iwad.LumpCount
+		}
+		if iwad.Size > 0 {
+			existing.Size = iwad.Size
+		}
+		if iwad.SHA256 != "" {
+			existing.SHA256 = iwad.SHA256
+		}
+		if err := s.repo.Update(existing); err != nil {
+			return nil, fmt.Errorf("failed to update existing iwad: %w", err)
+		}
+		return existing, nil
+	}
+
 	if err := s.repo.Create(&iwad); err != nil {
 		return nil, err
 	}
@@ -96,6 +115,35 @@ func (s *IWADService) Delete(ctx context.Context, id string) error {
 // AutoIdentifyType identifies standard commercial and free Doom game IWADs by filename and lump count.
 func (s *IWADService) AutoIdentifyType(nameOrPath string, lumpCount int) domain.IWADType {
 	return AutoIdentifyType(nameOrPath, lumpCount)
+}
+
+// InspectFile inspects a WAD file on disk and returns its parsed metadata without persisting it.
+func (s *IWADService) InspectFile(ctx context.Context, path string) (*domain.IWAD, error) {
+	if strings.TrimSpace(path) == "" {
+		return nil, errors.New("path cannot be empty")
+	}
+
+	fileInfo, err := filesystem.InspectFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect IWAD file: %w", err)
+	}
+
+	iwadType := AutoIdentifyType(path, fileInfo.LumpCount)
+	name := fileInfo.Filename
+	if iwadType.IsValid() && iwadType != domain.IWADTypeOther && iwadType != domain.IWADTypeUnknown {
+		name = iwadType.DisplayName()
+	}
+
+	iwad := domain.IWAD{
+		Name:      name,
+		Path:      path,
+		Type:      iwadType,
+		LumpCount: fileInfo.LumpCount,
+		Size:      fileInfo.Size,
+		SHA256:    fileInfo.SHA256,
+	}
+
+	return &iwad, nil
 }
 
 // RegisterFile inspects a WAD file on disk and registers it as an IWAD in the database.

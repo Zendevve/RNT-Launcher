@@ -311,6 +311,10 @@ func (a *App) GetIWAD(id string) (*domain.IWAD, error) {
 func (a *App) RegisterIWADFile(path string) (*domain.IWAD, error) {
 	return a.iwadService.RegisterFile(a.ctx, path)
 }
+func (a *App) InspectIWADFile(path string) (*domain.IWAD, error) {
+	return a.iwadService.InspectFile(a.ctx, path)
+}
+
 
 func (a *App) AddIWAD(iwad domain.IWAD) (*domain.IWAD, error) {
 	return a.iwadService.Add(a.ctx, iwad)

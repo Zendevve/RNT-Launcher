@@ -307,3 +307,65 @@ func TestIWADService_RegisterFile(t *testing.T) {
 		t.Errorf("expected ID %s, got %s", iwad.ID, all[0].ID)
 	}
 }
+
+func TestIWADService_InspectFile(t *testing.T) {
+	repos := setupTestDB(t)
+	svc := NewIWADService(repos.IWADs)
+	ctx := context.Background()
+
+	tempDir := t.TempDir()
+	freedoomPath := filepath.Join(tempDir, "freedoom2.wad")
+	lumps := []string{"MAP01", "MAP02", "PLAYPAL"}
+	buildSyntheticWADFile(t, freedoomPath, "IWAD", lumps)
+
+	// InspectFile should return metadata without saving to DB
+	inspected, err := svc.InspectFile(ctx, freedoomPath)
+	if err != nil {
+		t.Fatalf("InspectFile failed: %v", err)
+	}
+	if inspected.Type != domain.IWADTypeFreedoom2 {
+		t.Errorf("expected type %s, got %s", domain.IWADTypeFreedoom2, inspected.Type)
+	}
+	if inspected.Name != "Freedoom: Phase 2" {
+		t.Errorf("expected name %q, got %q", "Freedoom: Phase 2", inspected.Name)
+	}
+	if inspected.LumpCount != len(lumps) {
+		t.Errorf("expected %d lumps, got %d", len(lumps), inspected.LumpCount)
+	}
+
+	// Check that DB is still empty
+	list, err := svc.List(ctx)
+	if err != nil {
+		t.Fatalf("List() failed: %v", err)
+	}
+	if len(list) != 0 {
+		t.Fatalf("expected 0 iwads in DB after InspectFile, got %d", len(list))
+	}
+
+	// Adding after inspecting should succeed cleanly
+	added, err := svc.Add(ctx, *inspected)
+	if err != nil {
+		t.Fatalf("Add after inspect failed: %v", err)
+	}
+	if added.ID == "" {
+		t.Error("expected non-empty ID")
+	}
+
+	// Adding again with the same path (upsert) should update instead of throwing UNIQUE constraint error
+	added2, err := svc.Add(ctx, domain.IWAD{
+		Path:      freedoomPath,
+		Name:      "Freedoom Phase 2 Custom",
+		Type:      domain.IWADTypeFreedoom2,
+		LumpCount: 3000,
+	})
+	if err != nil {
+		t.Fatalf("Add duplicate path failed: %v", err)
+	}
+	if added2.ID != added.ID {
+		t.Errorf("expected same ID %s, got %s", added.ID, added2.ID)
+	}
+	if added2.Name != "Freedoom Phase 2 Custom" {
+		t.Errorf("expected updated name %q, got %q", "Freedoom Phase 2 Custom", added2.Name)
+	}
+}
+
