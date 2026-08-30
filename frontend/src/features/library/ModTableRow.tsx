@@ -12,6 +12,7 @@ import { formatBytes, formatRelativeTime } from '../../utils/formatters';
 
 interface ModTableRowProps {
   mod: Mod;
+  usageCount?: number;
   onInspect: (mod: Mod) => void;
   onToggleFavorite: (modId: string) => Promise<void>;
   onAddToProfile: (mod: Mod) => void;
@@ -41,6 +42,7 @@ const getFormatBadgeColor = (format: ModFormat): string => {
 
 export const ModTableRow: React.FC<ModTableRowProps> = ({
   mod,
+  usageCount,
   onInspect,
   onToggleFavorite,
   onAddToProfile,
@@ -128,6 +130,19 @@ export const ModTableRow: React.FC<ModTableRowProps> = ({
         </span>
       </td>
 
+      {/* Profile Usage */}
+      <td className="px-4 py-3">
+        {usageCount !== undefined && usageCount > 0 ? (
+          <span
+            className="inline-flex items-center rounded bg-doom-cyan/15 border border-doom-cyan/30 px-2 py-0.5 font-mono text-[10px] font-medium text-doom-cyan"
+            title={`Active in ${usageCount} profile${usageCount === 1 ? '' : 's'}`}
+          >
+            {usageCount} {usageCount === 1 ? 'profile' : 'profiles'}
+          </span>
+        ) : (
+          <span className="font-mono text-[10px] text-doom-muted/60">—</span>
+        )}
+      </td>
       {/* Size */}
       <td className="px-4 py-3 font-mono text-xs text-doom-muted">
         {formatBytes(mod.size)}

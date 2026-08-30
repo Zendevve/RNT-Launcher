@@ -14,6 +14,7 @@ import {
   Filter,
   X,
   FileCode,
+  Globe,
 } from 'lucide-react';
 import { Mod, Profile } from '../../types';
 import { api } from '../../services/api';
@@ -21,13 +22,23 @@ import { ModCard } from './ModCard';
 import { ModTableRow } from './ModTableRow';
 import { ModInspectorDrawer } from './ModInspectorDrawer';
 import { AddModModal } from './AddModModal';
-
+import { IdgamesSearchModal } from './IdgamesSearchModal';
 interface LibraryViewProps {
   onNavigateToDashboard?: () => void;
 }
 
 type SortField = 'name-asc' | 'name-desc' | 'size-desc' | 'size-asc' | 'lumps-desc' | 'date-desc';
 
+type FilterChip = 'all' | 'has-maps' | 'zscript' | 'dehack' | 'unused' | 'in-use';
+
+const FILTER_CHIPS: { id: FilterChip; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'has-maps', label: 'Has Maps' },
+  { id: 'zscript', label: 'ZScript Gameplay' },
+  { id: 'dehack', label: 'DeHackEd Patch' },
+  { id: 'unused', label: 'Unused in Profiles' },
+  { id: 'in-use', label: 'In Use' },
+];
 const CATEGORY_TABS: { label: string; value: string }[] = [
   { label: 'All', value: 'all' },
   { label: 'Favorites', value: 'favorites' },
@@ -60,12 +71,14 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedFormat, setSelectedFormat] = useState('all');
+  const [activeFilterChip, setActiveFilterChip] = useState<FilterChip>('all');
+  const [usageCounts, setUsageCounts] = useState<Record<string, number>>({});
   const [sortOption, setSortOption] = useState<SortField>('name-asc');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
-
   // Modals & Drawers
   const [inspectingMod, setInspectingMod] = useState<Mod | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isIdgamesModalOpen, setIsIdgamesModalOpen] = useState(false);
   const [modForProfileAdd, setModForProfileAdd] = useState<Mod | null>(null);
 
   // Global Drag & Drop State
@@ -86,12 +99,14 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
 
   const loadData = useCallback(async () => {
     try {
-      const [fetchedMods, fetchedProfiles] = await Promise.all([
+      const [fetchedMods, fetchedProfiles, fetchedUsage] = await Promise.all([
         api.listMods(),
         api.listProfiles(),
+        api.getModUsageCounts ? api.getModUsageCounts().catch(() => ({})) : Promise.resolve({}),
       ]);
       setMods(fetchedMods || []);
       setProfiles(fetchedProfiles || []);
+      setUsageCounts(fetchedUsage || {});
     } catch (err) {
       console.error('Failed to load library:', err);
       showNotification('error', 'Failed to load mods from library');
@@ -124,6 +139,8 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
       if (inspectingMod && inspectingMod.id === modId) {
         setInspectingMod(null);
       }
+      const updatedUsage = api.getModUsageCounts ? await api.getModUsageCounts().catch(() => ({})) : {};
+      setUsageCounts(updatedUsage || {});
       showNotification('success', 'Mod removed from library');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Delete failed';
@@ -149,19 +166,24 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
         `Added "${modForProfileAdd.name}" to profile "${targetProfile?.name || 'Selected'}"`
       );
       setModForProfileAdd(null);
-      const updatedProfiles = await api.listProfiles();
+      const [updatedProfiles, updatedUsage] = await Promise.all([
+        api.listProfiles(),
+        api.getModUsageCounts ? api.getModUsageCounts().catch(() => ({})) : Promise.resolve({}),
+      ]);
       setProfiles(updatedProfiles);
+      setUsageCounts(updatedUsage || {});
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error adding mod';
       showNotification('error', `Could not add mod to profile: ${msg}`);
     }
   };
 
-  const handleModImported = (newMod: Mod) => {
+  const handleModImported = async (newMod: Mod) => {
     setMods((prev) => [newMod, ...prev.filter((m) => m.id !== newMod.id)]);
+    const updatedUsage = api.getModUsageCounts ? await api.getModUsageCounts().catch(() => ({})) : {};
+    setUsageCounts(updatedUsage || {});
     showNotification('success', `Imported "${newMod.name}" into mod library`);
   };
-
   const handleQuickScan = async () => {
     try {
       showNotification('info', 'Scanning registered mod directories...');
@@ -267,7 +289,47 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
       }
     }
 
-    // 4. Sorting
+    // 4. Quick Filter Chips
+    if (activeFilterChip !== 'all') {
+      result = result.filter((m) => {
+        const count = usageCounts[m.id] || 0;
+        switch (activeFilterChip) {
+          case 'has-maps':
+            return (
+              Boolean(m.lumpCount !== undefined && m.lumpCount > 0) ||
+              Boolean((m as { maps?: string[] }).maps && (m as { maps?: string[] }).maps!.length > 0) ||
+              m.category === 'Maps' ||
+              m.category === 'Megawads' ||
+              Boolean(
+                m.structures &&
+                  m.structures.some((s) => {
+                    const upper = s.toUpperCase().trim();
+                    return /^MAP\d+/i.test(upper) || /^E\d+M\d+/i.test(upper) || upper === 'MAPS';
+                  })
+              )
+            );
+          case 'zscript':
+            return (
+              m.category === 'Gameplay' ||
+              Boolean(m.structures && m.structures.some((s) => s.toUpperCase().includes('ZSCRIPT')))
+            );
+          case 'dehack':
+            return (
+              m.format?.toLowerCase() === 'deh' ||
+              m.format?.toLowerCase() === 'bex' ||
+              Boolean(m.structures && m.structures.some((s) => s.toUpperCase().includes('DEHACKED')))
+            );
+          case 'unused':
+            return count === 0;
+          case 'in-use':
+            return count > 0;
+          default:
+            return true;
+        }
+      });
+    }
+
+    // 5. Sorting
     result.sort((a, b) => {
       switch (sortOption) {
         case 'name-asc':
@@ -288,7 +350,7 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
     });
 
     return result;
-  }, [mods, searchQuery, selectedCategory, selectedFormat, sortOption]);
+  }, [mods, searchQuery, selectedCategory, selectedFormat, activeFilterChip, usageCounts, sortOption]);
 
   return (
     <div
@@ -351,6 +413,15 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
             >
               <FolderSearch className="h-3.5 w-3.5 text-doom-cyan" />
               <span>Scan Folders</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsIdgamesModalOpen(true)}
+              className="inline-flex items-center gap-2 rounded border border-doom-border bg-doom-card px-3.5 py-2 font-mono text-xs text-doom-text transition-colors hover:border-doom-border-bright hover:bg-doom-surface"
+            >
+              <Globe className="h-3.5 w-3.5 text-doom-amber" />
+              <span>/idgames</span>
             </button>
 
             <button
@@ -477,6 +548,30 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
             );
           })}
         </div>
+
+        {/* Quick Filter Chips / Tag Pills */}
+        <div className="mt-2.5 flex items-center gap-1.5 overflow-x-auto pb-1">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-doom-muted shrink-0 mr-1">
+            Filter:
+          </span>
+          {FILTER_CHIPS.map((chip) => {
+            const isActive = activeFilterChip === chip.id;
+            return (
+              <button
+                key={chip.id}
+                type="button"
+                onClick={() => setActiveFilterChip(chip.id)}
+                className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 font-mono text-[11px] font-medium transition-colors ${
+                  isActive
+                    ? 'bg-doom-cyan/20 text-doom-cyan border border-doom-cyan/50 shadow-xs'
+                    : 'bg-doom-card/60 text-doom-muted border border-doom-border/60 hover:bg-doom-card hover:text-doom-text'
+                }`}
+              >
+                <span>{chip.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Main Content Area */}
@@ -493,13 +588,14 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
                 : 'Your library is empty. Import files or scan your Doom directories.'}
             </p>
             <div className="mt-4 flex gap-3">
-              {(searchQuery || selectedCategory !== 'all' || selectedFormat !== 'all') && (
+              {(searchQuery || selectedCategory !== 'all' || selectedFormat !== 'all' || activeFilterChip !== 'all') && (
                 <button
                   type="button"
                   onClick={() => {
                     setSearchQuery('');
                     setSelectedCategory('all');
                     setSelectedFormat('all');
+                    setActiveFilterChip('all');
                   }}
                   className="rounded border border-doom-border bg-doom-card px-3.5 py-1.5 font-mono text-xs text-doom-text hover:bg-doom-surface"
                 >
@@ -523,6 +619,7 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
               <ModCard
                 key={mod.id}
                 mod={mod}
+                usageCount={usageCounts[mod.id] || 0}
                 onInspect={(m) => setInspectingMod(m)}
                 onToggleFavorite={handleToggleFavorite}
                 onAddToProfile={(m) => setModForProfileAdd(m)}
@@ -542,6 +639,7 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
                     <th className="px-4 py-2.5">Name &amp; File</th>
                     <th className="px-4 py-2.5">Category</th>
                     <th className="px-4 py-2.5">Format</th>
+                    <th className="px-4 py-2.5">Usage</th>
                     <th className="px-4 py-2.5">Size</th>
                     <th className="px-4 py-2.5">Structure &amp; Lumps</th>
                     <th className="px-4 py-2.5">Added</th>
@@ -553,6 +651,7 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
                     <ModTableRow
                       key={mod.id}
                       mod={mod}
+                      usageCount={usageCounts[mod.id] || 0}
                       onInspect={(m) => setInspectingMod(m)}
                       onToggleFavorite={handleToggleFavorite}
                       onAddToProfile={(m) => setModForProfileAdd(m)}
@@ -588,6 +687,15 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
         onModAdded={handleModImported}
       />
 
+      {/* /idgames Archive Search & Import Modal */}
+      <IdgamesSearchModal
+        isOpen={isIdgamesModalOpen}
+        onClose={() => setIsIdgamesModalOpen(false)}
+        onModImported={(newMod) => {
+          setMods((prev) => [newMod, ...prev.filter((m) => m.id !== newMod.id)]);
+          showNotification('success', `Imported "${newMod.name}" from /idgames!`);
+        }}
+      />
       {/* Add to Profile Selection Modal */}
       {modForProfileAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs">

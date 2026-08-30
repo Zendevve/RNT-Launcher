@@ -38,6 +38,7 @@ export const ProfilesView: React.FC = () => {
 
   // Modals state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importModalFormat, setImportModalFormat] = useState<'yaml' | 'zdl'>('yaml');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newProfileName, setNewProfileName] = useState('');
   const [newProfileDescription, setNewProfileDescription] = useState('');
@@ -246,7 +247,7 @@ export const ProfilesView: React.FC = () => {
           </div>
 
           {/* Action Buttons: New & Import */}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="flex flex-col gap-2">
             <Button
               variant="primary"
               size="sm"
@@ -255,16 +256,31 @@ export const ProfilesView: React.FC = () => {
             >
               New Profile
             </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setIsImportModalOpen(true)}
-              leftIcon={<FileUp className="w-4 h-4 text-doom-muted" />}
-            >
-              Import YAML
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="secondary"
+                size="xs"
+                onClick={() => {
+                  setImportModalFormat('yaml');
+                  setIsImportModalOpen(true);
+                }}
+                leftIcon={<FileUp className="w-3.5 h-3.5 text-doom-muted" />}
+              >
+                Import YAML
+              </Button>
+              <Button
+                variant="secondary"
+                size="xs"
+                onClick={() => {
+                  setImportModalFormat('zdl');
+                  setIsImportModalOpen(true);
+                }}
+                leftIcon={<FileUp className="w-3.5 h-3.5 text-doom-muted" />}
+              >
+                Import .zdl
+              </Button>
+            </div>
           </div>
-
           {/* Search & Favorites Toggle */}
           <div className="flex items-center gap-2 mt-1">
             <div className="flex-1">
@@ -492,24 +508,38 @@ export const ProfilesView: React.FC = () => {
               </Button>
               <Button
                 variant="secondary"
-                size="md"
-                onClick={() => setIsImportModalOpen(true)}
+                size="sm"
+                onClick={() => {
+                  setImportModalFormat('yaml');
+                  setIsImportModalOpen(true);
+                }}
                 leftIcon={<FileUp className="w-4 h-4 text-doom-muted" />}
               >
                 Import YAML
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setImportModalFormat('zdl');
+                  setIsImportModalOpen(true);
+                }}
+                leftIcon={<FileUp className="w-4 h-4 text-doom-muted" />}
+              >
+                Import .zdl
               </Button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Modal: Import Profile YAML */}
+      {/* Modal: Import Profile */}
       <ImportProfileModal
         isOpen={isImportModalOpen}
+        initialFormat={importModalFormat}
         onClose={() => setIsImportModalOpen(false)}
         onImportSuccess={handleImportSuccess}
       />
-
       {/* Modal: Create Profile */}
       <Modal
         isOpen={isCreateModalOpen}

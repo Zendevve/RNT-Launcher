@@ -136,6 +136,9 @@ func (m *mockModRepo) ToggleFavorite(id string) (bool, error) {
 	return false, nil
 }
 
+func (m *mockModRepo) GetUsageCounts() (map[string]int, error) {
+	return make(map[string]int), nil
+}
 type mockProfileRepo struct {
 	profiles map[string]*domain.Profile
 }

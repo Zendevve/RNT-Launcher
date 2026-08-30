@@ -3,27 +3,29 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sync"
-
 	"rnt-launcher/internal/database"
 	"rnt-launcher/internal/diagnostics"
 	"rnt-launcher/internal/domain"
 	"rnt-launcher/internal/engines"
 	"rnt-launcher/internal/filesystem"
 	"rnt-launcher/internal/history"
+	"rnt-launcher/internal/idgames"
 	"rnt-launcher/internal/iwads"
 	"rnt-launcher/internal/launcher"
 	"rnt-launcher/internal/logger"
 	"rnt-launcher/internal/profiles"
+	"rnt-launcher/internal/saves"
 	"rnt-launcher/internal/scanner"
 	"rnt-launcher/internal/settings"
 	"rnt-launcher/internal/validator"
-
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -43,15 +45,16 @@ type App struct {
 	iwadService      *iwads.IWADService
 	profileService   *profiles.ProfileService
 	validatorService *validator.ValidatorService
-	launcherService  *launcher.LauncherService
-	scannerService   *scanner.ScannerService
+	launcherService    *launcher.LauncherService
+	savesService       *saves.SaveService
+	scannerService     *scanner.ScannerService
 	historyService     *history.HistoryService
 	settingsService    *settings.SettingsService
 	diagnosticsService *diagnostics.DiagnosticsService
+	idgamesClient      *idgames.IdgamesClient
 	isScanning         bool
 	scanMu             sync.Mutex
 }
-
 // NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{
@@ -135,6 +138,7 @@ func (a *App) startup(ctx context.Context) {
 		a.emitSafe(eventName, data)
 	}
 
+	a.savesService = saves.New("")
 	a.launcherService = launcher.NewLauncherService(
 		a.validatorService,
 		a.profileRepo,
@@ -142,7 +146,7 @@ func (a *App) startup(ctx context.Context) {
 		launcher.NewOSProcessRunner(),
 		eventEmitter,
 	)
-
+	a.launcherService.SetSaveService(a.savesService)
 	a.scannerService = scanner.NewScannerService(
 		a.modRepo,
 		a.iwadRepo,
@@ -161,6 +165,7 @@ func (a *App) startup(ctx context.Context) {
 		a.historyRepo,
 		a.dbPath,
 	)
+	a.idgamesClient = idgames.NewClient()
 
 	// Check if AutoScanOnStartup is enabled
 	go func() {
@@ -191,6 +196,29 @@ func (a *App) InspectMod(id string) (*filesystem.FileInfo, error) {
 	return filesystem.InspectFile(mod.Path)
 }
 
+func (a *App) GetModArtwork(modIdOrPath string) (map[string]any, error) {
+	targetPath := modIdOrPath
+	if a.modRepo != nil {
+		if mod, err := a.modRepo.Get(modIdOrPath); err == nil && mod != nil {
+			targetPath = mod.Path
+		}
+	}
+	pngBytes, lumpName, err := filesystem.ExtractArtwork(targetPath)
+	if err != nil || len(pngBytes) == 0 {
+		return map[string]any{
+			"hasArt":   false,
+			"lumpName": "",
+			"dataUri":  "",
+		}, nil
+	}
+	b64 := base64.StdEncoding.EncodeToString(pngBytes)
+	return map[string]any{
+		"hasArt":   true,
+		"lumpName": lumpName,
+		"dataUri":  "data:image/png;base64," + b64,
+	}, nil
+}
+
 func (a *App) ToggleModFavorite(id string) (bool, error) {
 	return a.modRepo.ToggleFavorite(id)
 }
@@ -202,7 +230,72 @@ func (a *App) DeleteMod(id string) error {
 func (a *App) ImportModFile(path string) (*domain.Mod, error) {
 	return a.scannerService.ImportFile(a.ctx, path)
 }
+func (a *App) GetModUsageCounts() (map[string]int, error) {
+	if a.modRepo == nil {
+		return make(map[string]int), nil
+	}
+	return a.modRepo.GetUsageCounts()
+}
 
+// -------------------------------------------------------------
+// /idgames API
+// -------------------------------------------------------------
+
+func (a *App) SearchIdgames(query string) ([]idgames.IdgamesFile, error) {
+	if a.idgamesClient == nil {
+		a.idgamesClient = idgames.NewClient()
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return a.idgamesClient.Search(ctx, query)
+}
+
+func (a *App) DownloadIdgamesMod(file idgames.IdgamesFile) (*domain.Mod, error) {
+	if a.idgamesClient == nil {
+		a.idgamesClient = idgames.NewClient()
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	var destDir string
+	if a.settingsService != nil {
+		s, err := a.settingsService.Get(ctx)
+		if err == nil && len(s.ModDirectories) > 0 {
+			destDir = s.ModDirectories[0]
+		}
+	}
+	if destDir == "" {
+		configDir, err := os.UserConfigDir()
+		if err == nil {
+			destDir = filepath.Join(configDir, "rnt-launcher", "mods")
+		} else {
+			destDir = "mods"
+		}
+	}
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create mod directory: %w", err)
+	}
+
+	extractedPath, err := a.idgamesClient.Download(ctx, file, destDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download from /idgames: %w", err)
+	}
+
+	if a.scannerService == nil {
+		return nil, errors.New("scanner service is not initialized")
+	}
+
+	mod, err := a.scannerService.ImportFile(ctx, extractedPath)
+	if err != nil {
+		return nil, fmt.Errorf("downloaded but failed to import mod: %w", err)
+	}
+
+	return mod, nil
+}
 // -------------------------------------------------------------
 // IWADs API
 // -------------------------------------------------------------
@@ -332,6 +425,35 @@ func (a *App) ImportProfileYAML(yamlContent string) (map[string]any, error) {
 		"profile":  prof,
 		"warnings": warnings,
 	}, nil
+}
+
+func (a *App) ImportProfileZDL(zdlContent string) (map[string]any, error) {
+	prof, warnings, err := a.profileService.ImportZDL(a.ctx, []byte(zdlContent))
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"profile":  prof,
+		"warnings": warnings,
+	}, nil
+}
+
+func (a *App) OpenProfileSaveFolder(profileID string) error {
+	if a.savesService == nil {
+		return fmt.Errorf("saves service is not initialized")
+	}
+	dir, err := a.savesService.EnsureProfileSaveDir(profileID)
+	if err != nil {
+		return err
+	}
+	return a.OpenPathInExplorer(dir)
+}
+
+func (a *App) GetProfileSaveDir(profileID string) (string, error) {
+	if a.savesService == nil {
+		return "", fmt.Errorf("saves service is not initialized")
+	}
+	return a.savesService.EnsureProfileSaveDir(profileID)
 }
 
 // -------------------------------------------------------------

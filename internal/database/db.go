@@ -59,5 +59,9 @@ func InitDB(dbPath string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to execute database schema migrations: %w", err)
 	}
 
+	// Backward compatibility column additions for existing databases
+	_, _ = db.Exec(`ALTER TABLE profiles ADD COLUMN isolate_saves INTEGER NOT NULL DEFAULT 0;`)
+	_, _ = db.Exec(`ALTER TABLE profiles ADD COLUMN parent_profile_id TEXT DEFAULT NULL;`)
+
 	return db, nil
 }

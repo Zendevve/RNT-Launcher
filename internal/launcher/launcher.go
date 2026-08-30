@@ -14,6 +14,7 @@ import (
 
 	"rnt-launcher/internal/database"
 	"rnt-launcher/internal/domain"
+	"rnt-launcher/internal/saves"
 	"rnt-launcher/internal/validator"
 )
 
@@ -117,6 +118,7 @@ type LauncherService struct {
 	history   database.HistoryRepository
 	runner    ProcessRunner
 	emitter   EventEmitter
+	saves     *saves.SaveService
 
 	active map[string]*ActiveLaunch
 	mu     sync.RWMutex
@@ -152,6 +154,11 @@ func NewLauncherService(
 		emitter:   emitter,
 		active:    make(map[string]*ActiveLaunch),
 	}
+}
+
+// SetSaveService configures the SaveService for per-profile save isolation.
+func (s *LauncherService) SetSaveService(saves *saves.SaveService) {
+	s.saves = saves
 }
 
 // LaunchProfile validates a profile by ID, builds its launch arguments, starts the source port process,
@@ -212,10 +219,28 @@ func (s *LauncherService) LaunchProfileEntity(ctx context.Context, p *domain.Pro
 		return nil, errors.New("valid iwad is required for launch")
 	}
 
-	// 2. Build structured command-line arguments
-	args, err := BuildArguments(engine, iwad, p.Mods, p.Arguments)
+	// 2. Build structured command-line arguments (including inherited parent mixins)
+	effectiveMods := p.Mods
+	if p.ParentProfileID != "" && s.profiles != nil {
+		if parent, err := s.profiles.Get(p.ParentProfileID); err == nil && parent != nil {
+			effectiveMods = p.GetEffectiveMods(parent)
+		}
+	}
+
+	args, err := BuildArguments(engine, iwad, effectiveMods, p.Arguments)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build launch arguments: %w", err)
+	}
+
+	// Inject isolated save directory if enabled
+	if p.IsolateSaves && s.saves != nil {
+		saveDir, err := s.saves.EnsureProfileSaveDir(p.ID)
+		if err == nil && saveDir != "" {
+			dialect := GetDialect(engine.Family)
+			if saveArgs := dialect.FormatSaveDir(saveDir); len(saveArgs) > 0 {
+				args = append(args, saveArgs...)
+			}
+		}
 	}
 
 	// 3. Record start time & initialize LaunchRecord

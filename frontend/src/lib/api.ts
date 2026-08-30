@@ -19,6 +19,7 @@ import type {
   ValidationResult,
   DiagnosticsReport,
   LogEntry,
+  IdgamesFile,
 } from '../types/domain'
 
 interface WailsAppBridge {
@@ -58,6 +59,10 @@ async function callBackend<T>(methodName: string, ...args: unknown[]): Promise<T
       const res = await fn(...args)
       return res as T
     }
+  }
+  const isDev = Boolean(import.meta.env?.DEV ?? false)
+  if (!isDev) {
+    throw new Error(`Backend method "${methodName}" not available: Wails App bridge is not initialized.`)
   }
   return mockCall<T>(methodName, ...args)
 }
@@ -246,6 +251,18 @@ async function mockCall<T>(methodName: string, ...args: unknown[]): Promise<T> {
       setMockStorage('mods', mods.filter((m) => m.id !== id))
       return undefined as T
     }
+    case 'getModUsageCounts': {
+      const profiles = getMockStorage<Profile[]>('profiles', [])
+      const counts: Record<string, number> = {}
+      for (const p of profiles) {
+        if (p.mods) {
+          for (const m of p.mods) {
+            counts[m.modId] = (counts[m.modId] || 0) + 1
+          }
+        }
+      }
+      return counts as T
+    }
     case 'listIWADs': {
       return getMockStorage<IWAD[]>('iwads', DEFAULT_MOCK_IWADS) as T
     }
@@ -314,6 +331,13 @@ async function mockCall<T>(methodName: string, ...args: unknown[]): Promise<T> {
       const profiles = getMockStorage<Profile[]>('profiles', [])
       setMockStorage('profiles', profiles.filter((p) => p.id !== id))
       return undefined as T
+    }
+    case 'openprofilesavefolder': {
+      return undefined as T
+    }
+    case 'getprofilesavedir': {
+      const id = args[0] as string
+      return `userData/saves/${id || 'default'}` as T
     }
     case 'validateProfile': {
       const res: ValidationResult = {
@@ -417,6 +441,94 @@ async function mockCall<T>(methodName: string, ...args: unknown[]): Promise<T> {
     case 'clearSystemLogs': {
       return undefined as T
     }
+    case 'searchidgames': {
+      const query = String(args[0] || '').toLowerCase()
+      const sampleFiles: IdgamesFile[] = [
+        {
+          id: 19485,
+          title: 'Eviternity',
+          dir: 'levels/doom2/Ports/megawads/',
+          filename: 'eviternity.zip',
+          size: 75234120,
+          age: 1544400000,
+          date: '2018-12-10',
+          author: 'Dragonfly et al.',
+          description: 'Eviternity is a 32-level megawad designed for MBF-compatible source ports with custom textures and soundtrack.',
+          rating: 4.85,
+          votes: 142,
+          url: 'https://www.doomworld.com/idgames/levels/doom2/Ports/megawads/eviternity',
+        },
+        {
+          id: 12345,
+          title: 'Scythe',
+          dir: 'levels/doom2/megawads/',
+          filename: 'scythe.zip',
+          size: 4512300,
+          age: 1054400000,
+          date: '2003-05-01',
+          author: 'Erik Alm',
+          description: 'A classic 32-level fast-paced megawad focusing on tight encounter design.',
+          rating: 4.70,
+          votes: 98,
+          url: 'https://www.doomworld.com/idgames/levels/doom2/megawads/scythe',
+        },
+        {
+          id: 18000,
+          title: 'Ancient Aliens',
+          dir: 'levels/doom2/Ports/megawads/',
+          filename: 'aaliens.zip',
+          size: 95000000,
+          age: 1460000000,
+          date: '2016-04-10',
+          author: 'skillsaw et al.',
+          description: 'Ancient Aliens is a 32-level set with bright psychedelic color palettes and custom alien lore.',
+          rating: 4.92,
+          votes: 210,
+          url: 'https://www.doomworld.com/idgames/levels/doom2/Ports/megawads/aaliens',
+        },
+        {
+          id: 15000,
+          title: 'Sunder',
+          dir: 'levels/doom2/Ports/s-u/',
+          filename: 'sunder.zip',
+          size: 68000000,
+          age: 1244400000,
+          date: '2009-06-01',
+          author: 'Insane_Gazebo',
+          description: 'A monumentally scaled slaughter map set featuring grand gothic architectures.',
+          rating: 4.78,
+          votes: 165,
+          url: 'https://www.doomworld.com/idgames/levels/doom2/Ports/s-u/sunder',
+        },
+      ]
+      if (!query) return sampleFiles as T
+      return sampleFiles.filter(
+        (f) =>
+          f.title.toLowerCase().includes(query) ||
+          f.filename.toLowerCase().includes(query) ||
+          f.author.toLowerCase().includes(query) ||
+          f.description.toLowerCase().includes(query)
+      ) as T
+    }
+    case 'downloadidgamesmod': {
+      const file = args[0] as IdgamesFile
+      const mockMod: Mod = {
+        id: `mock-mod-${file?.id || Date.now()}`,
+        name: file?.title || 'Downloaded Mod',
+        path: `C:/Games/Doom/Mods/${(file?.filename || 'downloaded.zip').replace('.zip', '.wad')}`,
+        format: 'wad',
+        category: 'Megawads',
+        size: file?.size || 1024 * 1024,
+        modifiedAt: new Date().toISOString(),
+        sha256: 'mock-sha256-hash',
+        lumpCount: 42,
+        structures: ['MAPINFO', 'GRAPHICS'],
+        isFavorite: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+      return mockMod as T
+    }
     default:
       return undefined as T
   }
@@ -431,10 +543,13 @@ export const api = {
   listMods: (filter?: ModFilter): Promise<Mod[]> => callBackend<Mod[]>('ListMods', filter ?? {}),
   getMod: (id: string): Promise<Mod> => callBackend<Mod>('GetMod', id),
   inspectMod: (id: string): Promise<FileInfo> => callBackend<FileInfo>('InspectMod', id),
+  getModArtwork: (idOrPath: string): Promise<{ hasArt: boolean; lumpName: string; dataUri: string }> =>
+    callBackend<{ hasArt: boolean; lumpName: string; dataUri: string }>('GetModArtwork', idOrPath),
   toggleModFavorite: (id: string): Promise<boolean> => callBackend<boolean>('ToggleModFavorite', id),
   deleteMod: (id: string): Promise<void> => callBackend<void>('DeleteMod', id),
   importModFile: (path: string): Promise<Mod> => callBackend<Mod>('ImportModFile', path),
-
+  getModUsageCounts: (): Promise<Record<string, number>> =>
+    callBackend<Record<string, number>>('GetModUsageCounts'),
   // IWADs
   listIWADs: (): Promise<IWAD[]> => callBackend<IWAD[]>('ListIWADs'),
   getIWAD: (id: string): Promise<IWAD> => callBackend<IWAD>('GetIWAD', id),
@@ -474,7 +589,12 @@ export const api = {
   exportProfileYAML: (profileId: string): Promise<string> => callBackend<string>('ExportProfileYAML', profileId),
   importProfileYAML: (yamlContent: string): Promise<Record<string, unknown>> =>
     callBackend<Record<string, unknown>>('ImportProfileYAML', yamlContent),
-
+  importProfileZDL: (zdlContent: string): Promise<Record<string, unknown>> =>
+    callBackend<Record<string, unknown>>('ImportProfileZDL', zdlContent),
+  openProfileSaveFolder: (profileId: string): Promise<void> =>
+    callBackend<void>('OpenProfileSaveFolder', profileId),
+  getProfileSaveDir: (profileId: string): Promise<string> =>
+    callBackend<string>('GetProfileSaveDir', profileId),
   // Validator & Launcher
   validateProfile: (profileId: string): Promise<ValidationResult> =>
     callBackend<ValidationResult>('ValidateProfile', profileId),
@@ -508,4 +628,10 @@ export const api = {
   getSystemLogs: (): Promise<LogEntry[]> => callBackend<LogEntry[]>('GetSystemLogs'),
   clearSystemLogs: (): Promise<void> => callBackend<void>('ClearSystemLogs'),
   openPathInExplorer: (path: string): Promise<void> => callBackend<void>('OpenPathInExplorer', path),
+
+  // /idgames Archive
+  searchIdgames: (query: string): Promise<IdgamesFile[]> =>
+    callBackend<IdgamesFile[]>('SearchIdgames', query),
+  downloadIdgamesMod: (file: IdgamesFile): Promise<Mod> =>
+    callBackend<Mod>('DownloadIdgamesMod', file),
 }

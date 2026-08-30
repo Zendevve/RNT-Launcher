@@ -653,3 +653,96 @@ func TestComprehensiveInspectionAndCoverage(t *testing.T) {
 		t.Errorf("expected 7Z, got %s", sevenZipInfo.Format)
 	}
 }
+
+func TestCorruptAndEdgeCaseInspection(t *testing.T) {
+	tempDir := t.TempDir()
+
+	t.Run("0-byte WAD file", func(t *testing.T) {
+		zeroWad := filepath.Join(tempDir, "zero.wad")
+		_ = os.WriteFile(zeroWad, []byte{}, 0644)
+		wadInfo, err := InspectWAD(zeroWad)
+		if err == nil {
+			t.Fatal("expected error on 0-byte WAD, got nil")
+		}
+		if wadInfo != nil {
+			t.Fatal("expected nil wadInfo on 0-byte WAD")
+		}
+
+		info, err := InspectFile(zeroWad)
+		if err != nil {
+			t.Fatalf("InspectFile unexpected err: %v", err)
+		}
+		if info.InspectionError == "" {
+			t.Fatal("expected inspection error on 0-byte WAD")
+		}
+	})
+
+	t.Run("0-byte PK3 file", func(t *testing.T) {
+		zeroPk3 := filepath.Join(tempDir, "zero.pk3")
+		_ = os.WriteFile(zeroPk3, []byte{}, 0644)
+		archInfo, err := InspectArchive(zeroPk3)
+		if err == nil {
+			t.Fatal("expected error on 0-byte PK3, got nil")
+		}
+		if archInfo != nil {
+			t.Fatal("expected nil archInfo on 0-byte PK3")
+		}
+
+		info, err := InspectFile(zeroPk3)
+		if err != nil {
+			t.Fatalf("InspectFile unexpected err: %v", err)
+		}
+		if info.InspectionError == "" {
+			t.Fatal("expected inspection error on 0-byte PK3")
+		}
+	})
+	t.Run("Truncated WAD directory", func(t *testing.T) {
+		header := []byte("PWAD\x05\x00\x00\x00\x0C\x00\x00\x00") // claims 5 lumps starting at offset 12, but file ends early
+		truncated := append(header, []byte("short")...)
+		_, err := InspectWADBytes(truncated)
+		if err == nil {
+			t.Fatal("expected error on truncated directory, got nil")
+		}
+	})
+
+	t.Run("Non-ASCII and control characters in lump names", func(t *testing.T) {
+		rawLumps := []string{"MAP\x01\x02", "TEST\xFF\xFE", "E1M1"}
+		wadBytes := buildSyntheticWAD("PWAD", rawLumps)
+		info, err := InspectWADBytes(wadBytes)
+		if err != nil {
+			t.Fatalf("unexpected error parsing non-ASCII lumps: %v", err)
+		}
+		if len(info.Lumps) == 0 {
+			t.Fatal("expected lumps to be parsed")
+		}
+		// Non-ASCII bytes should be safely stripped/sanitized
+		for _, l := range info.Lumps {
+			for _, r := range l {
+				if r < 32 || r > 126 {
+					t.Errorf("lump %q contains unprintable character: %d", l, r)
+				}
+			}
+		}
+	})
+
+	t.Run("ZIP traversal and cyclic entries", func(t *testing.T) {
+		zipData := buildSyntheticZip(map[string]string{
+			"../../secret.txt": "leak",
+			"/root/leak.txt":   "leak",
+			"maps/map01.wad":   "wad content",
+		})
+		info, err := InspectArchiveBytes(zipData, "test.pk3")
+		if err != nil {
+			t.Fatalf("InspectArchiveBytes failed: %v", err)
+		}
+		// Traversal entries should be discarded by Zip-Slip guard
+		for _, e := range info.Entries {
+			if e == "../../secret.txt" || e == "/root/leak.txt" {
+				t.Errorf("traversal entry was not filtered: %s", e)
+			}
+		}
+		if len(info.Maps) != 1 || info.Maps[0] != "MAP01" {
+			t.Errorf("expected MAP01 map, got %v", info.Maps)
+		}
+	})
+}

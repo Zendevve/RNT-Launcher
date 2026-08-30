@@ -1,8 +1,10 @@
 package filesystem
 
 import (
+	"archive/zip"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -230,4 +232,129 @@ func detectFormat(header []byte, ext string) string {
 		return strings.ToUpper(strings.TrimPrefix(ext, "."))
 	}
 	return "UNKNOWN"
+}
+
+// ExtractArtwork searches a WAD or PK3/ZIP mod file for graphical artwork lumps
+// (TITLEPIC, CREDIT, BOSSBACK, HELP, INTERPIC) and returns the encoded PNG bytes, the lump name, and any error.
+func ExtractArtwork(modPath string) ([]byte, string, error) {
+	stat, err := os.Stat(modPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, "", ErrFileNotFound
+		}
+		return nil, "", err
+	}
+	if stat.IsDir() {
+		return nil, "", ErrIsDirectory
+	}
+
+	ext := strings.ToLower(filepath.Ext(modPath))
+
+	// 1. WAD files (PWAD / IWAD)
+	if ext == ".wad" {
+		f, err := os.Open(modPath)
+		if err != nil {
+			return nil, "", err
+		}
+		defer f.Close()
+
+		lumps, err := ReadWADDirectory(f, stat.Size())
+		if err != nil {
+			return nil, "", err
+		}
+
+		// Extract custom palette if present
+		palette := DefaultDoomPalette
+		for _, l := range lumps {
+			if l.Name == "PLAYPAL" && l.Size >= 768 {
+				if customPal, err := ExtractPLAYPAL(f, l.Offset); err == nil {
+					palette = customPal
+				}
+				break
+			}
+		}
+
+		// Priority list of artwork lumps
+		artLumpNames := []string{"TITLEPIC", "CREDIT", "BOSSBACK", "HELP", "INTERPIC", "DMENUPIC"}
+		for _, target := range artLumpNames {
+			for _, l := range lumps {
+				if l.Name == target && l.Size > 0 {
+					data := make([]byte, l.Size)
+					if _, err := f.ReadAt(data, l.Offset); err != nil && err != io.EOF {
+						continue
+					}
+
+					// If already PNG or JPEG, return directly
+					if len(data) >= 8 && (bytes.Equal(data[:8], []byte("\x89PNG\r\n\x1a\n")) ||
+						(data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF)) {
+						return data, target, nil
+					}
+
+					// Decode Doom patch graphic format
+					img, err := DecodeDoomPicture(data, palette)
+					if err == nil && img != nil {
+						pngBytes, err := EncodePNG(img)
+						if err == nil {
+							return pngBytes, target, nil
+						}
+					}
+				}
+			}
+		}
+		return nil, "", nil
+	}
+
+	// 2. PK3 / ZIP / IPK3 files
+	if ext == ".pk3" || ext == ".ipk3" || ext == ".zip" {
+		zr, err := zip.OpenReader(modPath)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to open archive: %w", err)
+		}
+		defer zr.Close()
+
+		artFilenames := []string{
+			"titlepic.png", "graphics/titlepic.png", "titlepic.jpg", "titlepic.jpeg",
+			"credit.png", "graphics/credit.png", "credit.jpg", "credit.jpeg",
+			"bossback.png", "graphics/bossback.png",
+			"help.png", "graphics/help.png",
+			"interpic.png", "graphics/interpic.png",
+		}
+
+		for _, target := range artFilenames {
+			for _, file := range zr.File {
+				if strings.EqualFold(file.Name, target) || strings.EqualFold(filepath.Base(file.Name), filepath.Base(target)) {
+					rc, err := file.Open()
+					if err != nil {
+						continue
+					}
+					data, err := io.ReadAll(rc)
+					_ = rc.Close()
+					if err != nil {
+						continue
+					}
+
+					// If PNG/JPEG, return directly
+					if len(data) >= 8 && (bytes.Equal(data[:8], []byte("\x89PNG\r\n\x1a\n")) ||
+						(data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF)) {
+						base := filepath.Base(file.Name)
+						lumpName := strings.ToUpper(strings.TrimSuffix(base, filepath.Ext(base)))
+						return data, lumpName, nil
+					}
+
+					// If Doom graphic format
+					img, err := DecodeDoomPicture(data, DefaultDoomPalette)
+					if err == nil && img != nil {
+						if pngBytes, err := EncodePNG(img); err == nil {
+							base := filepath.Base(file.Name)
+							lumpName := strings.ToUpper(strings.TrimSuffix(base, filepath.Ext(base)))
+							return pngBytes, lumpName, nil
+						}
+					}
+				}
+			}
+		}
+		return nil, "", nil
+	}
+
+	return nil, "", nil
 }

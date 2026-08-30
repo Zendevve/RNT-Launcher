@@ -12,6 +12,7 @@ import { formatBytes } from '../../utils/formatters';
 
 interface ModCardProps {
   mod: Mod;
+  usageCount?: number;
   onInspect: (mod: Mod) => void;
   onToggleFavorite: (modId: string) => Promise<void>;
   onAddToProfile: (mod: Mod) => void;
@@ -41,6 +42,7 @@ const getFormatBadgeColor = (format: ModFormat): string => {
 
 export const ModCard: React.FC<ModCardProps> = ({
   mod,
+  usageCount,
   onInspect,
   onToggleFavorite,
   onAddToProfile,
@@ -98,6 +100,16 @@ export const ModCard: React.FC<ModCardProps> = ({
             <span className="inline-flex items-center rounded bg-doom-card px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-doom-muted border border-doom-border/60">
               {mod.category || 'Other'}
             </span>
+
+            {/* Profile Usage Badge */}
+            {usageCount !== undefined && usageCount > 0 && (
+              <span
+                className="inline-flex items-center rounded bg-doom-cyan/15 border border-doom-cyan/30 px-2 py-0.5 font-mono text-[10px] font-medium text-doom-cyan"
+                title={`Active in ${usageCount} profile${usageCount === 1 ? '' : 's'}`}
+              >
+                {usageCount} {usageCount === 1 ? 'profile' : 'profiles'}
+              </span>
+            )}
           </div>
 
           {/* Favorite Star */}

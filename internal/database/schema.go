@@ -45,15 +45,17 @@ CREATE TABLE IF NOT EXISTS profiles (
     description TEXT NOT NULL DEFAULT '',
     engine_id TEXT,
     iwad_id TEXT,
+    parent_profile_id TEXT,
+    isolate_saves INTEGER NOT NULL DEFAULT 0,
     arguments TEXT NOT NULL DEFAULT '[]',
     working_dir TEXT NOT NULL DEFAULT '',
     is_favorite INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     FOREIGN KEY (engine_id) REFERENCES engines(id) ON DELETE SET NULL,
-    FOREIGN KEY (iwad_id) REFERENCES iwads(id) ON DELETE SET NULL
+    FOREIGN KEY (iwad_id) REFERENCES iwads(id) ON DELETE SET NULL,
+    FOREIGN KEY (parent_profile_id) REFERENCES profiles(id) ON DELETE SET NULL
 );
-
 CREATE TABLE IF NOT EXISTS profile_mods (
     id TEXT PRIMARY KEY,
     profile_id TEXT NOT NULL,

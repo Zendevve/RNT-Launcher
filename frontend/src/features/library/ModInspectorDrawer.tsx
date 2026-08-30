@@ -55,12 +55,14 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
   onOpenFolder,
 }) => {
   const [fileInfo, setFileInfo] = useState<FileInfo | null>(null);
+  const [artwork, setArtwork] = useState<{ hasArt: boolean; lumpName: string; dataUri: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen || !mod) {
       setFileInfo(null);
+      setArtwork(null);
       return;
     }
 
@@ -68,9 +70,13 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
     const fetchInspection = async () => {
       setIsLoading(true);
       try {
-        const info = await api.inspectMod(mod.id);
+        const [info, art] = await Promise.all([
+          api.inspectMod(mod.id),
+          api.getModArtwork(mod.id).catch(() => ({ hasArt: false, lumpName: '', dataUri: '' })),
+        ]);
         if (!isCancelled) {
           setFileInfo(info);
+          setArtwork(art);
         }
       } catch (err) {
         console.error('Failed to inspect mod:', err);
@@ -157,6 +163,25 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
             </div>
           ) : (
             <>
+              {/* Artwork Banner Card */}
+              {artwork?.hasArt && artwork.dataUri && (
+                <div className="relative overflow-hidden rounded-lg border border-doom-border bg-black/60 shadow-lg group">
+                  <div className="absolute top-2 right-2 z-10">
+                    <span className="px-2 py-0.5 rounded bg-black/80 text-[10px] font-mono font-bold uppercase tracking-wider text-doom-cyan border border-doom-border/60">
+                      {artwork.lumpName || 'ARTWORK'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-center p-3 bg-gradient-to-b from-transparent to-black/40">
+                    <img
+                      src={artwork.dataUri}
+                      alt={`${mod.name} ${artwork.lumpName}`}
+                      className="max-h-52 w-auto object-contain rounded border border-doom-border/40 shadow-inner"
+                      style={{ imageRendering: 'pixelated' }}
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Section 1: File Properties & Metadata */}
               <div>
                 <h3 className="flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-wider text-doom-muted mb-3">

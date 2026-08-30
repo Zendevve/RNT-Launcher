@@ -4,11 +4,19 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
 	"rnt-launcher/internal/domain"
 )
+
+func cleanPath(p string) string {
+	if p == "" {
+		return ""
+	}
+	return filepath.Clean(p)
+}
 
 // EngineRepository defines persistence operations for Doom source port engines.
 type EngineRepository interface {
@@ -38,6 +46,7 @@ type ModRepository interface {
 	Update(mod *domain.Mod) error
 	Delete(id string) error
 	ToggleFavorite(id string) (bool, error)
+	GetUsageCounts() (map[string]int, error)
 }
 
 // ProfileRepository defines persistence operations for launch profiles and their assigned mods.
@@ -146,6 +155,7 @@ func (r *engineRepo) Create(engine *domain.Engine) error {
 		engine.CreatedAt = time.Now().UTC()
 	}
 	engine.UpdatedAt = engine.CreatedAt
+	engine.Executable = cleanPath(engine.Executable)
 
 	query := `INSERT INTO engines (id, name, executable, version, family, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
 	_, err := r.db.Exec(query, engine.ID, engine.Name, engine.Executable, engine.Version, string(engine.Family), engine.CreatedAt, engine.UpdatedAt)
@@ -157,6 +167,7 @@ func (r *engineRepo) Create(engine *domain.Engine) error {
 
 func (r *engineRepo) Update(engine *domain.Engine) error {
 	engine.UpdatedAt = time.Now().UTC()
+	engine.Executable = cleanPath(engine.Executable)
 	query := `UPDATE engines SET name = ?, executable = ?, version = ?, family = ?, updated_at = ? WHERE id = ?`
 	res, err := r.db.Exec(query, engine.Name, engine.Executable, engine.Version, string(engine.Family), engine.UpdatedAt, engine.ID)
 	if err != nil {
@@ -238,6 +249,7 @@ func (r *iwadRepo) Get(id string) (*domain.IWAD, error) {
 }
 
 func (r *iwadRepo) GetByPath(path string) (*domain.IWAD, error) {
+	path = cleanPath(path)
 	query := `SELECT id, name, path, type, lump_count, size, sha256, created_at, updated_at FROM iwads WHERE path = ?`
 	var i domain.IWAD
 	var typeStr string
@@ -260,6 +272,7 @@ func (r *iwadRepo) Create(iwad *domain.IWAD) error {
 		iwad.CreatedAt = time.Now().UTC()
 	}
 	iwad.UpdatedAt = iwad.CreatedAt
+	iwad.Path = cleanPath(iwad.Path)
 
 	query := `INSERT INTO iwads (id, name, path, type, lump_count, size, sha256, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	_, err := r.db.Exec(query, iwad.ID, iwad.Name, iwad.Path, string(iwad.Type), iwad.LumpCount, iwad.Size, iwad.SHA256, iwad.CreatedAt, iwad.UpdatedAt)
@@ -271,6 +284,7 @@ func (r *iwadRepo) Create(iwad *domain.IWAD) error {
 
 func (r *iwadRepo) Update(iwad *domain.IWAD) error {
 	iwad.UpdatedAt = time.Now().UTC()
+	iwad.Path = cleanPath(iwad.Path)
 	query := `UPDATE iwads SET name = ?, path = ?, type = ?, lump_count = ?, size = ?, sha256 = ?, updated_at = ? WHERE id = ?`
 	res, err := r.db.Exec(query, iwad.Name, iwad.Path, string(iwad.Type), iwad.LumpCount, iwad.Size, iwad.SHA256, iwad.UpdatedAt, iwad.ID)
 	if err != nil {
@@ -413,6 +427,7 @@ func (r *modRepo) Get(id string) (*domain.Mod, error) {
 }
 
 func (r *modRepo) GetByPath(path string) (*domain.Mod, error) {
+	path = cleanPath(path)
 	query := `SELECT id, name, path, format, category, size, modified_at, sha256, lump_count, structures, is_favorite, created_at, updated_at FROM mods WHERE path = ?`
 	var m domain.Mod
 	var formatStr, catStr, structuresJSON string
@@ -451,6 +466,7 @@ func (r *modRepo) Create(mod *domain.Mod) error {
 		mod.CreatedAt = time.Now().UTC()
 	}
 	mod.UpdatedAt = mod.CreatedAt
+	mod.Path = cleanPath(mod.Path)
 
 	if mod.Structures == nil {
 		mod.Structures = []string{}
@@ -475,6 +491,7 @@ func (r *modRepo) Create(mod *domain.Mod) error {
 
 func (r *modRepo) Update(mod *domain.Mod) error {
 	mod.UpdatedAt = time.Now().UTC()
+	mod.Path = cleanPath(mod.Path)
 	if mod.Structures == nil {
 		mod.Structures = []string{}
 	}
@@ -549,6 +566,30 @@ func (r *modRepo) ToggleFavorite(id string) (bool, error) {
 	}
 	return isFavInt == 1, nil
 }
+func (r *modRepo) GetUsageCounts() (map[string]int, error) {
+	counts := make(map[string]int)
+	query := `SELECT mod_id, COUNT(*) FROM profile_mods GROUP BY mod_id`
+	rows, err := r.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query mod usage counts: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var modID string
+		var count int
+		if err := rows.Scan(&modID, &count); err != nil {
+			return nil, fmt.Errorf("failed to scan mod usage count: %w", err)
+		}
+		counts[modID] = count
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating mod usage counts: %w", err)
+	}
+
+	return counts, nil
+}
 
 // ==========================================
 // Profile Repository Implementation
@@ -569,6 +610,7 @@ func (r *profileRepo) List() ([]domain.Profile, error) {
 			p.id, p.name, p.description, 
 			COALESCE(p.engine_id, ''), COALESCE(e.name, ''),
 			COALESCE(p.iwad_id, ''), COALESCE(i.name, ''),
+			COALESCE(p.parent_profile_id, ''), p.isolate_saves,
 			p.arguments, p.working_dir, p.is_favorite,
 			p.created_at, p.updated_at
 		FROM profiles p
@@ -586,12 +628,13 @@ func (r *profileRepo) List() ([]domain.Profile, error) {
 	for rows.Next() {
 		var p domain.Profile
 		var argsJSON string
-		var isFavInt int
+		var isFavInt, isolateSavesInt int
 
 		if err := rows.Scan(
 			&p.ID, &p.Name, &p.Description,
 			&p.EngineID, &p.EngineName,
 			&p.IWADID, &p.IWADName,
+			&p.ParentProfileID, &isolateSavesInt,
 			&argsJSON, &p.WorkingDir, &isFavInt,
 			&p.CreatedAt, &p.UpdatedAt,
 		); err != nil {
@@ -599,6 +642,7 @@ func (r *profileRepo) List() ([]domain.Profile, error) {
 		}
 
 		p.IsFavorite = (isFavInt == 1)
+		p.IsolateSaves = (isolateSavesInt == 1)
 		if argsJSON != "" {
 			_ = json.Unmarshal([]byte(argsJSON), &p.Arguments)
 		}
@@ -631,6 +675,7 @@ func (r *profileRepo) Get(id string) (*domain.Profile, error) {
 			p.id, p.name, p.description, 
 			COALESCE(p.engine_id, ''), COALESCE(e.name, ''),
 			COALESCE(p.iwad_id, ''), COALESCE(i.name, ''),
+			COALESCE(p.parent_profile_id, ''), p.isolate_saves,
 			p.arguments, p.working_dir, p.is_favorite,
 			p.created_at, p.updated_at
 		FROM profiles p
@@ -640,12 +685,13 @@ func (r *profileRepo) Get(id string) (*domain.Profile, error) {
 	`
 	var p domain.Profile
 	var argsJSON string
-	var isFavInt int
+	var isFavInt, isolateSavesInt int
 
 	err := r.db.QueryRow(query, id).Scan(
 		&p.ID, &p.Name, &p.Description,
 		&p.EngineID, &p.EngineName,
 		&p.IWADID, &p.IWADName,
+		&p.ParentProfileID, &isolateSavesInt,
 		&argsJSON, &p.WorkingDir, &isFavInt,
 		&p.CreatedAt, &p.UpdatedAt,
 	)
@@ -657,6 +703,7 @@ func (r *profileRepo) Get(id string) (*domain.Profile, error) {
 	}
 
 	p.IsFavorite = (isFavInt == 1)
+	p.IsolateSaves = (isolateSavesInt == 1)
 	if argsJSON != "" {
 		_ = json.Unmarshal([]byte(argsJSON), &p.Arguments)
 	}
@@ -776,6 +823,14 @@ func (r *profileRepo) Create(profile *domain.Profile) error {
 	if profile.IWADID != "" {
 		iwadID = &profile.IWADID
 	}
+	var parentProfileID *string
+	if profile.ParentProfileID != "" {
+		parentProfileID = &profile.ParentProfileID
+	}
+	isolateSavesInt := 0
+	if profile.IsolateSaves {
+		isolateSavesInt = 1
+	}
 
 	tx, err := r.db.Begin()
 	if err != nil {
@@ -788,8 +843,8 @@ func (r *profileRepo) Create(profile *domain.Profile) error {
 		return fmt.Errorf("failed to clear old profile mods: %w", err)
 	}
 
-	query := `INSERT INTO profiles (id, name, description, engine_id, iwad_id, arguments, working_dir, is_favorite, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err = tx.Exec(query, profile.ID, profile.Name, profile.Description, engineID, iwadID, string(argsJSON), profile.WorkingDir, favInt, profile.CreatedAt, profile.UpdatedAt)
+	query := `INSERT INTO profiles (id, name, description, engine_id, iwad_id, parent_profile_id, isolate_saves, arguments, working_dir, is_favorite, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err = tx.Exec(query, profile.ID, profile.Name, profile.Description, engineID, iwadID, parentProfileID, isolateSavesInt, string(argsJSON), profile.WorkingDir, favInt, profile.CreatedAt, profile.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to insert profile: %w", err)
 	}
@@ -844,6 +899,14 @@ func (r *profileRepo) Update(profile *domain.Profile) error {
 	if profile.IWADID != "" {
 		iwadID = &profile.IWADID
 	}
+	var parentProfileID *string
+	if profile.ParentProfileID != "" {
+		parentProfileID = &profile.ParentProfileID
+	}
+	isolateSavesInt := 0
+	if profile.IsolateSaves {
+		isolateSavesInt = 1
+	}
 
 	tx, err := r.db.Begin()
 	if err != nil {
@@ -851,8 +914,8 @@ func (r *profileRepo) Update(profile *domain.Profile) error {
 	}
 	defer tx.Rollback()
 
-	query := `UPDATE profiles SET name = ?, description = ?, engine_id = ?, iwad_id = ?, arguments = ?, working_dir = ?, is_favorite = ?, updated_at = ? WHERE id = ?`
-	res, err := tx.Exec(query, profile.Name, profile.Description, engineID, iwadID, string(argsJSON), profile.WorkingDir, favInt, profile.UpdatedAt, profile.ID)
+	query := `UPDATE profiles SET name = ?, description = ?, engine_id = ?, iwad_id = ?, parent_profile_id = ?, isolate_saves = ?, arguments = ?, working_dir = ?, is_favorite = ?, updated_at = ? WHERE id = ?`
+	res, err := tx.Exec(query, profile.Name, profile.Description, engineID, iwadID, parentProfileID, isolateSavesInt, string(argsJSON), profile.WorkingDir, favInt, profile.UpdatedAt, profile.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update profile %s: %w", profile.ID, err)
 	}
@@ -926,19 +989,20 @@ func (r *profileRepo) Duplicate(id string, newName string) (*domain.Profile, err
 	}
 
 	cloned := &domain.Profile{
-		ID:          uuid.NewString(),
-		Name:        newName,
-		Description: orig.Description,
-		EngineID:    orig.EngineID,
-		EngineName:  orig.EngineName,
-		IWADID:      orig.IWADID,
-		IWADName:    orig.IWADName,
-		WorkingDir:  orig.WorkingDir,
-		IsFavorite:  false,
-		CreatedAt:   time.Now().UTC(),
-		UpdatedAt:   time.Now().UTC(),
+		ID:              uuid.NewString(),
+		Name:            newName,
+		Description:     orig.Description,
+		EngineID:        orig.EngineID,
+		EngineName:      orig.EngineName,
+		IWADID:          orig.IWADID,
+		IWADName:        orig.IWADName,
+		ParentProfileID: orig.ParentProfileID,
+		IsolateSaves:    orig.IsolateSaves,
+		WorkingDir:      orig.WorkingDir,
+		IsFavorite:      false,
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
 	}
-
 	if orig.Arguments != nil {
 		cloned.Arguments = make([]string, len(orig.Arguments))
 		copy(cloned.Arguments, orig.Arguments)

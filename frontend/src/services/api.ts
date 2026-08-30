@@ -22,4 +22,11 @@ export const api = {
       warnings: res.warnings || [],
     };
   },
+  async importProfileZDL(zdlContent: string): Promise<{ profile: Profile; warnings: ValidationItem[] }> {
+    const res = (await libApi.importProfileZDL(zdlContent)) as { profile: Profile; warnings?: ValidationItem[] };
+    return {
+      profile: res.profile,
+      warnings: res.warnings || [],
+    };
+  },
 };

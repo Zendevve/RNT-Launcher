@@ -142,13 +142,95 @@ func parseLumpName(raw []byte) string {
 	if n != -1 {
 		raw = raw[:n]
 	}
-	s := strings.TrimSpace(string(raw))
+	var b strings.Builder
+	for _, c := range raw {
+		if c >= 32 && c <= 126 {
+			b.WriteByte(c)
+		}
+	}
+	s := strings.TrimSpace(b.String())
 	return strings.ToUpper(s)
 }
 
 // isMapLump tests whether the lump name matches Doom 1 (E1M1..E9M9) or Doom 2 (MAP01..MAP99+) format.
 func isMapLump(name string) bool {
 	return mapDoom1Regex.MatchString(name) || mapDoom2Regex.MatchString(name)
+}
+
+// WADLump represents an individual lump metadata entry in a WAD file.
+type WADLump struct {
+	Name   string `json:"name"`
+	Offset int64  `json:"offset"`
+	Size   int64  `json:"size"`
+}
+
+// ReadWADDirectory returns all lump entries from a WAD reader.
+func ReadWADDirectory(r io.ReaderAt, size int64) ([]WADLump, error) {
+	if size < 12 {
+		return nil, ErrInvalidWADHeader
+	}
+	var header [12]byte
+	if _, err := r.ReadAt(header[:], 0); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidWADHeader, err)
+	}
+	magic := strings.ToUpper(string(header[0:4]))
+	if magic != "IWAD" && magic != "PWAD" {
+		return nil, fmt.Errorf("%w: got %q", ErrInvalidWADMagic, magic)
+	}
+
+	numLumps := int(binary.LittleEndian.Uint32(header[4:8]))
+	infoTableOfs := int64(binary.LittleEndian.Uint32(header[8:12]))
+
+	if numLumps < 0 || infoTableOfs < 12 {
+		return nil, ErrCorruptWADDirectory
+	}
+	dirSize := int64(numLumps) * 16
+	if size > 0 && infoTableOfs+dirSize > size {
+		return nil, ErrCorruptWADDirectory
+	}
+
+	dirBuf := make([]byte, dirSize)
+	if _, err := r.ReadAt(dirBuf, infoTableOfs); err != nil {
+		return nil, fmt.Errorf("%w: failed to read directory table: %v", ErrCorruptWADDirectory, err)
+	}
+
+	lumps := make([]WADLump, 0, numLumps)
+	for i := 0; i < numLumps; i++ {
+		entry := dirBuf[i*16 : (i+1)*16]
+		filepos := int64(binary.LittleEndian.Uint32(entry[0:4]))
+		lumpSize := int64(binary.LittleEndian.Uint32(entry[4:8]))
+		name := parseLumpName(entry[8:16])
+		if name != "" {
+			lumps = append(lumps, WADLump{
+				Name:   name,
+				Offset: filepos,
+				Size:   lumpSize,
+			})
+		}
+	}
+	return lumps, nil
+}
+
+// ReadLumpData reads the raw bytes of a lump by name from a WAD reader.
+func ReadLumpData(r io.ReaderAt, size int64, lumpName string) ([]byte, error) {
+	lumps, err := ReadWADDirectory(r, size)
+	if err != nil {
+		return nil, err
+	}
+	lumpName = strings.ToUpper(strings.TrimSpace(lumpName))
+	for _, l := range lumps {
+		if l.Name == lumpName {
+			if l.Size <= 0 {
+				return []byte{}, nil
+			}
+			buf := make([]byte, l.Size)
+			if _, err := r.ReadAt(buf, l.Offset); err != nil && err != io.EOF {
+				return nil, err
+			}
+			return buf, nil
+		}
+	}
+	return nil, fmt.Errorf("lump %q not found", lumpName)
 }
 
 // identifyStructure identifies standard Doom / ZDoom structure markers from lump names.

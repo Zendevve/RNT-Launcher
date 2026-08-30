@@ -154,6 +154,10 @@ export interface Profile {
   iwad_id?: string
   iwadName: string
   iwad_name?: string
+  parentProfileId?: string
+  parent_profile_id?: string
+  isolateSaves?: boolean
+  isolate_saves?: boolean
   mods: ProfileMod[]
   arguments: string[]
   workingDir: string
@@ -377,4 +381,26 @@ export interface LogEntry {
   level: string
   message: string
   fields?: Record<string, unknown>
+}
+
+export interface Bitflag {
+  value: number
+  name: string
+  description: string
+  category: string
+}
+
+export interface IdgamesFile {
+  id: number
+  title: string
+  dir: string
+  filename: string
+  size: number
+  age: number
+  date: string
+  author: string
+  description: string
+  rating: number
+  votes: number
+  url: string
 }

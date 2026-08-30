@@ -826,3 +826,56 @@ func TestLaunchHistory_AutoDurationCalculation(t *testing.T) {
 		t.Errorf("expected auto-calculated duration ~10000ms, got %d", list[0].DurationMs)
 	}
 }
+func TestModRepository_GetUsageCounts(t *testing.T) {
+	repos := setupTestDB(t)
+
+	// Create 3 mods
+	mod1 := &domain.Mod{Name: "Mod 1", Path: "C:\\mod1.pk3", Format: domain.ModFormatPK3}
+	mod2 := &domain.Mod{Name: "Mod 2", Path: "C:\\mod2.pk3", Format: domain.ModFormatPK3}
+	mod3 := &domain.Mod{Name: "Mod 3", Path: "C:\\mod3.pk3", Format: domain.ModFormatPK3}
+
+	for _, m := range []*domain.Mod{mod1, mod2, mod3} {
+		if err := repos.Mods.Create(m); err != nil {
+			t.Fatalf("failed to create mod %s: %v", m.Name, err)
+		}
+	}
+
+	// Profile 1 uses mod1 and mod2
+	prof1 := &domain.Profile{
+		Name: "Profile 1",
+		Mods: []domain.ProfileMod{
+			{ModID: mod1.ID, Enabled: true, Order: 0},
+			{ModID: mod2.ID, Enabled: true, Order: 1},
+		},
+	}
+	if err := repos.Profiles.Create(prof1); err != nil {
+		t.Fatalf("failed to create prof1: %v", err)
+	}
+
+	// Profile 2 uses mod1 only
+	prof2 := &domain.Profile{
+		Name: "Profile 2",
+		Mods: []domain.ProfileMod{
+			{ModID: mod1.ID, Enabled: true, Order: 0},
+		},
+	}
+	if err := repos.Profiles.Create(prof2); err != nil {
+		t.Fatalf("failed to create prof2: %v", err)
+	}
+
+	// Check usage counts
+	counts, err := repos.Mods.GetUsageCounts()
+	if err != nil {
+		t.Fatalf("GetUsageCounts failed: %v", err)
+	}
+
+	if counts[mod1.ID] != 2 {
+		t.Errorf("expected mod1 usage count to be 2, got %d", counts[mod1.ID])
+	}
+	if counts[mod2.ID] != 1 {
+		t.Errorf("expected mod2 usage count to be 1, got %d", counts[mod2.ID])
+	}
+	if counts[mod3.ID] != 0 {
+		t.Errorf("expected mod3 usage count to be 0, got %d", counts[mod3.ID])
+	}
+}

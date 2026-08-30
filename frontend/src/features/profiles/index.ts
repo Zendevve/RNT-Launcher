@@ -5,3 +5,4 @@ export { LoadOrderItem } from './LoadOrderItem';
 export { ValidationBanner } from './ValidationBanner';
 export { ImportProfileModal } from './ImportProfileModal';
 export { SelectModsModal } from './SelectModsModal';
+export { DmFlagsModal } from './DmFlagsModal';

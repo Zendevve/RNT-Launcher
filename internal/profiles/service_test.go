@@ -859,3 +859,67 @@ func TestProfileService_ContextCancellationAndNilSafety(t *testing.T) {
 		t.Error("expected error on nil service Get")
 	}
 }
+
+func TestProfileService_ImportZDL(t *testing.T) {
+	h := setupTestHarness(t)
+	ctx := context.Background()
+
+	// Seed Engine, IWAD, and Mod in SQLite
+	eng := seedEngine(t, h, "eng-1", "GZDoom", "C:/Games/Doom/gzdoom.exe")
+	iwad := seedIWAD(t, h, "iwad-1", "DOOM 2: Hell on Earth", "C:/Games/Doom/DOOM2.WAD", domain.IWADTypeDoom2)
+	mod1 := seedMod(t, h, "mod-1", "Brutal Doom", "C:/Games/Doom/mods/bd21.pk3", domain.ModFormatPK3)
+
+	zdlContent := `
+[zdl.save]
+port=GZDoom
+iwad=DOOM2.WAD
+file_0=C:\Games\Doom\mods\bd21.pk3
+file_0_enabled=1
+file_1=C:\Games\Doom\mods\unresolved_mod.pk3
+file_1_enabled=0
+custom_params=-fast -nomonsters
+warp=MAP01
+skill=4
+`
+
+	prof, warnings, err := h.svc.ImportZDL(ctx, []byte(zdlContent))
+	if err != nil {
+		t.Fatalf("ImportZDL failed: %v", err)
+	}
+
+	if prof == nil {
+		t.Fatal("expected non-nil profile")
+	}
+
+	if prof.EngineID != eng.ID {
+		t.Errorf("expected engine ID %s, got %s", eng.ID, prof.EngineID)
+	}
+	if prof.IWADID != iwad.ID {
+		t.Errorf("expected iwad ID %s, got %s", iwad.ID, prof.IWADID)
+	}
+
+	if len(prof.Mods) != 2 {
+		t.Fatalf("expected 2 mods, got %d", len(prof.Mods))
+	}
+
+	if prof.Mods[0].ModID != mod1.ID || !prof.Mods[0].Enabled {
+		t.Errorf("unexpected mod 0: %+v", prof.Mods[0])
+	}
+	if prof.Mods[1].ModName != "unresolved_mod.pk3" || prof.Mods[1].Enabled {
+		t.Errorf("unexpected mod 1: %+v", prof.Mods[1])
+	}
+	// Warnings should contain missing mod warning for unresolved_mod.pk3
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning, got %d: %+v", len(warnings), warnings)
+	}
+	if warnings[0].Code != "MISSING_MOD" {
+		t.Errorf("expected MISSING_MOD warning, got %+v", warnings[0])
+	}
+
+	// Check custom arguments include -fast, -nomonsters, -warp MAP01, -skill 4
+	argStr := strings.Join(prof.Arguments, " ")
+	if !strings.Contains(argStr, "-fast") || !strings.Contains(argStr, "-nomonsters") ||
+		!strings.Contains(argStr, "-warp MAP01") || !strings.Contains(argStr, "-skill 4") {
+		t.Errorf("unexpected arguments: %v", prof.Arguments)
+	}
+}

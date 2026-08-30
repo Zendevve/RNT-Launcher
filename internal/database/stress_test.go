@@ -33,7 +33,7 @@ func BenchmarkDatabase_BulkModOperations(b *testing.B) {
 			mods[j] = domain.Mod{
 				ID:         uuid.NewString(),
 				Name:       fmt.Sprintf("Mega Mod Volume %d", j),
-				Path:       fmt.Sprintf("/games/doom/mods/megamod_%d.pk3", j),
+				Path:       fmt.Sprintf("/games/doom/mods/megamod_%d_%d.pk3", i, j),
 				Format:     domain.ModFormatPK3,
 				Category:   domain.ModCategoryGameplay,
 				Size:       int64(1024 * 1024 * (j + 1)),

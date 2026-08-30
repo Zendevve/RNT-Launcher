@@ -370,21 +370,22 @@ type ProfileMod struct {
 
 // Profile represents a complete playable configuration (Engine + IWAD + Mods + Args).
 type Profile struct {
-	ID          string       `json:"id"`
-	Name        string       `json:"name"`
-	Description string       `json:"description"`
-	EngineID    string       `json:"engineId"`
-	EngineName  string       `json:"engineName"`
-	IWADID      string       `json:"iwadId"`
-	IWADName    string       `json:"iwadName"`
-	Mods        []ProfileMod `json:"mods"`
-	Arguments   []string     `json:"arguments"`
-	WorkingDir  string       `json:"workingDir"`
-	IsFavorite  bool         `json:"isFavorite"`
-	CreatedAt   time.Time    `json:"createdAt"`
-	UpdatedAt   time.Time    `json:"updatedAt"`
+	ID              string       `json:"id"`
+	Name            string       `json:"name"`
+	Description     string       `json:"description"`
+	EngineID        string       `json:"engineId"`
+	EngineName      string       `json:"engineName"`
+	IWADID          string       `json:"iwadId"`
+	IWADName        string       `json:"iwadName"`
+	ParentProfileID string       `json:"parentProfileId,omitempty"`
+	IsolateSaves    bool         `json:"isolateSaves"`
+	Mods            []ProfileMod `json:"mods"`
+	Arguments       []string     `json:"arguments"`
+	WorkingDir      string       `json:"workingDir"`
+	IsFavorite      bool         `json:"isFavorite"`
+	CreatedAt       time.Time    `json:"createdAt"`
+	UpdatedAt       time.Time    `json:"updatedAt"`
 }
-
 // EnabledMods returns all enabled mods in the profile, sorted by Order ascending.
 func (p Profile) EnabledMods() []ProfileMod {
 	var enabled []ProfileMod
@@ -397,6 +398,70 @@ func (p Profile) EnabledMods() []ProfileMod {
 		return enabled[i].Order < enabled[j].Order
 	})
 	return enabled
+}
+
+// GetEffectiveMods combines enabled mods from a parent profile with local profile mod overrides.
+func (p Profile) GetEffectiveMods(parentProfile *Profile) []ProfileMod {
+	if parentProfile == nil {
+		return p.EnabledMods()
+	}
+
+	// Index local mods by ModID and ModPath
+	localOverrideMap := make(map[string]ProfileMod)
+	for _, m := range p.Mods {
+		if m.ModID != "" {
+			localOverrideMap[m.ModID] = m
+		}
+		if m.ModPath != "" {
+			localOverrideMap[strings.ToLower(filepath.Clean(m.ModPath))] = m
+		}
+	}
+
+	var effective []ProfileMod
+	usedLocalMods := make(map[string]bool)
+
+	// 1. Inherit from parent
+	for _, pm := range parentProfile.EnabledMods() {
+		cleanPath := strings.ToLower(filepath.Clean(pm.ModPath))
+		if override, hasOverride := localOverrideMap[pm.ModID]; hasOverride {
+			usedLocalMods[pm.ModID] = true
+			if override.ModPath != "" {
+				usedLocalMods[cleanPath] = true
+			}
+			if override.Enabled {
+				effective = append(effective, override)
+			}
+			continue
+		}
+		if override, hasOverride := localOverrideMap[cleanPath]; hasOverride {
+			usedLocalMods[cleanPath] = true
+			if override.ModID != "" {
+				usedLocalMods[override.ModID] = true
+			}
+			if override.Enabled {
+				effective = append(effective, override)
+			}
+			continue
+		}
+		effective = append(effective, pm)
+	}
+
+	// 2. Add local mods not already processed
+	for _, m := range p.Mods {
+		cleanPath := strings.ToLower(filepath.Clean(m.ModPath))
+		if (m.ModID != "" && usedLocalMods[m.ModID]) || (cleanPath != "" && usedLocalMods[cleanPath]) {
+			continue
+		}
+		if m.Enabled {
+			effective = append(effective, m)
+		}
+	}
+
+	sort.SliceStable(effective, func(i, j int) bool {
+		return effective[i].Order < effective[j].Order
+	})
+
+	return effective
 }
 
 // DisabledMods returns all disabled mods in the profile.

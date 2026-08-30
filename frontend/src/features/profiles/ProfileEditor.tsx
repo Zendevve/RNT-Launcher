@@ -11,10 +11,13 @@ import {
   Cpu,
   Disc,
   FolderOpen,
+  FolderLock,
   Terminal,
   ChevronDown,
   ChevronUp,
   Save,
+  Layers,
+  Sliders,
 } from 'lucide-react';
 import {
   Profile,
@@ -32,7 +35,7 @@ import { useToast } from '../../components/ui/Toast';
 import { LoadOrderList } from './LoadOrderList';
 import { ValidationBanner } from './ValidationBanner';
 import { SelectModsModal } from './SelectModsModal';
-
+import { DmFlagsModal } from './DmFlagsModal';
 export interface ProfileEditorProps {
   profile: Profile;
   engines: Engine[];
@@ -57,12 +60,22 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   const [description, setDescription] = useState(profile.description || '');
   const [engineId, setEngineId] = useState(profile.engineId || '');
   const [iwadId, setIwadId] = useState(profile.iwadId || '');
+  const [parentProfileId, setParentProfileId] = useState(
+    profile.parentProfileId || profile.parent_profile_id || ''
+  );
+  const [isolateSaves, setIsolateSaves] = useState(
+    Boolean(profile.isolateSaves ?? profile.isolate_saves ?? false)
+  );
   const [mods, setMods] = useState<ProfileMod[]>(profile.mods || []);
   const [argumentsText, setArgumentsText] = useState(
     (profile.arguments || []).join(' ')
   );
   const [workingDir, setWorkingDir] = useState(profile.workingDir || '');
   const [isFavorite, setIsFavorite] = useState(profile.isFavorite || false);
+
+  // Available profiles list for base mixin selector
+  const [availableProfiles, setAvailableProfiles] = useState<Profile[]>([]);
+  const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
 
   // Advanced section accordion
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(
@@ -71,7 +84,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
 
   // Mod selection modal
   const [isSelectModsOpen, setIsSelectModsOpen] = useState(false);
-
+  const [isDmFlagsOpen, setIsDmFlagsOpen] = useState(false);
   // Validation state
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [isValidating, setIsValidating] = useState(false);
@@ -83,18 +96,59 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
+  // Fetch available profiles for parent mixin dropdown
+  const loadProfiles = useCallback(async () => {
+    setIsLoadingProfiles(true);
+    try {
+      const list = await api.listProfiles();
+      setAvailableProfiles(list || []);
+    } catch (err) {
+      console.error('Failed to load profiles for base mixin selector:', err);
+    } finally {
+      setIsLoadingProfiles(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadProfiles();
+  }, [loadProfiles]);
+
   // Update local state when incoming profile prop changes
   useEffect(() => {
     setName(profile.name);
     setDescription(profile.description || '');
     setEngineId(profile.engineId || '');
     setIwadId(profile.iwadId || '');
+    setParentProfileId(profile.parentProfileId || profile.parent_profile_id || '');
+    setIsolateSaves(Boolean(profile.isolateSaves ?? profile.isolate_saves ?? false));
     setMods(profile.mods || []);
     setArgumentsText((profile.arguments || []).join(' '));
     setWorkingDir(profile.workingDir || '');
     setIsFavorite(profile.isFavorite || false);
     setHasUnsavedChanges(false);
-  }, [profile.id, profile.name, profile.updatedAt, profile.updated_at]);
+  }, [
+    profile.id,
+    profile.name,
+    profile.engineId,
+    profile.iwadId,
+    profile.parentProfileId,
+    profile.parent_profile_id,
+    profile.isolateSaves,
+    profile.isolate_saves,
+    profile.updatedAt,
+    profile.updated_at,
+  ]);
+
+  // Eligible parent profiles (exclude self to prevent cyclic dependency)
+  const eligibleParentProfiles = useMemo(() => {
+    return availableProfiles.filter((p) => p.id !== profile.id);
+  }, [availableProfiles, profile.id]);
+
+  // Currently selected parent profile object
+  const selectedParentProfile = useMemo(() => {
+    if (!parentProfileId) return null;
+    return availableProfiles.find((p) => p.id === parentProfileId) || null;
+  }, [availableProfiles, parentProfileId]);
 
   // Split arguments into tokens for visual badge display
   const parsedArguments = useMemo(() => {
@@ -126,12 +180,34 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   // Initial validation when profile loads or dependencies change
   useEffect(() => {
     runValidation();
-  }, [profile.id, profile.mods, profile.engineId, profile.iwadId, runValidation]);
+  }, [
+    profile.id,
+    profile.mods,
+    profile.engineId,
+    profile.iwadId,
+    profile.parentProfileId,
+    profile.parent_profile_id,
+    runValidation,
+  ]);
 
   // Save changes to profile
   const handleSave = async (overrides?: Partial<Profile>) => {
     const selectedEngine = engines.find((e) => e.id === (overrides?.engineId ?? engineId));
     const selectedIWAD = iwads.find((w) => w.id === (overrides?.iwadId ?? iwadId));
+
+    const nextParentProfileId =
+      overrides?.parentProfileId !== undefined
+        ? overrides.parentProfileId
+        : overrides?.parent_profile_id !== undefined
+        ? overrides.parent_profile_id
+        : parentProfileId;
+
+    const nextIsolateSaves =
+      overrides?.isolateSaves !== undefined
+        ? overrides.isolateSaves
+        : overrides?.isolate_saves !== undefined
+        ? overrides.isolate_saves
+        : isolateSaves;
 
     const updated: Profile = {
       ...profile,
@@ -141,6 +217,10 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
       engineName: selectedEngine?.name ?? '',
       iwadId: overrides?.iwadId ?? iwadId,
       iwadName: selectedIWAD?.name ?? '',
+      parentProfileId: nextParentProfileId,
+      parent_profile_id: nextParentProfileId,
+      isolateSaves: nextIsolateSaves,
+      isolate_saves: nextIsolateSaves,
       mods: overrides?.mods ?? mods,
       arguments: overrides?.arguments ?? parsedArguments,
       workingDir: overrides?.workingDir ?? workingDir,
@@ -184,6 +264,32 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
     setIwadId(newIwadId);
     const selected = iwads.find((w) => w.id === newIwadId);
     handleSave({ iwadId: newIwadId, iwadName: selected?.name || '' });
+  };
+
+  const handleParentProfileSelect = (newParentId: string) => {
+    setParentProfileId(newParentId);
+    handleSave({
+      parentProfileId: newParentId,
+      parent_profile_id: newParentId,
+    });
+  };
+
+  const handleToggleIsolateSaves = (checked: boolean) => {
+    setIsolateSaves(checked);
+    handleSave({
+      isolateSaves: checked,
+      isolate_saves: checked,
+    });
+  };
+
+  const handleOpenSaveFolder = async () => {
+    try {
+      await api.openProfileSaveFolder(profile.id);
+      toast.info('Save Folder', 'Opened profile saves folder in file explorer');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to open save folder';
+      toast.error('Save Folder Error', msg);
+    }
   };
 
   const handleFavoriteToggle = async () => {
@@ -286,6 +392,27 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
     setMods([]);
     handleSave({ mods: [] });
     toast.info('Cleared all mods from profile');
+  };
+
+  const handleApplyDmFlags = (newTokens: string[]) => {
+    const currentTokens = argumentsText.trim() ? argumentsText.trim().split(/\s+/) : [];
+    const filtered: string[] = [];
+    for (let i = 0; i < currentTokens.length; i++) {
+      const tok = currentTokens[i];
+      if (tok === '+set' && i + 1 < currentTokens.length) {
+        const next = currentTokens[i + 1].toLowerCase();
+        if (['dmflags', 'dmflags2', 'compatflags', 'compatflags2'].includes(next)) {
+          i += 2;
+          continue;
+        }
+      }
+      filtered.push(tok);
+    }
+    const combinedTokens = [...filtered, ...newTokens];
+    const combinedStr = combinedTokens.join(' ');
+    setArgumentsText(combinedStr);
+    handleSave({ arguments: combinedTokens });
+    toast.success('Flags Applied', 'Updated profile custom launch arguments');
   };
 
   // Browse Directory for Working Dir
@@ -629,8 +756,212 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
         </div>
       </div>
 
+      {/* Profile Configuration Card: Base Mixin / Parent Profile & Savegame Isolation */}
+      <div className="p-4 rounded-lg border border-doom-border bg-doom-card flex flex-col gap-4 shadow-sm">
+        <div className="flex items-center justify-between border-b border-doom-border/60 pb-2.5">
+          <div className="flex items-center gap-2">
+            <Sliders className="w-4 h-4 text-doom-red" />
+            <span className="text-xs font-bold uppercase tracking-wider text-doom-text">
+              Profile Configuration
+            </span>
+          </div>
+          {isolateSaves && (
+            <Badge variant="amber" size="xs">
+              ISOLATED SAVES
+            </Badge>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Base Mixin / Parent Profile Selector */}
+          <div className="flex flex-col gap-2.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wider text-doom-text flex items-center gap-2">
+                <Layers className="w-4 h-4 text-doom-red" />
+                Base Mixin / Parent Profile
+              </label>
+              {selectedParentProfile && (
+                <Badge variant="cyan" size="xs">
+                  INHERITING
+                </Badge>
+              )}
+            </div>
+
+            <select
+              value={parentProfileId}
+              onChange={(e) => handleParentProfileSelect(e.target.value)}
+              disabled={isLoadingProfiles}
+              className="w-full bg-doom-surface border border-doom-border rounded px-3 py-2.5 text-sm text-doom-text focus:outline-none focus:ring-1 focus:ring-doom-red focus:border-doom-red font-medium disabled:opacity-50"
+            >
+              <option value="">None (Standalone Profile)</option>
+              {eligibleParentProfiles.map((p) => {
+                const modCount = p.mods?.filter((m) => m.enabled).length ?? p.mods?.length ?? 0;
+                return (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({modCount} mod{modCount !== 1 ? 's' : ''})
+                  </option>
+                );
+              })}
+            </select>
+
+            {selectedParentProfile ? (
+              <div className="flex flex-col gap-1 text-xs text-doom-muted font-mono bg-doom-surface/60 p-2.5 rounded border border-doom-border/60">
+                <div className="flex items-center justify-between">
+                  <span className="text-doom-text font-semibold">
+                    Parent: {selectedParentProfile.name}
+                  </span>
+                  <span className="text-[11px] text-cyan-400">
+                    {selectedParentProfile.mods?.filter((m) => m.enabled).length ?? 0} active base mod(s)
+                  </span>
+                </div>
+                <span className="text-[11px] text-zinc-400 truncate">
+                  Inherited mods are loaded automatically before profile-specific mods.
+                </span>
+              </div>
+            ) : (
+              <p className="text-[11px] text-zinc-500">
+                Optionally select a base profile to inherit mods, engines, or gameplay mutators.
+              </p>
+            )}
+          </div>
+
+          {/* Isolated Savegame Management */}
+          <div className="flex flex-col gap-2.5 justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-doom-text flex items-center gap-2">
+                  <FolderLock className="w-4 h-4 text-doom-red" />
+                  Save Game Isolation
+                </label>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 mt-2 bg-doom-surface/40 p-3 rounded border border-doom-border/60">
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isolateSaves}
+                    onChange={(e) => handleToggleIsolateSaves(e.target.checked)}
+                    className="w-4 h-4 rounded border-zinc-700 bg-doom-surface text-doom-red focus:ring-doom-red focus:ring-offset-doom-bg cursor-pointer accent-red-600"
+                  />
+                  <span className="text-sm font-semibold text-doom-text">
+                    Isolate Save Games
+                  </span>
+                </label>
+
+                {isolateSaves && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleOpenSaveFolder}
+                    leftIcon={<FolderOpen className="w-3.5 h-3.5 text-amber-400" />}
+                    title="Open profile save directory in file explorer"
+                  >
+                    Open Saves Folder
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <p className="text-xs text-doom-muted leading-relaxed">
+              Stores savegames in a dedicated folder (data/saves/{profile.id || '&lt;id&gt;'}) preventing state corruption between complex mod configurations.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Mod Load Order Management Section */}
       <div className="p-4 rounded-lg border border-doom-border bg-doom-card flex flex-col gap-4 shadow-sm">
+        {/* If Parent Profile is selected: Informational Banner */}
+        {selectedParentProfile && (
+          <div className="p-3.5 rounded-md bg-cyan-950/25 border border-cyan-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-cyan-200 shadow-sm">
+            <div className="flex items-start gap-3">
+              <Layers className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
+              <div className="flex flex-col gap-0.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-bold uppercase tracking-wider text-cyan-300">
+                    Base Mixin Active: {selectedParentProfile.name}
+                  </span>
+                  <Badge variant="cyan" size="xs">
+                    INHERITED
+                  </Badge>
+                </div>
+                <p className="text-xs text-cyan-200/80">
+                  Inheriting {selectedParentProfile.mods?.length || 0} mod(s) from parent profile. Inherited base mods load first before local profile mods.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Badge variant="cyan" size="xs">
+                {selectedParentProfile.mods?.filter((m) => m.enabled).length || 0} Active Inherited Mod(s)
+              </Badge>
+            </div>
+          </div>
+        )}
+
+        {/* Distinct Visual Group: Inherited Mods List (if parent profile selected and has mods) */}
+        {selectedParentProfile && selectedParentProfile.mods && selectedParentProfile.mods.length > 0 && (
+          <div className="flex flex-col gap-2 p-3 rounded-md bg-doom-surface/40 border border-cyan-900/30">
+            <div className="flex items-center justify-between pb-1.5 border-b border-doom-border/40">
+              <div className="flex items-center gap-2">
+                <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="text-xs font-bold uppercase tracking-wider text-cyan-300">
+                  Inherited Base Mods ({selectedParentProfile.mods.length})
+                </span>
+              </div>
+              <span className="text-[11px] font-mono text-zinc-500">
+                Source: {selectedParentProfile.name}
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              {selectedParentProfile.mods.map((mod, idx) => (
+                <div
+                  key={mod.id || `inherited-${idx}`}
+                  className="flex items-center gap-3 px-3.5 py-2.5 rounded bg-doom-card/80 border border-cyan-900/30 text-xs"
+                >
+                  <div className="flex items-center justify-center w-5 h-5 rounded bg-cyan-950/40 text-[10px] font-mono font-bold text-cyan-400 shrink-0 border border-cyan-800/40">
+                    B{idx + 1}
+                  </div>
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    <span className="font-semibold text-doom-text truncate" title={mod.modName}>
+                      {mod.modName}
+                    </span>
+                    <Badge variant="cyan" size="xs">
+                      Inherited
+                    </Badge>
+                    <Badge variant={mod.modFormat || 'wad'} size="xs">
+                      {mod.modFormat || 'MOD'}
+                    </Badge>
+                    {!mod.enabled && (
+                      <Badge variant="muted" size="xs">
+                        Disabled in Base
+                      </Badge>
+                    )}
+                  </div>
+                  {mod.modPath && (
+                    <span className="text-[11px] font-mono text-zinc-500 truncate max-w-xs hidden sm:inline" title={mod.modPath}>
+                      {mod.modPath}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Profile Specific Load Order Header when Parent Profile is selected */}
+        {selectedParentProfile && (
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-doom-text flex items-center gap-2">
+              Profile-Specific Mod Load Order
+            </span>
+            <Badge variant="muted" size="xs">
+              {mods.length} Local Mod{mods.length !== 1 ? 's' : ''}
+            </Badge>
+          </div>
+        )}
+
         <LoadOrderList
           mods={mods}
           onReorder={handleModsReorder}
@@ -676,12 +1007,24 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
           <div className="p-4 border-t border-doom-border flex flex-col gap-4 bg-doom-surface/40 animate-in slide-in-from-top-1 duration-150">
             {/* Custom Launch Arguments */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-doom-text flex items-center justify-between">
-                <span>Custom Launch Arguments</span>
-                <span className="text-[11px] font-mono text-doom-muted font-normal">
-                  e.g. -skill 4 -warp MAP01 +sv_cheats 1 +cl_run 1
-                </span>
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-doom-text">
+                  Custom Launch Arguments
+                </label>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="xs"
+                    onClick={() => setIsDmFlagsOpen(true)}
+                    leftIcon={<Sliders className="w-3 h-3 text-cyan-400" />}
+                  >
+                    ZDoom Flag Calculator
+                  </Button>
+                  <span className="text-[11px] font-mono text-doom-muted font-normal">
+                    e.g. -skill 4 -warp MAP01 +sv_cheats 1
+                  </span>
+                </div>
+              </div>
               <Input
                 type="text"
                 value={argumentsText}
@@ -765,6 +1108,14 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
         onClose={() => setIsSelectModsOpen(false)}
         existingModIds={mods.map((m) => m.modId)}
         onAddMods={handleAddMods}
+      />
+
+      {/* ZDoom Flags Bitfield Calculator Modal */}
+      <DmFlagsModal
+        isOpen={isDmFlagsOpen}
+        onClose={() => setIsDmFlagsOpen(false)}
+        existingArgs={parsedArguments}
+        onApply={handleApplyDmFlags}
       />
     </div>
   );
