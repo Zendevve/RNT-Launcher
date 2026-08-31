@@ -7,7 +7,7 @@
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {
-    "name": "RNT Launcher Team",
+    "name": "Zendevve",
     "email": "dev@rnt-launcher.local"
   },
   "info": {

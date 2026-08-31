@@ -7,7 +7,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-06B6D4?style=flat&logo=tailwindcss)](https://tailwindcss.com)
 [![SQLite](https://img.shields.io/badge/SQLite-CGo--Free-003B57?style=flat&logo=sqlite)](https://sqlite.org)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Support-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/zendevve)
-[![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=flat&logo=discord&logoColor=white)](https://discord.gg/Y4rDyTScPe)
+[![Discord](https://img.shields.io/badge/Discord-Artano-5865F2?style=flat&logo=discord&logoColor=white)](https://discord.gg/Y4rDyTScPe)
 
 **RNT Launcher** is a modern, fast, local-first cross-platform desktop application for organizing, configuring, validating, and launching Doom games and modifications.
 
@@ -164,9 +164,9 @@ Never fail at launch time. The pre-flight validator executes 5 core verification
 
 ## Community & Feedback
 
-Join our Discord server to discuss Rip n' Tear Launcher, report issues, and try out early test builds:
+Join Artano on Discord to discuss RNT Launcher, report issues, and try out early test builds:
 
-[![Join Discord](https://img.shields.io/badge/Discord-Rip%20n'%20Tear%20Launcher-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/Y4rDyTScPe)
+[![Join Discord](https://img.shields.io/badge/Discord-Artano-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/Y4rDyTScPe)
 
 Invite link: [https://discord.gg/Y4rDyTScPe](https://discord.gg/Y4rDyTScPe)
 
