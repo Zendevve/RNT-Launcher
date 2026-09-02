@@ -309,7 +309,7 @@ function AppContent() {
   return (
     <div
       data-density={density}
-      className="flex h-screen w-screen bg-doom-bg text-doom-text font-sans antialiased overflow-hidden select-none"
+      className="flex h-screen w-screen bg-[#0c0e12] text-zinc-100 font-sans antialiased overflow-hidden select-none"
     >
       {/* Navigation Sidebar */}
       <Sidebar
@@ -330,7 +330,7 @@ function AppContent() {
         }}
       />
       {/* Main Content Viewport */}
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#0c0e12]">
         {/* Top Header */}
         <Header
           title={viewTitles[activeView] || 'RNT Launcher'}
@@ -388,7 +388,7 @@ function AppContent() {
         />
 
         {/* Dynamic View Content */}
-        <main className="flex-1 overflow-hidden relative">
+        <main className="flex-1 overflow-hidden relative bg-[#0c0e12]">
           {(activeView === 'play' || activeView === 'dashboard' || activeView === 'profiles') && (
             <ProfilesView
               selectedProfileId={selectedProfileId}
@@ -406,7 +406,7 @@ function AppContent() {
           )}
 
           {(activeView === 'mods' || activeView === 'library') && (
-            <LibraryView />
+            <LibraryView onNavigateToDashboard={() => setActiveView('play')} />
           )}
 
           {activeView === 'settings' && <SettingsView />}
@@ -430,19 +430,19 @@ function AppContent() {
           <div className="space-y-4">
             <Input
               autoFocus
-              leftIcon={<Search className="w-4 h-4 text-doom-muted" />}
+              leftIcon={<Search className="w-4 h-4 text-zinc-400" />}
               placeholder="Search profiles, mods, engines, IWADs..."
               value={globalSearchQuery}
               onChange={(e) => setGlobalSearchQuery(e.target.value)}
-              className="w-full text-lg py-3"
+              className="w-full text-sm py-2.5 bg-[#101317] border border-[#22262d] text-zinc-100 placeholder:text-zinc-500"
             />
 
             <div className="max-h-96 overflow-y-auto space-y-4 pr-1">
               {/* Profiles section */}
               {filteredSearch.profiles.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-mono uppercase text-doom-muted tracking-wider mb-2 flex items-center gap-1.5">
-                    <Crosshair className="w-3.5 h-3.5 text-doom-red" />
+                  <h4 className="text-xs font-mono uppercase text-zinc-400 tracking-wider mb-2 flex items-center gap-1.5">
+                    <Crosshair className="w-3.5 h-3.5 text-[#ef4444]" />
                     Profiles ({filteredSearch.profiles.length})
                   </h4>
                   <div className="space-y-1">
@@ -454,14 +454,14 @@ function AppContent() {
                           setActiveView('play');
                           setIsSearchModalOpen(false);
                         }}
-                        className="flex items-center justify-between p-2.5 rounded bg-doom-surface/80 hover:bg-doom-card hover:border-doom-border border border-transparent cursor-pointer transition-colors"
+                        className="flex items-center justify-between p-2.5 rounded bg-[#14171a] hover:bg-[#1c2026] hover:border-[#22262d] border border-white/[0.04] cursor-pointer transition-colors"
                       >
                         <div className="flex items-center gap-2.5">
-                          <Flame className="w-4 h-4 text-doom-red" />
-                          <span className="font-medium text-sm text-doom-text">
+                          <Flame className="w-4 h-4 text-[#ef4444]" />
+                          <span className="font-medium text-sm text-zinc-100">
                             {p.name}
                           </span>
-                          <span className="text-xs text-doom-muted">
+                          <span className="text-xs text-zinc-400 font-mono">
                             {p.engine_name || 'No engine'} • {p.iwad_name || 'No IWAD'}
                           </span>
                         </div>
@@ -471,7 +471,7 @@ function AppContent() {
                             api.launchProfile(p.id);
                             setIsSearchModalOpen(false);
                           }}
-                          className="px-2.5 py-1 text-xs bg-doom-red/20 hover:bg-doom-red text-white rounded flex items-center gap-1"
+                          className="px-2.5 py-1 text-xs bg-[#dc2626] hover:bg-[#ef4444] text-white font-medium rounded flex items-center gap-1 transition-colors"
                         >
                           <Play className="w-3 h-3 fill-current" /> Play
                         </button>
@@ -484,8 +484,8 @@ function AppContent() {
               {/* Mods section */}
               {filteredSearch.mods.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-mono uppercase text-doom-muted tracking-wider mb-2 flex items-center gap-1.5">
-                    <LibraryIcon className="w-3.5 h-3.5 text-doom-cyan" />
+                  <h4 className="text-xs font-mono uppercase text-zinc-400 tracking-wider mb-2 flex items-center gap-1.5">
+                    <LibraryIcon className="w-3.5 h-3.5 text-blue-400" />
                     Mods ({filteredSearch.mods.length})
                   </h4>
                   <div className="space-y-1">
@@ -496,20 +496,20 @@ function AppContent() {
                           setActiveView('mods');
                           setIsSearchModalOpen(false);
                         }}
-                        className="flex items-center justify-between p-2 rounded bg-doom-surface/80 hover:bg-doom-card hover:border-doom-border border border-transparent cursor-pointer"
+                        className="flex items-center justify-between p-2 rounded bg-[#14171a] hover:bg-[#1c2026] hover:border-[#22262d] border border-white/[0.04] cursor-pointer transition-colors"
                       >
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" size="sm">
                             {m.format.toUpperCase()}
                           </Badge>
-                          <span className="text-sm text-doom-text font-medium">
+                          <span className="text-sm text-zinc-100 font-medium">
                             {m.name}
                           </span>
-                          <span className="text-xs text-doom-muted">
+                          <span className="text-xs text-zinc-400">
                             {m.category}
                           </span>
                         </div>
-                        <span className="text-xs font-mono text-doom-muted truncate max-w-xs">
+                        <span className="text-xs font-mono text-zinc-400 truncate max-w-xs">
                           {m.path}
                         </span>
                       </div>
@@ -521,8 +521,8 @@ function AppContent() {
               {/* Engines section */}
               {filteredSearch.engines.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-mono uppercase text-doom-muted tracking-wider mb-2 flex items-center gap-1.5">
-                    <Cpu className="w-3.5 h-3.5 text-doom-amber" />
+                  <h4 className="text-xs font-mono uppercase text-zinc-400 tracking-wider mb-2 flex items-center gap-1.5">
+                    <Cpu className="w-3.5 h-3.5 text-amber-400" />
                     Engines ({filteredSearch.engines.length})
                   </h4>
                   <div className="space-y-1">
@@ -533,12 +533,12 @@ function AppContent() {
                           setActiveView('engines');
                           setIsSearchModalOpen(false);
                         }}
-                        className="flex items-center justify-between p-2 rounded bg-doom-surface/80 hover:bg-doom-card cursor-pointer"
+                        className="flex items-center justify-between p-2 rounded bg-[#14171a] hover:bg-[#1c2026] hover:border-[#22262d] border border-white/[0.04] cursor-pointer transition-colors"
                       >
-                        <span className="text-sm font-medium text-doom-text">
+                        <span className="text-sm font-medium text-zinc-100">
                           {e.name}
                         </span>
-                        <span className="text-xs text-doom-muted font-mono">
+                        <span className="text-xs text-zinc-400 font-mono">
                           {e.version || 'Unknown'} ({e.family})
                         </span>
                       </div>
@@ -550,8 +550,8 @@ function AppContent() {
               {/* IWADs section */}
               {filteredSearch.iwads.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-mono uppercase text-doom-muted tracking-wider mb-2 flex items-center gap-1.5">
-                    <Disc className="w-3.5 h-3.5 text-doom-green" />
+                  <h4 className="text-xs font-mono uppercase text-zinc-400 tracking-wider mb-2 flex items-center gap-1.5">
+                    <Disc className="w-3.5 h-3.5 text-emerald-400" />
                     IWADs ({filteredSearch.iwads.length})
                   </h4>
                   <div className="space-y-1">
@@ -562,12 +562,12 @@ function AppContent() {
                           setActiveView('iwads');
                           setIsSearchModalOpen(false);
                         }}
-                        className="flex items-center justify-between p-2 rounded bg-doom-surface/80 hover:bg-doom-card cursor-pointer"
+                        className="flex items-center justify-between p-2 rounded bg-[#14171a] hover:bg-[#1c2026] hover:border-[#22262d] border border-white/[0.04] cursor-pointer transition-colors"
                       >
-                        <span className="text-sm font-medium text-doom-text">
+                        <span className="text-sm font-medium text-zinc-100">
                           {i.name}
                         </span>
-                        <span className="text-xs text-doom-muted font-mono">
+                        <span className="text-xs text-zinc-400 font-mono">
                           {i.type.toUpperCase()} ({i.lump_count} lumps)
                         </span>
                       </div>
@@ -582,7 +582,7 @@ function AppContent() {
                 filteredSearch.mods.length === 0 &&
                 filteredSearch.engines.length === 0 &&
                 filteredSearch.iwads.length === 0 && (
-                  <div className="text-center py-8 text-doom-muted">
+                  <div className="text-center py-8 text-zinc-400">
                     No results found for &ldquo;{globalSearchQuery}&rdquo;
                   </div>
                 )}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import clsx from 'clsx';
 import {
   Layers,
@@ -9,10 +9,8 @@ import {
   Trash2,
   MoreVertical,
   FileUp,
-  Flame,
-  Cpu,
-  Disc,
   RotateCw,
+  Sparkles,
 } from 'lucide-react';
 import { Profile, Engine, IWAD, ValidationItem, Settings } from '../../types';
 import { api } from '../../services/api';
@@ -22,6 +20,7 @@ import { Modal } from '../../components/ui/Modal';
 import { useToast } from '../../components/ui/Toast';
 import { ProfileEditor } from './ProfileEditor';
 import { ImportProfileModal } from './ImportProfileModal';
+
 export interface ProfilesViewProps {
   selectedProfileId?: string | null;
   onSelectProfile?: (id: string | null) => void;
@@ -50,6 +49,7 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
   const [isAutoDetecting, setIsAutoDetecting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+
   // Modals state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importModalFormat, setImportModalFormat] = useState<'yaml' | 'zdl'>('yaml');
@@ -62,6 +62,22 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
 
   // Action Menu Open Dropdown
   const [openMenuProfileId, setOpenMenuProfileId] = useState<string | null>(null);
+  const menuContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Close context menu on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (menuContainerRef.current && !menuContainerRef.current.contains(e.target as Node)) {
+        setOpenMenuProfileId(null);
+      }
+    };
+    if (openMenuProfileId) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [openMenuProfileId]);
 
   // Load all initial data
   const loadData = useCallback(async () => {
@@ -90,11 +106,12 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [onSelectProfile, propSelectedProfileId, toast]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
   useEffect(() => {
     if (propSelectedProfileId !== undefined && propSelectedProfileId !== selectedProfileId) {
       setSelectedProfileId(propSelectedProfileId);
@@ -125,6 +142,7 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
       setIsAutoDetecting(false);
     }
   };
+
   // Filtered profile list
   const filteredProfiles = useMemo(() => {
     return profiles.filter((p) => {
@@ -181,7 +199,7 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
     }
   };
 
-  // Handle Quick Actions from Sidebar Context Menu
+  // Quick Actions from Context Menu
   const handleQuickDuplicate = async (e: React.MouseEvent, p: Profile) => {
     e.stopPropagation();
     setOpenMenuProfileId(null);
@@ -212,10 +230,10 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
   const handleQuickDelete = async (e: React.MouseEvent, p: Profile) => {
     e.stopPropagation();
     setOpenMenuProfileId(null);
-    if (window.confirm(`Delete profile "${p.name}"? This cannot be undone.`)) {
+    if (window.confirm(`Delete preset "${p.name}"? This cannot be undone.`)) {
       try {
         await api.deleteProfile(p.id);
-        toast.info('Profile Deleted', `Deleted "${p.name}"`);
+        toast.info('Preset Deleted', `Deleted "${p.name}"`);
         handleProfileDeleted(p.id);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Delete failed';
@@ -235,7 +253,7 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
 
   const handleCreateProfileSubmit = async () => {
     if (!newProfileName.trim()) {
-      toast.error('Name Required', 'Please enter a name for the profile');
+      toast.error('Name Required', 'Please enter a name for the preset');
       return;
     }
 
@@ -260,86 +278,61 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
       setProfiles((prev) => [created, ...prev]);
       setSelectedProfileId(created.id);
       setIsCreateModalOpen(false);
-      toast.success('Profile Created', `Created "${created.name}"`);
+      toast.success('Preset Created', `Created "${created.name}"`);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to create profile';
+      const msg = err instanceof Error ? err.message : 'Failed to create preset';
       toast.error('Create Error', msg);
     } finally {
       setIsCreating(false);
     }
   };
 
-  // Handle Import YAML Success
+  // Handle Import YAML / ZDL Success
   const handleImportSuccess = (imported: Profile, _warnings: ValidationItem[]) => {
     setProfiles((prev) => [imported, ...prev]);
     setSelectedProfileId(imported.id);
   };
 
+  const isCompact = settings?.uiDensity === 'compact';
+
   return (
-    <div className="flex h-full w-full bg-[#0c0e10] overflow-hidden text-zinc-100 select-none">
-      {/* Left Sidebar: Profile Selector & Management */}
-      <div className="w-80 md:w-88 xl:w-96 flex flex-col border-r border-white/[0.07] bg-[#14171a] shrink-0">
+    <div className="flex h-full w-full bg-[#0c0e12] overflow-hidden text-zinc-100 select-none">
+      {/* 1. Left Column: Clean Presets List */}
+      <div className="w-80 lg:w-88 flex flex-col border-r border-[#22262d] bg-[#101317] shrink-0">
         {/* Sidebar Header */}
-        <div className="p-4 border-b border-white/[0.07] flex flex-col gap-3">
+        <div className="p-4 border-b border-[#22262d] flex flex-col gap-3">
+          {/* Header Row: Presets Title with Count & + New Setup */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Flame className="w-5 h-5 text-red-500 fill-red-500" />
-              <h2 className="text-base font-bold tracking-tight uppercase text-white">
+              <h2 className="text-sm font-semibold tracking-tight text-zinc-100">
                 Presets
               </h2>
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#14171c] text-zinc-400 border border-[#22262d]">
+                {profiles.length}
+              </span>
             </div>
-            <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-white/[0.05] text-zinc-400 border border-white/[0.08]">
-              {profiles.length} total
-            </span>
-          </div>
 
-          {/* Action Buttons: New & Import */}
-          <div className="flex flex-col gap-2">
             <Button
               variant="primary"
-              size="sm"
+              size="xs"
               onClick={handleOpenCreateModal}
-              leftIcon={<Plus className="w-4 h-4" />}
-              className="font-bold tracking-wide"
+              leftIcon={<Plus className="w-3.5 h-3.5" />}
+              className="font-medium bg-[#dc2626] hover:bg-[#ef4444] text-white border-0 text-xs px-2.5 py-1"
             >
               + New Setup
             </Button>
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                variant="secondary"
-                size="xs"
-                onClick={() => {
-                  setImportModalFormat('yaml');
-                  setIsImportModalOpen(true);
-                }}
-                leftIcon={<FileUp className="w-3.5 h-3.5 text-zinc-400" />}
-              >
-                Import YAML
-              </Button>
-              <Button
-                variant="secondary"
-                size="xs"
-                onClick={() => {
-                  setImportModalFormat('zdl');
-                  setIsImportModalOpen(true);
-                }}
-                leftIcon={<FileUp className="w-3.5 h-3.5 text-zinc-400" />}
-              >
-                Import .zdl
-              </Button>
-            </div>
           </div>
 
-          {/* Search & Favorites Toggle */}
-          <div className="flex items-center gap-2 mt-1">
+          {/* Search Input & Favorites Filter */}
+          <div className="flex items-center gap-2">
             <div className="flex-1">
               <Input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search profiles..."
-                leftIcon={<Search className="w-3.5 h-3.5 text-zinc-400" />}
-                className="py-1.5 text-xs"
+                placeholder="Search presets..."
+                leftIcon={<Search className="w-3.5 h-3.5 text-zinc-500" />}
+                className="py-1.5 text-xs bg-[#14171c] border-[#22262d] placeholder-zinc-500 text-zinc-200"
               />
             </div>
             <button
@@ -348,43 +341,70 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
               className={clsx(
                 'p-2 rounded-lg border transition-colors flex items-center justify-center shrink-0',
                 showFavoritesOnly
-                  ? 'bg-[#2b2011] border-amber-800/40 text-amber-400'
-                  : 'bg-black/30 border-white/[0.08] text-zinc-400 hover:text-white'
+                  ? 'bg-amber-950/40 border-amber-800/50 text-amber-400'
+                  : 'bg-[#14171c] border-[#22262d] text-zinc-500 hover:text-zinc-200'
               )}
-              title={showFavoritesOnly ? 'Show all profiles' : 'Show favorites only'}
+              title={showFavoritesOnly ? 'Show all presets' : 'Show favorites only'}
             >
               <Star
                 className={clsx(
-                  'w-4 h-4',
-                  showFavoritesOnly && 'fill-amber-400'
+                  'w-3.5 h-3.5',
+                  showFavoritesOnly && 'fill-amber-400 text-amber-400'
                 )}
               />
             </button>
           </div>
+
+          {/* Quick Import Actions */}
+          <div className="flex items-center gap-1.5 pt-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                setImportModalFormat('yaml');
+                setIsImportModalOpen(true);
+              }}
+              className="flex-1 text-[11px] font-medium py-1 px-2 rounded bg-[#14171c] hover:bg-[#181f26] border border-[#22262d] text-zinc-400 hover:text-zinc-200 transition-colors flex items-center justify-center gap-1.5"
+            >
+              <FileUp className="w-3 h-3 text-zinc-500" />
+              <span>Import YAML</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setImportModalFormat('zdl');
+                setIsImportModalOpen(true);
+              }}
+              className="flex-1 text-[11px] font-medium py-1 px-2 rounded bg-[#14171c] hover:bg-[#181f26] border border-[#22262d] text-zinc-400 hover:text-zinc-200 transition-colors flex items-center justify-center gap-1.5"
+            >
+              <FileUp className="w-3 h-3 text-zinc-500" />
+              <span>Import .zdl</span>
+            </button>
+          </div>
         </div>
 
-        {/* Profile List */}
-        <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
+        {/* Preset List Container */}
+        <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-1.5">
           {isLoading ? (
-            <div className="p-8 text-center text-xs text-zinc-400 flex items-center justify-center gap-2">
-              Loading profiles...
+            <div className="p-8 text-center text-xs text-zinc-500 flex items-center justify-center gap-2">
+              <RotateCw className="w-3.5 h-3.5 animate-spin text-zinc-500" />
+              <span>Loading presets...</span>
             </div>
           ) : filteredProfiles.length === 0 ? (
-            <div className="p-6 text-center text-xs text-zinc-400 border border-dashed border-white/[0.1] rounded-xl bg-black/20 flex flex-col items-center gap-2">
-              <Layers className="w-8 h-8 text-zinc-500" />
+            <div className="p-6 text-center text-xs text-zinc-500 border border-dashed border-[#22262d] rounded-lg bg-[#14171c]/40 flex flex-col items-center gap-2.5">
+              <Layers className="w-7 h-7 text-zinc-600" />
               <span>
                 {searchQuery || showFavoritesOnly
-                  ? 'No profiles match your search criteria.'
-                  : 'No profiles created yet.'}
+                  ? 'No presets match your search criteria.'
+                  : 'No presets created yet.'}
               </span>
               <Button
                 variant="secondary"
                 size="xs"
                 onClick={handleOpenCreateModal}
-                leftIcon={<Plus className="w-3 h-3 text-red-400" />}
-                className="mt-1"
+                leftIcon={<Plus className="w-3 h-3 text-zinc-300" />}
+                className="mt-1 text-xs bg-[#181f26] border-[#22262d]"
               >
-                Create First Profile
+                Create Preset
               </Button>
             </div>
           ) : (
@@ -394,7 +414,6 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
               const modCount = p.mods ? p.mods.length : 0;
               const activeModCount = p.mods ? p.mods.filter((m) => m.enabled).length : 0;
 
-              const isCompact = settings?.uiDensity === 'compact';
               return (
                 <div
                   key={p.id}
@@ -403,62 +422,60 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
                     setOpenMenuProfileId(null);
                   }}
                   className={clsx(
-                    'group relative rounded-xl border transition-colors cursor-pointer select-none',
+                    'group relative rounded-lg border transition-colors duration-100 ease-out cursor-pointer select-none',
                     isCompact ? 'p-2.5' : 'p-3',
                     isSelected
-                      ? 'bg-[#1a1e24] border-red-500/80'
-                      : 'bg-[#15181c] hover:bg-[#1a1d22] border-white/[0.08]'
+                      ? 'bg-[#181c22] border-zinc-700/80'
+                      : 'bg-[#14171c] hover:bg-[#181f26] border-[#22262d]'
                   )}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
+                  {/* Top Line: Favorite Star, Preset Name, Context Menu */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
                       <button
                         type="button"
                         onClick={(e) => handleToggleFavorite(e, p.id)}
                         className="text-zinc-500 hover:text-amber-400 transition-colors shrink-0"
-                        title={p.isFavorite ? 'Unfavorite' : 'Favorite'}
+                        title={p.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                       >
                         <Star
                           className={clsx(
-                            'w-4 h-4',
+                            'w-3.5 h-3.5',
                             p.isFavorite
                               ? 'text-amber-400 fill-amber-400'
                               : 'text-zinc-600 hover:text-amber-400'
                           )}
                         />
                       </button>
-                      <h4
-                        className={clsx(
-                          'text-xs font-bold truncate tracking-tight',
-                          isSelected ? 'text-white' : 'text-zinc-200 group-hover:text-white'
-                        )}
-                      >
+                      <h4 className="text-xs font-semibold text-zinc-100 truncate">
                         {p.name}
                       </h4>
                     </div>
 
                     {/* Context Action Menu */}
-                    <div className="relative">
+                    <div className="relative shrink-0">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           setOpenMenuProfileId(isMenuOpen ? null : p.id);
                         }}
-                        className="p-1 text-zinc-500 hover:text-white rounded hover:bg-white/[0.06] transition-colors"
+                        className="p-1 text-zinc-500 hover:text-zinc-200 rounded hover:bg-[#181f26] transition-colors"
+                        title="Preset options"
                       >
                         <MoreVertical className="w-3.5 h-3.5" />
                       </button>
 
                       {isMenuOpen && (
                         <div
-                          className="absolute right-0 top-6 z-40 w-36 rounded-lg bg-[#15181c] border border-white/[0.08] shadow-xl py-1 text-xs"
+                          ref={menuContainerRef}
+                          className="absolute right-0 top-6 z-40 w-36 rounded-lg bg-[#14171c] border border-[#22262d] shadow-xl py-1 text-xs"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <button
                             type="button"
                             onClick={(e) => handleQuickDuplicate(e, p)}
-                            className="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-white/[0.06] hover:text-white flex items-center gap-2"
+                            className="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-[#181f26] hover:text-white flex items-center gap-2"
                           >
                             <Copy className="w-3.5 h-3.5 text-zinc-400" />
                             <span>Duplicate</span>
@@ -466,12 +483,12 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
                           <button
                             type="button"
                             onClick={(e) => handleQuickExport(e, p)}
-                            className="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-white/[0.06] hover:text-white flex items-center gap-2"
+                            className="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-[#181f26] hover:text-white flex items-center gap-2"
                           >
                             <FileUp className="w-3.5 h-3.5 text-zinc-400" />
                             <span>Export YAML</span>
                           </button>
-                          <div className="my-1 border-t border-white/[0.06]" />
+                          <div className="my-1 border-t border-[#22262d]" />
                           <button
                             type="button"
                             onClick={(e) => handleQuickDelete(e, p)}
@@ -485,25 +502,23 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Profile Metadata Spec Badges */}
-                  <div className="mt-2 flex flex-col gap-1 text-[11px] font-mono">
-                    <div className="flex items-center gap-1 text-zinc-400 truncate">
-                      <Cpu className="w-3 h-3 text-blue-400 shrink-0" />
-                      <span className="truncate">{p.engineName || 'No Engine Assigned'}</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-zinc-400 truncate">
-                      <Disc className="w-3 h-3 text-amber-400 shrink-0" />
-                      <span className="truncate">{p.iwadName || 'No IWAD Assigned'}</span>
-                    </div>
+                  {/* Clean Subtitle: Engine • Base IWAD */}
+                  <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-zinc-400 truncate">
+                    <span className="truncate">{p.engineName || 'No Engine'}</span>
+                    <span className="text-zinc-600 shrink-0">•</span>
+                    <span className="truncate">{p.iwadName || 'No IWAD'}</span>
                   </div>
 
-                  {/* Mod count tag */}
-                  <div className="mt-2.5 flex items-center justify-between text-[10px] font-mono text-zinc-500 border-t border-white/[0.04] pt-1.5">
+                  {/* Bottom Line: Mod Count & Savegame Isolation Indicator */}
+                  <div className="mt-2 flex items-center justify-between text-[10px] font-mono text-zinc-500 border-t border-[#22262d]/60 pt-1.5">
                     <span>
-                      {activeModCount}/{modCount} mods active
+                      {modCount === 1 ? '1 mod' : `${modCount} mods`}
+                      {modCount > 0 && activeModCount !== modCount && ` (${activeModCount} active)`}
                     </span>
                     {p.isolateSaves && (
-                      <span className="text-amber-400">ISOLATED SAVES</span>
+                      <span className="text-amber-400/90 font-mono text-[9px] uppercase tracking-wider">
+                        Isolated Saves
+                      </span>
                     )}
                   </div>
                 </div>
@@ -513,15 +528,16 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
         </div>
       </div>
 
-      {/* Right Detail Pane: Profile Editor Component */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      {/* 2. Right Column: The Stage (background #0c0e12) */}
+      <div className="flex-1 flex flex-col overflow-hidden bg-[#0c0e12]">
         {engines.length === 0 && iwads.length === 0 && !isLoading ? (
+          /* First-Run Welcoming Hero */
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-xl mx-auto select-none">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center mb-5 shadow-lg shadow-red-950/40 border border-red-500/30">
-              <Flame className="w-8 h-8 text-white" />
+            <div className="w-12 h-12 rounded-xl bg-[#14171c] border border-[#22262d] flex items-center justify-center mb-5 text-[#dc2626]">
+              <Sparkles className="w-6 h-6" />
             </div>
-            <h2 className="text-xl font-bold tracking-tight text-white mb-2">
-              Welcome to RNT Launcher - Let's find your Doom games
+            <h2 className="text-xl font-bold tracking-tight text-zinc-100 mb-2">
+              Welcome to RNT Launcher - Let&apos;s find your Doom games
             </h2>
             <p className="text-xs text-zinc-400 leading-relaxed mb-6">
               Scan your computer to automatically discover installed source ports (GZDoom, PRBoom+, DSDA-Doom, Woof) and base game IWADs (DOOM, DOOM II, Final Doom).
@@ -533,12 +549,12 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
                 onClick={handleAutoDetect}
                 isLoading={isAutoDetecting}
                 leftIcon={<RotateCw className={clsx('w-4 h-4', isAutoDetecting && 'animate-spin')} />}
-                className="font-bold tracking-wide px-6"
+                className="font-medium px-6 bg-[#dc2626] hover:bg-[#ef4444] text-white border-0 text-xs tracking-wide"
               >
                 {isAutoDetecting ? 'Auto-Detecting Games...' : 'Auto-Detect Installed Games & Ports'}
               </Button>
             </div>
-            <div className="mt-5 flex items-center gap-3 text-xs text-zinc-500">
+            <div className="mt-6 flex items-center gap-3 text-xs text-zinc-500">
               <span>Or add manually:</span>
               <button
                 type="button"
@@ -568,19 +584,22 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
             onProfileDuplicated={handleProfileDuplicated}
           />
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-zinc-500 gap-3">
-            <Layers className="w-12 h-12 text-zinc-600" />
-            <h3 className="text-base font-semibold text-zinc-300">No Setup Selected</h3>
-            <p className="text-xs max-w-sm">
+          /* Instructional Empty State */
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-zinc-500 gap-3 select-none">
+            <div className="w-12 h-12 rounded-xl bg-[#14171c] border border-[#22262d] flex items-center justify-center text-zinc-600 mb-1">
+              <Layers className="w-6 h-6" />
+            </div>
+            <h3 className="text-sm font-semibold text-zinc-300">No Setup Selected</h3>
+            <p className="text-xs text-zinc-500 max-w-sm">
               Select a preset configuration from the left list to configure its engine, base IWAD, and mod load order.
             </p>
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 mt-2">
               <Button
                 variant="primary"
                 size="sm"
                 onClick={handleOpenCreateModal}
-                leftIcon={<Plus className="w-4 h-4" />}
-                className="font-bold tracking-wide"
+                leftIcon={<Plus className="w-3.5 h-3.5" />}
+                className="bg-[#dc2626] hover:bg-[#ef4444] text-white text-xs font-medium"
               >
                 + New Setup
               </Button>
@@ -589,6 +608,7 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
                   variant="secondary"
                   size="sm"
                   onClick={onNavigateToLibrary}
+                  className="bg-[#14171c] hover:bg-[#181f26] border-[#22262d] text-zinc-300 text-xs"
                 >
                   Browse Mod Collection
                 </Button>
@@ -598,11 +618,11 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
         )}
       </div>
 
-      {/* Create Profile Modal */}
+      {/* Create Preset Modal */}
       <Modal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        title="Create Launch Profile"
+        title="Create Preset Setup"
         size="md"
         footer={
           <>
@@ -613,15 +633,16 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
               variant="primary"
               onClick={handleCreateProfileSubmit}
               isLoading={isCreating}
+              className="bg-[#dc2626] hover:bg-[#ef4444] text-white"
             >
-              Create Profile
+              Create Preset
             </Button>
           </>
         }
       >
         <div className="space-y-4">
           <Input
-            label="Profile Name *"
+            label="Preset Name *"
             placeholder="e.g. Brutal Doom + Metal Soundtrack"
             value={newProfileName}
             onChange={(e) => setNewProfileName(e.target.value)}
@@ -635,17 +656,17 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
           />
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block">
+            <label className="text-xs font-medium text-zinc-300 uppercase tracking-wider block">
               Default Source Port
             </label>
             <select
               value={newProfileEngineId}
               onChange={(e) => setNewProfileEngineId(e.target.value)}
-              className="w-full bg-black/40 border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-doom-red font-medium"
+              className="w-full bg-[#101317] border border-[#22262d] rounded-lg px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-zinc-500 font-medium"
             >
               <option value="">-- Select Engine --</option>
               {engines.map((e) => (
-                <option key={e.id} value={e.id}>
+                <option key={e.id} value={e.id} className="bg-[#14171c] text-zinc-100">
                   {e.name} ({e.family})
                 </option>
               ))}
@@ -653,17 +674,17 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block">
+            <label className="text-xs font-medium text-zinc-300 uppercase tracking-wider block">
               Default Base Game IWAD
             </label>
             <select
               value={newProfileIwadId}
               onChange={(e) => setNewProfileIwadId(e.target.value)}
-              className="w-full bg-black/40 border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-doom-red font-medium"
+              className="w-full bg-[#101317] border border-[#22262d] rounded-lg px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-zinc-500 font-medium"
             >
               <option value="">-- Select IWAD --</option>
               {iwads.map((w) => (
-                <option key={w.id} value={w.id}>
+                <option key={w.id} value={w.id} className="bg-[#14171c] text-zinc-100">
                   {w.name} ({w.type.toUpperCase()})
                 </option>
               ))}

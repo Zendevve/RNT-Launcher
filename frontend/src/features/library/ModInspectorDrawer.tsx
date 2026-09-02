@@ -16,10 +16,9 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mod, FileInfo } from '../../types';
+import { Mod, FileInfo, ModFormat } from '../../types';
 import { api } from '../../services/api';
 import { formatBytes, formatDate } from '../../utils/formatters';
-import { drawerVariants, scrimVariants } from '../../lib/springs';
 
 interface ModInspectorDrawerProps {
   mod: Mod | null;
@@ -31,10 +30,29 @@ interface ModInspectorDrawerProps {
   onOpenFolder: (path: string) => Promise<void>;
 }
 
+const getFormatBadgeStyle = (format: ModFormat): string => {
+  switch (format.toLowerCase()) {
+    case 'pk3':
+    case 'ipk3':
+      return 'text-[#d8b4fe] bg-[#d8b4fe]/10 border-[#d8b4fe]/20';
+    case 'wad':
+    case 'zip':
+      return 'text-[#93c5fd] bg-[#93c5fd]/10 border-[#93c5fd]/20';
+    case 'pk7':
+    case '7z':
+      return 'text-[#86efac] bg-[#86efac]/10 border-[#86efac]/20';
+    case 'deh':
+    case 'bex':
+      return 'text-[#fca5a5] bg-[#fca5a5]/10 border-[#fca5a5]/20';
+    default:
+      return 'text-zinc-300 bg-white/[0.05] border-white/[0.08]';
+  }
+};
+
 const KNOWN_STRUCTURES = [
-  { name: 'MAPINFO', desc: 'Map definitions, episode metadata & clusters' },
+  { name: 'MAPINFO', desc: 'Map definitions, episode metadata, and clusters' },
   { name: 'ZSCRIPT', desc: 'Modern GZDoom object scripting language' },
-  { name: 'DECORATE', desc: 'Actor, monster & weapon definitions' },
+  { name: 'DECORATE', desc: 'Actor, monster, and weapon definitions' },
   { name: 'SNDINFO', desc: 'Sound curve and lump associations' },
   { name: 'TEXTURES', desc: 'Custom wall and flat texture definitions' },
   { name: 'GLDEFS', desc: 'Dynamic lights and glowing flats shaders' },
@@ -42,7 +60,7 @@ const KNOWN_STRUCTURES = [
   { name: 'SWITCHES', desc: 'Interactive switch textures' },
   { name: 'DEHACKED', desc: 'DeHackEd vanilla game engine patch' },
   { name: 'CVARINFO', desc: 'Custom user console variables and options' },
-  { name: 'MENUDEF', desc: 'Custom in-game menus and config GUI' },
+  { name: 'MENUDEF', desc: 'Custom in-game menus and configuration GUI' },
   { name: 'VOXELDEF', desc: '3D voxel actor definitions' },
 ];
 
@@ -112,47 +130,53 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
         <div className="fixed inset-0 z-50 flex justify-end overflow-hidden select-none">
           {/* Backdrop click to close */}
           <motion.div
-            variants={scrimVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className="fixed inset-0 bg-black/75 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-[2px]"
             onClick={onClose}
           />
 
           {/* Slide-over Drawer Panel */}
           <motion.div
-            variants={drawerVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className="relative z-10 flex h-full w-full max-w-2xl flex-col border-l border-white/[0.08] bg-[#15181c] text-zinc-200 shadow-2xl"
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="relative z-10 flex h-full w-full max-w-xl flex-col border-l border-[#22262d] bg-[#14171c] text-zinc-200 shadow-2xl"
           >
             {/* Drawer Header */}
-            <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-4 bg-white/[0.02]">
-              <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-[#132232] p-2 text-[#93c5fd] border border-blue-800/30">
+            <div className="flex items-center justify-between border-b border-[#22262d] px-6 py-4 bg-[#14171c]">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="rounded p-2 bg-[#1b1f26] text-zinc-300 border border-[#22262d] shrink-0">
                   <FileCode className="h-5 w-5" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <h2 className="text-base font-bold text-white line-clamp-1 tracking-tight" title={mod.name}>
+                    <h2 className="text-base font-semibold text-zinc-100 truncate" title={mod.name}>
                       {mod.name}
                     </h2>
-                    <span className="rounded-full bg-[#132232] px-2.5 py-0.5 font-mono text-[9.5px] font-bold uppercase tracking-wider text-[#93c5fd] border border-blue-800/30">
+                    <span
+                      className={`inline-block rounded px-1.5 py-0.5 font-mono text-[10px] font-medium border uppercase tracking-wider shrink-0 ${getFormatBadgeStyle(
+                        mod.format
+                      )}`}
+                    >
                       {mod.format.toUpperCase()}
                     </span>
                   </div>
-                  <p className="text-xs text-zinc-400 font-medium">{mod.category || 'General Mod'}</p>
+                  <p className="text-xs text-zinc-400 font-normal truncate mt-0.5">
+                    {mod.category || 'General Mod'}
+                  </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 shrink-0 ml-3">
                 <button
                   type="button"
                   title={mod.isFavorite ? 'Remove Favorite' : 'Add to Favorites'}
                   onClick={() => onToggleFavorite(mod.id)}
-                  className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/[0.06] hover:text-amber-400 transition-colors"
+                  className="rounded p-1.5 text-zinc-400 hover:bg-[#1b1f26] hover:text-amber-400 transition-colors"
                 >
                   <Star
                     className={`h-4 w-4 ${mod.isFavorite ? 'fill-amber-400 text-amber-400' : ''}`}
@@ -161,7 +185,7 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/[0.06] hover:text-white transition-colors"
+                  className="rounded p-1.5 text-zinc-400 hover:bg-[#1b1f26] hover:text-zinc-200 transition-colors"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -172,16 +196,16 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
               {isLoading ? (
                 <div className="flex h-64 flex-col items-center justify-center gap-3 text-zinc-400">
-                  <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+                  <Loader2 className="h-7 w-7 animate-spin text-zinc-400" />
                   <span className="font-mono text-xs">Parsing file headers and lump directory...</span>
                 </div>
               ) : (
                 <>
-                  {/* Artwork Banner Card */}
+                  {/* Extracted Cover Artwork */}
                   {artwork?.hasArt && artwork.dataUri && (
-                    <div className="relative overflow-hidden rounded-xl border border-white/[0.08] bg-black/40">
+                    <div className="relative overflow-hidden rounded-lg border border-[#22262d] bg-[#0c0e10]">
                       <div className="absolute top-2 right-2 z-10">
-                        <span className="px-2 py-0.5 rounded-full bg-black/80 text-[9.5px] font-mono font-bold uppercase tracking-wider text-[#93c5fd] border border-white/[0.1]">
+                        <span className="px-2 py-0.5 rounded bg-black/80 text-[10px] font-mono font-medium uppercase tracking-wider text-zinc-300 border border-white/10">
                           {artwork.lumpName || 'ARTWORK'}
                         </span>
                       </div>
@@ -189,30 +213,30 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
                         <img
                           src={artwork.dataUri}
                           alt={`${mod.name} ${artwork.lumpName}`}
-                          className="max-h-52 w-auto object-contain rounded-lg border border-white/[0.08]"
+                          className="max-h-48 w-auto object-contain rounded border border-[#22262d]"
                           style={{ imageRendering: 'pixelated' }}
                         />
                       </div>
                     </div>
                   )}
 
-                  {/* Section 1: File Properties & Metadata */}
+                  {/* Section 1: File Properties & Lump Directory Stats */}
                   <div>
-                    <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3">
-                      <HardDrive className="h-3.5 w-3.5 text-blue-400" />
+                    <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3">
+                      <HardDrive className="h-3.5 w-3.5 text-zinc-400" />
                       <span>File Properties</span>
                     </h3>
 
-                    <div className="space-y-2 rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 text-xs font-mono">
+                    <div className="space-y-3 rounded-lg border border-[#22262d] bg-[#181c21] p-4 text-xs">
                       {/* File Path */}
                       <div>
                         <div className="text-[11px] text-zinc-400 mb-1 flex items-center justify-between">
-                          <span>Full Path</span>
+                          <span>File Path</span>
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() => handleCopy(mod.path, 'path')}
-                              className="inline-flex items-center gap-1 text-[10px] text-zinc-400 hover:text-white transition-colors"
+                              className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors"
                             >
                               {copiedField === 'path' ? (
                                 <Check className="h-3 w-3 text-emerald-400" />
@@ -224,47 +248,47 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
                             <button
                               type="button"
                               onClick={() => onOpenFolder(mod.path)}
-                              className="inline-flex items-center gap-1 text-[10px] text-zinc-400 hover:text-blue-400 transition-colors"
+                              className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors"
                             >
                               <ExternalLink className="h-3 w-3" />
                               <span>Show in Folder</span>
                             </button>
                           </div>
                         </div>
-                        <div className="break-all rounded-lg bg-black/40 px-2.5 py-1.5 text-zinc-200 border border-white/[0.06]">
+                        <div className="break-all rounded bg-[#0c0e10] px-2.5 py-1.5 font-mono text-[11px] text-zinc-300 border border-[#22262d]">
                           {mod.path}
                         </div>
                       </div>
 
-                      {/* Size & Lump Count Grid */}
-                      <div className="grid grid-cols-2 gap-3 pt-2">
+                      {/* Size & Lump Directory Stats Grid */}
+                      <div className="grid grid-cols-2 gap-4 pt-1">
                         <div>
                           <span className="text-[11px] text-zinc-400">File Size</span>
-                          <div className="mt-0.5 text-white font-semibold">
+                          <div className="mt-0.5 text-zinc-100 font-medium">
                             {formatBytes(fileInfo?.size || mod.size)}{' '}
-                            <span className="text-zinc-400 font-normal">
+                            <span className="text-zinc-500 font-normal font-mono text-[11px]">
                               ({(fileInfo?.size || mod.size).toLocaleString()} bytes)
                             </span>
                           </div>
                         </div>
 
                         <div>
-                          <span className="text-[11px] text-zinc-400">Total Lumps / Files</span>
-                          <div className="mt-0.5 text-white font-semibold">
+                          <span className="text-[11px] text-zinc-400">Lump Directory Count</span>
+                          <div className="mt-0.5 text-zinc-100 font-medium">
                             {fileInfo?.lumpCount || mod.lumpCount || 0}{' '}
-                            <span className="text-zinc-400 font-normal">entries</span>
+                            <span className="text-zinc-500 font-normal text-[11px]">entries</span>
                           </div>
                         </div>
                       </div>
 
-                      {/* SHA-256 Hash */}
-                      <div className="pt-2">
+                      {/* SHA-256 Hash Copying */}
+                      <div className="pt-2 border-t border-[#22262d]">
                         <div className="text-[11px] text-zinc-400 mb-1 flex items-center justify-between">
                           <span>SHA-256 Checksum</span>
                           <button
                             type="button"
                             onClick={() => handleCopy(fileInfo?.sha256 || mod.sha256, 'hash')}
-                            className="inline-flex items-center gap-1 text-[10px] text-zinc-400 hover:text-white transition-colors"
+                            className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors"
                           >
                             {copiedField === 'hash' ? (
                               <Check className="h-3 w-3 text-emerald-400" />
@@ -274,19 +298,19 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
                             <span>{copiedField === 'hash' ? 'Copied' : 'Copy'}</span>
                           </button>
                         </div>
-                        <div className="break-all rounded-lg bg-black/40 px-2.5 py-1.5 text-[11px] text-zinc-300 border border-white/[0.06]">
+                        <div className="break-all rounded bg-[#0c0e10] px-2.5 py-1.5 font-mono text-[11px] text-zinc-300 border border-[#22262d]">
                           {fileInfo?.sha256 || mod.sha256 || 'Not computed'}
                         </div>
                       </div>
 
-                      {/* Created / Modified Date */}
-                      <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/[0.06]">
+                      {/* Added / Modified Timestamps */}
+                      <div className="grid grid-cols-2 gap-4 pt-2 border-t border-[#22262d] text-[11px]">
                         <div>
-                          <span className="text-[11px] text-zinc-400">Date Added</span>
+                          <span className="text-zinc-400">Date Added</span>
                           <div className="mt-0.5 text-zinc-300">{formatDate(mod.createdAt)}</div>
                         </div>
                         <div>
-                          <span className="text-[11px] text-zinc-400">Last Modified</span>
+                          <span className="text-zinc-400">Last Modified</span>
                           <div className="mt-0.5 text-zinc-300">{formatDate(mod.updatedAt)}</div>
                         </div>
                       </div>
@@ -295,9 +319,9 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
 
                   {/* Section 2: Detected Engine Features & Script Structures */}
                   <div>
-                    <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3">
-                      <Cpu className="h-3.5 w-3.5 text-blue-400" />
-                      <span>{'Script & Engine Lump Features'}</span>
+                    <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3">
+                      <Cpu className="h-3.5 w-3.5 text-zinc-400" />
+                      <span>Script and Engine Lump Features</span>
                     </h3>
 
                     <div className="grid grid-cols-2 gap-2">
@@ -306,20 +330,22 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
                         return (
                           <div
                             key={struct.name}
-                            className={`flex items-start gap-2.5 rounded-xl border p-2.5 transition-colors ${
+                            className={`flex items-start gap-2.5 rounded-lg border p-2.5 transition-colors ${
                               isPresent
-                                ? 'border-blue-800/40 bg-[#132232] text-zinc-100'
-                                : 'border-white/[0.04] bg-black/20 text-zinc-500 opacity-60'
+                                ? 'border-[#22262d] bg-[#181c21] text-zinc-200'
+                                : 'border-[#22262d]/50 bg-[#14171c] text-zinc-500 opacity-60'
                             }`}
                           >
                             {isPresent ? (
-                              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-blue-400" />
+                              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
                             ) : (
-                              <MinusCircle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-zinc-600" />
+                              <MinusCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-600" />
                             )}
                             <div className="min-w-0">
-                              <div className="font-mono text-xs font-bold">{struct.name}</div>
-                              <div className="text-[10px] leading-tight text-zinc-400 line-clamp-2">
+                              <div className="font-mono text-xs font-medium text-zinc-200">
+                                {struct.name}
+                              </div>
+                              <div className="text-[10px] text-zinc-400 line-clamp-2 mt-0.5">
                                 {struct.desc}
                               </div>
                             </div>
@@ -329,29 +355,27 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
                     </div>
                   </div>
 
-                  {/* Section 3: Embedded Maps */}
+                  {/* Section 3: Embedded Map Markers */}
                   <div>
-                    <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3">
-                      <MapPin className="h-3.5 w-3.5 text-amber-400" />
-                      <span>
-                        Embedded Maps ({detectedMaps.length})
-                      </span>
+                    <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3">
+                      <MapPin className="h-3.5 w-3.5 text-zinc-400" />
+                      <span>Embedded Maps ({detectedMaps.length})</span>
                     </h3>
 
                     {detectedMaps.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto rounded-xl border border-white/[0.07] bg-black/30 p-3">
+                      <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto rounded-lg border border-[#22262d] bg-[#181c21] p-3">
                         {detectedMaps.map((mapName) => (
                           <span
                             key={mapName}
-                            className="rounded-full border border-amber-800/40 bg-[#2b2011] px-2.5 py-0.5 font-mono text-[10px] font-bold text-[#fde047]"
+                            className="rounded border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 font-mono text-[10px] font-medium text-amber-300"
                           >
                             {mapName}
                           </span>
                         ))}
                       </div>
                     ) : (
-                      <div className="rounded-xl border border-white/[0.05] bg-black/20 p-3 text-xs font-mono text-zinc-500">
-                        No map markers (MAPxx / ExMx) detected in this file.
+                      <div className="rounded-lg border border-[#22262d] bg-[#181c21] p-3 text-xs text-zinc-500">
+                        No map markers (MAPxx or ExMx) detected in this file.
                       </div>
                     )}
                   </div>
@@ -360,11 +384,11 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
             </div>
 
             {/* Drawer Bottom Actions */}
-            <div className="flex items-center justify-between border-t border-white/[0.07] px-6 py-4 bg-black/30">
+            <div className="flex items-center justify-between border-t border-[#22262d] px-6 py-4 bg-[#14171c]">
               <button
                 type="button"
                 onClick={() => onDelete(mod.id)}
-                className="inline-flex items-center gap-1.5 rounded-md border border-red-800/30 bg-[#2b1416] px-3 py-2 text-xs font-semibold text-[#fca5a5] hover:bg-red-950/60 hover:text-white transition-colors"
+                className="inline-flex items-center gap-1.5 rounded border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 <span>Delete Mod</span>
@@ -374,7 +398,7 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="rounded-md px-4 py-2 text-xs font-semibold text-zinc-400 hover:bg-white/[0.06] hover:text-white transition-colors"
+                  className="rounded px-3 py-1.5 text-xs font-medium text-zinc-400 hover:bg-[#1b1f26] hover:text-zinc-200 transition-colors"
                 >
                   Close
                 </button>
@@ -384,10 +408,10 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
                     onAddToProfile(mod);
                     onClose();
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-[#dc2626] hover:bg-[#c02020] px-4 py-2 text-xs font-semibold text-white border border-red-500/30 transition-colors active:scale-[0.98]"
+                  className="inline-flex items-center gap-1.5 rounded bg-[#10b981]/15 hover:bg-[#10b981]/25 text-[#86efac] border border-[#10b981]/30 px-3 py-1.5 text-xs font-medium transition-colors"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  <span>Add to Profile</span>
+                  <span>+ Add to Setup</span>
                 </button>
               </div>
             </div>

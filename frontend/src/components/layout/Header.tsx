@@ -1,8 +1,5 @@
 import React from 'react';
 import { Search, RefreshCw, Play, ShieldAlert, CheckCircle2 } from 'lucide-react';
-import { motion } from 'motion/react';
-import { Button } from '../ui/Button';
-import { Badge } from '../ui/Badge';
 import { cn } from '../../utils/cn';
 
 export interface HeaderProps {
@@ -26,7 +23,7 @@ export const Header: React.FC<HeaderProps> = ({
   title,
   searchQuery = '',
   onSearchClick,
-  searchPlaceholder = 'Global search (Ctrl+K)...',
+  searchPlaceholder = 'Search mods, profiles, commands...',
   showSearch = true,
   onQuickScan,
   isScanning = false,
@@ -43,37 +40,39 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header
       className={cn(
-        'h-12 bg-[#121417] border-b border-white/[0.08] px-5 flex items-center justify-between gap-4 select-none z-20 flex-shrink-0',
+        'h-12 bg-[#101317] border-b border-[#22262d] px-4 flex items-center justify-between gap-4 select-none z-20 flex-shrink-0',
         className
       )}
     >
       {/* Single Header Breadcrumb */}
-      <div className="flex items-center gap-2.5 min-w-0">
-        <span className="text-[11px] font-mono font-semibold uppercase tracking-wider text-zinc-400">
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="text-[11px] font-mono font-medium text-zinc-500 uppercase tracking-wider">
           RNT
         </span>
-        <span className="text-zinc-600 font-mono text-xs">/</span>
-        <h1 className="text-xs font-bold uppercase tracking-wider text-zinc-100 truncate">
+        <span className="text-zinc-600 font-mono text-xs select-none">/</span>
+        <h1 className="text-xs font-semibold text-zinc-200 tracking-wide truncate">
           {title}
         </h1>
         {activeProfileName && (
-          <span className="hidden sm:inline-flex items-center gap-1.5 font-mono text-[11px] text-zinc-300 bg-white/[0.04] px-2.5 py-0.5 rounded-md border border-white/[0.08]">
-            <span className="text-zinc-500 font-normal">Profile:</span>
-            <span className="text-white font-semibold truncate max-w-[140px]">{activeProfileName}</span>
-          </span>
+          <div className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-zinc-300 bg-white/[0.04] px-2 py-0.5 rounded border border-[#22262d]">
+            <span className="text-zinc-500 font-normal">Active:</span>
+            <span className="text-zinc-200 font-medium truncate max-w-[160px]">
+              {activeProfileName}
+            </span>
+          </div>
         )}
       </div>
 
       {/* Center Global Search Trigger (Ctrl+K) */}
       {showSearch && (
-        <div className="flex-1 max-w-sm mx-3 hidden sm:block">
+        <div className="flex-1 max-w-sm mx-4 hidden sm:block">
           <button
             type="button"
             onClick={() => onSearchClick?.()}
-            className="w-full h-7 pl-8 pr-2.5 bg-black/40 text-zinc-400 text-xs rounded-md border border-white/[0.08] flex items-center justify-between hover:border-white/[0.2] hover:bg-black/60 transition-colors relative"
+            className="w-full h-7 pl-8 pr-2 bg-[#14171a] text-zinc-400 text-xs rounded border border-[#22262d] flex items-center justify-between hover:border-zinc-600 hover:text-zinc-200 transition-colors relative"
           >
-            <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 pointer-events-none" />
-            <span className="truncate text-[11px] text-zinc-400 font-mono">
+            <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 pointer-events-none" />
+            <span className="truncate text-[11px] text-zinc-400">
               {searchQuery || searchPlaceholder}
             </span>
             <kbd className="text-[9.5px] font-mono text-zinc-400 bg-white/[0.06] px-1.5 py-0.5 rounded border border-white/[0.08]">
@@ -83,71 +82,70 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       )}
 
-      {/* Right Controls: Status / Scan / Universal Play CTA */}
+      {/* Right Controls: Status / Scan / Universal Crimson Play CTA */}
       <div className="flex items-center gap-2 flex-shrink-0">
         {/* Launch Status indicator */}
         {launchStatus && launchStatus !== 'IDLE' && (
           <div className="hidden lg:flex items-center">
             {launchStatus === 'RUNNING' && (
-              <Badge variant="primary" dot dotPulse size="xs">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
                 RUNNING
-              </Badge>
+              </span>
             )}
             {launchStatus === 'LAUNCHING' && (
-              <Badge variant="warning-status" dot size="xs">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
                 LAUNCHING
-              </Badge>
+              </span>
             )}
             {launchStatus === 'READY' && (
-              <Badge variant="ready" icon={<CheckCircle2 className="w-3 h-3 mr-1" />} size="xs">
+              <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                 READY
-              </Badge>
+              </span>
             )}
             {launchStatus === 'WARNING' && (
-              <Badge variant="warning-status" icon={<ShieldAlert className="w-3 h-3 mr-1" />} size="xs">
+              <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <ShieldAlert className="w-3 h-3 text-amber-400" />
                 WARNINGS
-              </Badge>
+              </span>
             )}
             {launchStatus === 'ERROR' && (
-              <Badge variant="error-status" icon={<ShieldAlert className="w-3 h-3 mr-1" />} size="xs">
+              <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">
+                <ShieldAlert className="w-3 h-3 text-red-400" />
                 CANNOT LAUNCH
-              </Badge>
+              </span>
             )}
           </div>
         )}
 
         {/* Quick Scan Button */}
         {onQuickScan && (
-          <Button
-            variant="ghost"
-            size="xs"
+          <button
+            type="button"
             onClick={onQuickScan}
             disabled={isScanning}
-            leftIcon={
-              <RefreshCw
-                className={cn('w-3.5 h-3.5', isScanning && 'animate-spin text-red-400')}
-              />
-            }
-            className="text-zinc-400 hover:text-white text-xs h-7"
+            className="h-7 px-2.5 inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] disabled:text-zinc-600 rounded transition-colors"
           >
-            {isScanning ? 'Scanning...' : 'Scan'}
-          </Button>
+            <RefreshCw
+              className={cn('w-3.5 h-3.5', isScanning && 'animate-spin text-red-400')}
+            />
+            <span>{isScanning ? 'Scanning...' : 'Scan'}</span>
+          </button>
         )}
 
-        {/* Universal Quick Play Action */}
+        {/* Universal Crimson Play Button */}
         {onQuickLaunch && (
-          <motion.div whileTap={{ scale: 0.97 }} className="inline-flex">
-            <Button
-              variant="primary"
-              size="xs"
-              onClick={onQuickLaunch}
-              disabled={launchStatus === 'RUNNING' || launchStatus === 'LAUNCHING'}
-              leftIcon={<Play className="w-3 h-3 fill-current" />}
-              className="px-3.5 h-7 font-bold tracking-wider uppercase text-xs"
-            >
-              PLAY
-            </Button>
-          </motion.div>
+          <button
+            type="button"
+            onClick={onQuickLaunch}
+            disabled={launchStatus === 'RUNNING' || launchStatus === 'LAUNCHING'}
+            className="h-7 px-3.5 inline-flex items-center gap-1.5 bg-[#dc2626] hover:bg-[#ef4444] active:bg-[#b91c1c] disabled:opacity-50 disabled:pointer-events-none text-white font-bold tracking-wider uppercase text-xs rounded transition-colors duration-150 shadow-sm"
+          >
+            <Play className="w-3 h-3 fill-current" />
+            <span>PLAY</span>
+          </button>
         )}
 
         {actions}

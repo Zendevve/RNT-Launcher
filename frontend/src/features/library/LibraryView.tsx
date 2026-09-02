@@ -7,7 +7,6 @@ import {
   FolderSearch,
   Star,
   Layers,
-  ArrowUpDown,
   UploadCloud,
   CheckCircle2,
   XCircle,
@@ -29,40 +28,26 @@ interface LibraryViewProps {
 
 type SortField = 'name-asc' | 'name-desc' | 'size-desc' | 'size-asc' | 'lumps-desc' | 'date-desc';
 
-type FilterChip = 'all' | 'has-maps' | 'zscript' | 'dehack' | 'unused' | 'in-use';
-
-const FILTER_CHIPS: { id: FilterChip; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'has-maps', label: 'Has Maps' },
-  { id: 'zscript', label: 'ZScript Gameplay' },
-  { id: 'dehack', label: 'DeHackEd Patch' },
-  { id: 'unused', label: 'Unused in Profiles' },
-  { id: 'in-use', label: 'In Use' },
-];
-
 const CATEGORY_TABS: { label: string; value: string }[] = [
   { label: 'All', value: 'all' },
+  { label: 'Gameplay', value: 'gameplay' },
+  { label: 'Maps', value: 'maps' },
+  { label: 'Weapons', value: 'weapons' },
+  { label: 'Monsters', value: 'monsters' },
+  { label: 'Textures', value: 'textures' },
+  { label: 'Audio', value: 'audio' },
+  { label: 'UI', value: 'ui' },
   { label: 'Favorites', value: 'favorites' },
-  { label: 'Gameplay', value: 'Gameplay' },
-  { label: 'Maps', value: 'Maps' },
-  { label: 'Megawads', value: 'Megawads' },
-  { label: 'Weapons', value: 'Weapons' },
-  { label: 'Monsters', value: 'Monsters' },
-  { label: 'Textures', value: 'Textures' },
-  { label: 'Audio', value: 'Audio' },
-  { label: 'UI', value: 'UI' },
-  { label: 'Utility', value: 'Utility' },
-  { label: 'Other', value: 'Other' },
 ];
 
 const FORMAT_OPTIONS: { label: string; value: string }[] = [
   { label: 'All Formats', value: 'all' },
   { label: 'PK3 Archives', value: 'pk3' },
   { label: 'WAD Files', value: 'wad' },
-  { label: 'IPK3 Archives', value: 'ipk3' },
-  { label: 'ZIP Archives', value: 'zip' },
   { label: 'PK7 / 7z Archives', value: 'pk7' },
   { label: 'DEH / BEX Patches', value: 'deh' },
+  { label: 'ZIP Archives', value: 'zip' },
+  { label: 'IPK3 Archives', value: 'ipk3' },
 ];
 
 export const LibraryView: React.FC<LibraryViewProps> = () => {
@@ -71,13 +56,12 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
   const [usageCounts, setUsageCounts] = useState<Record<string, number>>({});
   const [settings, setSettings] = useState<Settings | null>(null);
 
-  // Filter, search & view states
+  // Filter, search & view states: Default to clean Desktop Table View
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedFormat, setSelectedFormat] = useState('all');
-  const [activeFilterChip, setActiveFilterChip] = useState<FilterChip>('all');
-  const [sortOption, setSortOption] = useState<SortField>('name-asc');
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [sortOption] = useState<SortField>('name-asc');
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
   // Drawer & Modals state
   const [inspectingMod, setInspectingMod] = useState<Mod | null>(null);
@@ -182,20 +166,20 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
     }
   };
 
-  // Add mod to profile from overlay
+  // Add mod to setup/profile from overlay
   const handleAddModToProfile = async (profileId: string) => {
     if (!modForProfileAdd) return;
     try {
       await api.addModToProfile(profileId, modForProfileAdd.id);
       showNotification(
         'success',
-        `Added "${modForProfileAdd.name}" to profile!`
+        `Added "${modForProfileAdd.name}" to setup!`
       );
       setModForProfileAdd(null);
       loadLibraryData();
     } catch (err) {
-      console.error('Failed to add mod to profile:', err);
-      showNotification('error', 'Could not add mod to profile.');
+      console.error('Failed to add mod to setup:', err);
+      showNotification('error', 'Could not add mod to setup.');
     }
   };
 
@@ -293,11 +277,14 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
       if (selectedCategory !== 'all') {
         if (selectedCategory === 'favorites') {
           if (!mod.isFavorite) return false;
+        } else if (selectedCategory === 'maps') {
+          const cat = (mod.category || '').toLowerCase();
+          if (cat !== 'maps' && cat !== 'megawads') return false;
+        } else if (selectedCategory === 'audio') {
+          const cat = (mod.category || '').toLowerCase();
+          if (cat !== 'audio' && cat !== 'sound') return false;
         } else {
-          if (
-            (mod.category || 'other').toLowerCase() !==
-            selectedCategory.toLowerCase()
-          ) {
+          if ((mod.category || 'other').toLowerCase() !== selectedCategory.toLowerCase()) {
             return false;
           }
         }
@@ -313,32 +300,6 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
           if (mod.format.toLowerCase() !== 'wad' && mod.format.toLowerCase() !== 'pwad') return false;
         } else {
           if (mod.format.toLowerCase() !== selectedFormat.toLowerCase()) return false;
-        }
-      }
-
-      // 4. Quick Filter Tag Chips
-      if (activeFilterChip !== 'all') {
-        switch (activeFilterChip) {
-          case 'has-maps':
-            if (!mod.structures?.includes('MAPINFO')) return false;
-            break;
-          case 'zscript':
-            if (!mod.structures?.includes('ZSCRIPT')) return false;
-            break;
-          case 'dehack':
-            if (
-              !mod.structures?.includes('DEHACKED') &&
-              mod.format.toLowerCase() !== 'deh' &&
-              mod.format.toLowerCase() !== 'bex'
-            )
-              return false;
-            break;
-          case 'unused':
-            if ((usageCounts[mod.id] || 0) > 0) return false;
-            break;
-          case 'in-use':
-            if ((usageCounts[mod.id] || 0) === 0) return false;
-            break;
         }
       }
 
@@ -365,7 +326,7 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
     });
 
     return result;
-  }, [mods, searchQuery, selectedCategory, selectedFormat, activeFilterChip, usageCounts, sortOption]);
+  }, [mods, searchQuery, selectedCategory, selectedFormat, sortOption]);
 
   return (
     <div
@@ -375,58 +336,88 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
       onDrop={handleDrop}
       className="relative flex flex-1 flex-col overflow-hidden bg-[#0c0e10] text-zinc-100 select-none h-full"
     >
-      {/* Visual Drag & Drop Full-View Overlay */}
+      {/* Clean Subtle Dropzone Overlay */}
       {isWindowDragging && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#0c0e10]/95 border-2 border-dashed border-red-500">
-          <UploadCloud className="h-16 w-16 text-red-500 animate-bounce" />
-          <h2 className="mt-4 font-bold text-xl uppercase tracking-wider text-white">
-            Drop Doom Mod Files to Import
-          </h2>
-          <p className="mt-1 text-xs text-zinc-400 font-mono">
-            Files will be parsed, verified, and added to your persistent library.
-          </p>
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#0c0e10]/85 backdrop-blur-[2px] p-6">
+          <div className="flex flex-col items-center justify-center max-w-md w-full rounded-xl border border-dashed border-zinc-600 bg-[#14171c] p-8 text-center shadow-xl">
+            <UploadCloud className="h-10 w-10 text-zinc-400 mb-3" />
+            <h2 className="text-sm font-semibold text-zinc-100">
+              Drop mod files to import into library
+            </h2>
+            <p className="mt-1 text-xs text-zinc-400">
+              Supports .wad, .pk3, .pk7, .zip, .deh, and .bex packages
+            </p>
+          </div>
         </div>
       )}
 
       {/* Notification Toast */}
       {notification && (
         <div
-          className={`fixed bottom-6 right-8 z-50 flex items-center gap-3 rounded-xl border px-4 py-3 text-sm transition-all duration-150 ${
+          className={`fixed bottom-6 right-8 z-50 flex items-center gap-3 rounded-lg border px-4 py-3 text-xs transition-all duration-150 ${
             notification.type === 'success'
-              ? 'border-emerald-800/40 bg-[#122419] text-emerald-200'
+              ? 'border-emerald-500/30 bg-[#122419] text-emerald-200'
               : notification.type === 'error'
-              ? 'border-red-800/40 bg-[#2b1416] text-red-200'
-              : 'border-blue-800/40 bg-[#132232] text-blue-200'
+              ? 'border-red-500/30 bg-[#2b1416] text-red-200'
+              : 'border-blue-500/30 bg-[#132232] text-blue-200'
           }`}
         >
           {notification.type === 'success' && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />}
           {notification.type === 'error' && <XCircle className="h-4 w-4 shrink-0 text-red-400" />}
-          <span className="font-mono text-xs">{notification.message}</span>
+          <span>{notification.message}</span>
         </div>
       )}
 
-      {/* Single Unified Desktop Toolbar */}
-      <div className="border-b border-white/[0.07] bg-[#14171a] px-8 py-3.5 space-y-3">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          {/* Search Input with count pill */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-400" />
+      {/* Single-Row Desktop Toolbar */}
+      <div className="border-b border-[#22262d] bg-[#14171c] px-6 py-2.5">
+        <div className="flex items-center justify-between gap-3 overflow-x-auto">
+          {/* Left section: Search input with match counter pill */}
+          <div className="relative flex items-center min-w-[260px] max-w-xs shrink-0">
+            <Search className="absolute left-2.5 h-3.5 w-3.5 text-zinc-400 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Filter by name, file, lump structure..."
-              className="w-full rounded-md border border-white/[0.08] bg-black/40 pl-8 pr-16 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-doom-red focus:outline-hidden font-mono"
+              placeholder="Search mods..."
+              className="w-full rounded border border-[#22262d] bg-[#0c0e10] pl-8 pr-24 py-1 text-xs text-zinc-100 placeholder-zinc-500 focus:border-zinc-500 focus:outline-hidden transition-colors"
             />
-            <span className="absolute right-2.5 top-2 text-[10px] font-mono text-zinc-500">
-              {filteredAndSortedMods.length}/{mods.length}
+            <span className="absolute right-2 px-1.5 py-0.5 rounded bg-[#181c21] border border-[#22262d] font-mono text-[10px] text-zinc-400 select-none">
+              {filteredAndSortedMods.length} of {mods.length} mods
             </span>
           </div>
 
-          {/* Action and Filter Controls */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Format Filter */}
-            <div className="flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-black/40 px-2.5 py-1 text-xs font-mono">
+          {/* Center section: Category tabs */}
+          <div className="flex items-center gap-1 shrink-0">
+            {CATEGORY_TABS.map((tab) => {
+              const isActive = selectedCategory === tab.value;
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => setSelectedCategory(tab.value)}
+                  className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                    isActive
+                      ? 'bg-[#1b1f26] text-zinc-100 border border-[#22262d]'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-[#181c21]'
+                  }`}
+                >
+                  {tab.value === 'favorites' && (
+                    <Star
+                      className={`h-3 w-3 ${
+                        isActive ? 'fill-amber-400 text-amber-400' : 'text-zinc-500'
+                      }`}
+                    />
+                  )}
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Right section: Format dropdown, Table vs Grid toggle, and Quick actions */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Format dropdown */}
+            <div className="flex items-center gap-1.5 rounded border border-[#22262d] bg-[#0c0e10] px-2 py-1 text-xs text-zinc-300">
               <Filter className="h-3 w-3 text-zinc-400" />
               <select
                 value={selectedFormat}
@@ -435,181 +426,102 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
                 className="bg-transparent text-zinc-200 focus:outline-hidden cursor-pointer"
               >
                 {availableFormatOptions.map((f) => (
-                  <option key={f.value} value={f.value} className="bg-[#141619] text-zinc-100">
+                  <option key={f.value} value={f.value} className="bg-[#14171c] text-zinc-200">
                     {f.label}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Sort Selector */}
-            <div className="flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-black/40 px-2.5 py-1 text-xs font-mono">
-              <ArrowUpDown className="h-3 w-3 text-zinc-400" />
-              <select
-                value={sortOption}
-                onChange={(e) => setSortOption(e.target.value as SortField)}
-                aria-label="Sort library mods"
-                className="bg-transparent text-zinc-200 focus:outline-hidden cursor-pointer"
+            {/* Table vs Grid View Toggle */}
+            <div className="flex items-center rounded border border-[#22262d] bg-[#0c0e10] p-0.5">
+              <button
+                type="button"
+                title="Table View"
+                onClick={() => setViewMode('table')}
+                className={`rounded p-1 transition-colors ${
+                  viewMode === 'table'
+                    ? 'bg-[#1b1f26] text-zinc-100'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
               >
-                <option value="name-asc" className="bg-[#141619] text-zinc-100">Name (A-Z)</option>
-                <option value="name-desc" className="bg-[#141619] text-zinc-100">Name (Z-A)</option>
-                <option value="size-desc" className="bg-[#141619] text-zinc-100">Size (Largest)</option>
-                <option value="size-asc" className="bg-[#141619] text-zinc-100">Size (Smallest)</option>
-                <option value="lumps-desc" className="bg-[#141619] text-zinc-100">Lumps (Most)</option>
-                <option value="date-desc" className="bg-[#141619] text-zinc-100">Recently Added</option>
-              </select>
-            </div>
-
-            {/* View Mode Toggle */}
-            <div className="flex items-center rounded-md border border-white/[0.08] bg-black/40 p-0.5">
+                <ListIcon className="h-3.5 w-3.5" />
+              </button>
               <button
                 type="button"
                 title="Grid Cards View"
                 onClick={() => setViewMode('grid')}
                 className={`rounded p-1 transition-colors ${
                   viewMode === 'grid'
-                    ? 'bg-white/[0.12] text-white'
-                    : 'text-zinc-400 hover:text-white'
+                    ? 'bg-[#1b1f26] text-zinc-100'
+                    : 'text-zinc-500 hover:text-zinc-300'
                 }`}
               >
                 <LayoutGrid className="h-3.5 w-3.5" />
               </button>
-              <button
-                type="button"
-                title="Table List View"
-                onClick={() => setViewMode('table')}
-                className={`rounded p-1 transition-colors ${
-                  viewMode === 'table'
-                    ? 'bg-white/[0.12] text-white'
-                    : 'text-zinc-400 hover:text-white'
-                }`}
-              >
-                <ListIcon className="h-3.5 w-3.5" />
-              </button>
             </div>
 
-            <div className="h-4 w-px bg-white/[0.08] mx-1 hidden sm:block" />
+            <div className="h-4 w-px bg-[#22262d]" />
 
-            {/* Action Buttons */}
+            {/* Quick Action: Scan Folders */}
             <button
               type="button"
               onClick={handleQuickScan}
-              className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-[#15181c] px-2.5 py-1 text-xs font-medium text-zinc-300 hover:bg-[#1f2228] hover:text-white transition-colors"
+              className="inline-flex items-center gap-1.5 rounded border border-[#22262d] bg-[#181c21] hover:bg-[#1b1f26] px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white transition-colors"
             >
-              <FolderSearch className="h-3.5 w-3.5 text-blue-400" />
-              <span>Scan</span>
+              <FolderSearch className="h-3.5 w-3.5 text-zinc-400" />
+              <span>Scan Folders</span>
             </button>
 
+            {/* Quick Action: /idgames Search */}
             <button
               type="button"
               onClick={() => setIsIdgamesModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-[#15181c] px-2.5 py-1 text-xs font-medium text-zinc-300 hover:bg-[#1f2228] hover:text-white transition-colors"
+              className="inline-flex items-center gap-1.5 rounded border border-[#22262d] bg-[#181c21] hover:bg-[#1b1f26] px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white transition-colors"
             >
-              <Globe className="h-3.5 w-3.5 text-amber-400" />
-              <span>/idgames</span>
+              <Globe className="h-3.5 w-3.5 text-zinc-400" />
+              <span>/idgames Search</span>
             </button>
 
+            {/* Quick Action: + Add Mod */}
             <button
               type="button"
               onClick={() => setIsAddModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-md bg-[#dc2626] hover:bg-[#c02020] px-3 py-1 text-xs font-bold uppercase tracking-wider text-white border border-red-500/30 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded bg-[#dc2626] hover:bg-[#ef4444] px-3 py-1 text-xs font-medium text-white transition-colors shadow-xs"
             >
               <Plus className="h-3.5 w-3.5" />
-              <span>Add Mod</span>
+              <span>+ Add Mod</span>
             </button>
-          </div>
-        </div>
-
-        {/* Category Pills & Filter Chips */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-white/[0.04]">
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
-            {CATEGORY_TABS.map((tab) => {
-              const isActive = selectedCategory === tab.value;
-              return (
-                <button
-                  key={tab.value}
-                  type="button"
-                  onClick={() => setSelectedCategory(tab.value)}
-                  className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 font-mono text-[11px] font-medium transition-colors ${
-                    isActive
-                      ? 'bg-[#2b1416] text-[#fca5a5] border border-red-800/40 font-semibold'
-                      : 'bg-white/[0.04] text-zinc-400 hover:bg-white/[0.08] hover:text-white border border-white/[0.06]'
-                  }`}
-                >
-                  {tab.value === 'favorites' && (
-                    <Star className={`h-3 w-3 ${isActive ? 'fill-red-400 text-red-400' : 'fill-amber-400 text-amber-400'}`} />
-                  )}
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
-            {FILTER_CHIPS.map((chip) => {
-              const isActive = activeFilterChip === chip.id;
-              return (
-                <button
-                  key={chip.id}
-                  type="button"
-                  onClick={() => setActiveFilterChip(chip.id)}
-                  className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 font-mono text-[10px] font-medium transition-colors ${
-                    isActive
-                      ? 'bg-[#132232] text-[#93c5fd] border border-blue-800/40'
-                      : 'bg-black/20 text-zinc-500 border border-white/[0.04] hover:text-zinc-300'
-                  }`}
-                >
-                  <span>{chip.label}</span>
-                </button>
-              );
-            })}
           </div>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
+      <div className="flex-1 overflow-y-auto px-6 py-4">
         {filteredAndSortedMods.length === 0 ? (
-          <div className="flex min-h-[360px] flex-col items-center justify-center rounded-xl border border-dashed border-white/[0.1] bg-white/[0.02] p-8 text-center">
-            <Layers className="h-12 w-12 text-zinc-600 mb-3" />
-            <h3 className="text-base font-semibold text-white">No Mods Found</h3>
+          <div className="flex min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed border-[#22262d] bg-[#14171c]/50 p-8 text-center">
+            <Layers className="h-10 w-10 text-zinc-500 mb-3" />
+            <h3 className="text-sm font-semibold text-zinc-200">No Mods Found</h3>
             <p className="mt-1 text-xs text-zinc-400 max-w-sm">
-              {searchQuery || selectedCategory !== 'all' || activeFilterChip !== 'all'
-                ? 'Try adjusting your search terms or clearing active filters.'
-                : 'Drag and drop WAD, PK3, or DEH files here, or use Scan Folders to populate your library.'}
+              {searchQuery || selectedCategory !== 'all' || selectedFormat !== 'all'
+                ? 'Try adjusting your search terms or clearing selected filters.'
+                : 'Drag and drop WAD, PK3, or DEH files here, or use Scan Folders to populate your mod library.'}
             </p>
           </div>
-        ) : viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
-            {filteredAndSortedMods.map((mod) => (
-              <ModCard
-                key={mod.id}
-                mod={mod}
-                usageCount={usageCounts[mod.id]}
-                showFilePaths={settings?.showFilePaths}
-                density={settings?.uiDensity}
-                onInspect={(m) => setInspectingMod(m)}
-                onToggleFavorite={handleToggleFavorite}
-                onAddToProfile={(m) => setModForProfileAdd(m)}
-                onOpenFolder={handleOpenFolder}
-                onDelete={handleDeleteMod}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#15181c]">
+        ) : viewMode === 'table' ? (
+          /* Default: Clean Desktop Table View */
+          <div className="overflow-hidden rounded-lg border border-[#22262d] bg-[#14171c]">
             <div className="overflow-x-auto">
-              <table className="w-full text-left font-mono text-xs">
+              <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-white/[0.07] bg-white/[0.02] text-[10.5px] uppercase tracking-wider text-zinc-400">
-                    <th className="w-8 px-3 py-2.5 text-center">Fav</th>
-                    <th className="px-4 py-2.5">{'Name & File'}</th>
-                    <th className="hidden sm:table-cell px-4 py-2.5">Category</th>
-                    <th className="hidden md:table-cell px-4 py-2.5">Structures</th>
-                    <th className="px-4 py-2.5">Size</th>
-                    <th className="hidden lg:table-cell px-4 py-2.5">Usage</th>
-                    <th className="hidden xl:table-cell px-4 py-2.5">Added</th>
-                    <th className="px-4 py-2.5 text-right">Actions</th>
+                  <tr className="border-b border-[#22262d] bg-[#181c21] text-[11px] font-medium text-zinc-400 select-none">
+                    <th className="w-9 px-3 py-2.5 text-center">Star</th>
+                    <th className="w-16 px-3 py-2.5">Format</th>
+                    <th className="px-3 py-2.5">Name</th>
+                    <th className="hidden sm:table-cell px-3 py-2.5">Category</th>
+                    <th className="px-3 py-2.5">Size</th>
+                    <th className="hidden md:table-cell px-3 py-2.5">Usage</th>
+                    <th className="px-3 py-2.5 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -630,6 +542,24 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
                 </tbody>
               </table>
             </div>
+          </div>
+        ) : (
+          /* Grid View Toggle */
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
+            {filteredAndSortedMods.map((mod) => (
+              <ModCard
+                key={mod.id}
+                mod={mod}
+                usageCount={usageCounts[mod.id]}
+                showFilePaths={settings?.showFilePaths}
+                density={settings?.uiDensity}
+                onInspect={(m) => setInspectingMod(m)}
+                onToggleFavorite={handleToggleFavorite}
+                onAddToProfile={(m) => setModForProfileAdd(m)}
+                onOpenFolder={handleOpenFolder}
+                onDelete={handleDeleteMod}
+              />
+            ))}
           </div>
         )}
       </div>
@@ -665,23 +595,23 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
         }}
       />
 
-      {/* Add to Profile Selection Modal */}
+      {/* Add to Setup Selection Modal */}
       {modForProfileAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-xl border border-white/[0.08] bg-[#15181c] p-5 text-zinc-100 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/[0.07] pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-md rounded-lg border border-[#22262d] bg-[#14171c] p-5 text-zinc-100 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#22262d] pb-3">
               <div>
-                <h3 className="text-sm font-bold uppercase tracking-wider text-white">
-                  Add Mod to Profile
+                <h3 className="text-sm font-semibold text-zinc-100">
+                  Add Mod to Setup
                 </h3>
-                <p className="mt-0.5 truncate font-mono text-xs text-blue-400" title={modForProfileAdd.name}>
+                <p className="mt-0.5 truncate text-xs text-zinc-400" title={modForProfileAdd.name}>
                   {modForProfileAdd.name}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setModForProfileAdd(null)}
-                className="rounded p-1 text-zinc-400 hover:text-white"
+                className="rounded p-1 text-zinc-400 hover:text-zinc-200 transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -689,8 +619,8 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
 
             <div className="mt-4 max-h-64 overflow-y-auto space-y-2">
               {profiles.length === 0 ? (
-                <div className="p-4 text-center font-mono text-xs text-zinc-500">
-                  No launch profiles exist yet. Create a profile first.
+                <div className="p-4 text-center text-xs text-zinc-500">
+                  No launch setups exist yet. Create a setup first.
                 </div>
               ) : (
                 profiles.map((prof) => {
@@ -702,22 +632,22 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
                       key={prof.id}
                       type="button"
                       onClick={() => handleAddModToProfile(prof.id)}
-                      className="w-full flex items-center justify-between rounded-lg border border-white/[0.08] bg-black/30 p-3 text-left transition-colors hover:border-white/[0.18] hover:bg-black/50"
+                      className="w-full flex items-center justify-between rounded-lg border border-[#22262d] bg-[#181c21] p-3 text-left transition-colors hover:border-[#2f3540] hover:bg-[#1b1f26]"
                     >
                       <div>
-                        <div className="font-mono text-xs font-semibold text-white">
+                        <div className="text-xs font-medium text-zinc-100">
                           {prof.name}
                         </div>
-                        <div className="mt-0.5 font-mono text-[10px] text-zinc-400">
+                        <div className="mt-0.5 text-[11px] text-zinc-400">
                           {prof.engineName} • {prof.iwadName}
                         </div>
                       </div>
                       {alreadyInProfile ? (
-                        <span className="rounded-full bg-[#132232] px-2.5 py-0.5 font-mono text-[10px] text-[#93c5fd] border border-blue-800/30">
-                          In Profile
+                        <span className="rounded bg-[#1b1f26] px-2 py-0.5 text-[10px] text-zinc-400 border border-[#22262d]">
+                          In Setup
                         </span>
                       ) : (
-                        <span className="rounded-full bg-[#122419] px-2.5 py-0.5 font-mono text-[10px] font-bold text-[#86efac] border border-emerald-800/30">
+                        <span className="rounded bg-[#10b981]/15 px-2 py-0.5 text-[10px] font-medium text-[#86efac] border border-[#10b981]/30">
                           + Add
                         </span>
                       )}
@@ -727,11 +657,11 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
               )}
             </div>
 
-            <div className="mt-4 pt-3 border-t border-white/[0.07] flex justify-end">
+            <div className="mt-4 pt-3 border-t border-[#22262d] flex justify-end">
               <button
                 type="button"
                 onClick={() => setModForProfileAdd(null)}
-                className="rounded px-4 py-1.5 font-mono text-xs text-zinc-400 hover:text-white"
+                className="rounded px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
               >
                 Cancel
               </button>

@@ -2,8 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import clsx from 'clsx';
 import {
   Play,
-  CheckCircle2,
-  AlertTriangle,
+  RotateCw,
   Copy,
   Download,
   Trash2,
@@ -18,6 +17,7 @@ import {
   Save,
   Layers,
   Sliders,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   Profile,
@@ -30,7 +30,6 @@ import {
 import { api } from '../../services/api';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { Badge } from '../../components/ui/Badge';
 import { useToast } from '../../components/ui/Toast';
 import { LoadOrderList } from './LoadOrderList';
 import { ValidationBanner } from './ValidationBanner';
@@ -78,17 +77,10 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   const [availableProfiles, setAvailableProfiles] = useState<Profile[]>([]);
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
 
-  // Advanced section accordion
-  const [isAdvancedOpen, setIsAdvancedOpen] = useState(
-    Boolean(
-      profile.workingDir ||
-        (profile.arguments && profile.arguments.length > 0) ||
-        profile.isolateSaves ||
-        profile.parentProfileId
-    )
-  );
+  // Advanced section accordion - collapsed by default
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
-  // Mod selection modal
+  // Modals state
   const [isSelectModsOpen, setIsSelectModsOpen] = useState(false);
   const [isDmFlagsOpen, setIsDmFlagsOpen] = useState(false);
 
@@ -494,16 +486,61 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   const selectedEngineObj = engines.find((e) => e.id === engineId);
   const selectedIWADObj = iwads.find((w) => w.id === iwadId);
 
+  // Status chip renderer
+  const renderReadinessStatus = () => {
+    if (isValidating) {
+      return (
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#14171c] border border-[#22262d] text-zinc-400 select-none">
+          <span className="w-2 h-2 rounded-full bg-zinc-400 animate-pulse" />
+          <span>Checking...</span>
+        </div>
+      );
+    }
+
+    if (!validation || validation.status === 'READY') {
+      return (
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-950/40 border border-emerald-800/40 text-emerald-400 select-none">
+          <span className="w-2 h-2 rounded-full bg-emerald-400" />
+          <span>Ready to Play</span>
+        </div>
+      );
+    }
+
+    if (validation.status === 'READY_WITH_WARNINGS') {
+      return (
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-950/40 border border-amber-800/40 text-amber-400 select-none">
+          <span className="text-[10px] leading-none">▲</span>
+          <span>Warnings</span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-red-950/40 border border-red-800/40 text-red-400 select-none">
+        <span className="text-[10px] leading-none">✖</span>
+        <span>Cannot Launch</span>
+      </div>
+    );
+  };
+
+  const hasConfiguredOptions = Boolean(
+    workingDir ||
+    (parsedArguments && parsedArguments.length > 0) ||
+    isolateSaves ||
+    parentProfileId
+  );
+
   return (
-    <div className="flex flex-col h-full overflow-y-auto p-6 md:p-8 gap-6 bg-[#0c0e10] select-none">
-      {/* Top Action Cockpit Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-white/[0.07]">
-        {/* Profile Identity & Title */}
-        <div className="flex items-start gap-3 min-w-0">
+    <div className="flex flex-col h-full overflow-y-auto p-6 md:p-8 gap-6 bg-[#0c0e12] select-none text-zinc-100">
+      {/* 1. Stage Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 pb-5 border-b border-[#22262d]">
+        {/* Left: Identity, Title, Readiness Status */}
+        <div className="flex items-start gap-3.5 min-w-0 flex-1">
+          {/* Favorite Star Toggle */}
           <button
             type="button"
             onClick={handleFavoriteToggle}
-            className="p-1 rounded-md text-zinc-500 hover:text-amber-400 focus:outline-none transition-colors mt-1"
+            className="p-1 rounded-md text-zinc-500 hover:text-amber-400 outline-none transition-colors mt-1 shrink-0"
             title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
           >
             <Star
@@ -516,16 +553,21 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
             />
           </button>
 
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-3">
+          {/* Title & Description & Status */}
+          <div className="flex flex-col min-w-0 flex-1 gap-1">
+            <div className="flex items-center gap-3 flex-wrap">
               <input
                 type="text"
                 value={name}
                 onChange={(e) => handleNameChange(e.target.value)}
                 onBlur={() => hasUnsavedChanges && handleSave()}
-                placeholder="Profile Name"
-                className="text-xl font-bold tracking-tight text-white bg-transparent border-b border-transparent hover:border-white/[0.15] focus:border-doom-red focus:outline-none transition-colors px-1 py-0.5 max-w-lg"
+                placeholder="Preset Name"
+                className="text-xl md:text-2xl font-bold tracking-tight text-zinc-100 bg-transparent border-b border-transparent hover:border-[#22262d] focus:border-zinc-500 focus:outline-none transition-colors px-1 py-0.5 max-w-xl truncate"
               />
+
+              {/* Readiness Status Chip */}
+              {renderReadinessStatus()}
+
               {hasUnsavedChanges && (
                 <Button
                   variant="ghost"
@@ -533,185 +575,198 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
                   onClick={() => handleSave()}
                   isLoading={isSaving}
                   leftIcon={<Save className="w-3.5 h-3.5 text-amber-400" />}
-                  className="text-amber-400 hover:bg-amber-950/30"
+                  className="text-amber-400 hover:bg-amber-950/30 text-xs"
                 >
                   Save
                 </Button>
               )}
             </div>
+
             <input
               type="text"
               value={description}
               onChange={(e) => handleDescriptionChange(e.target.value)}
               onBlur={() => hasUnsavedChanges && handleSave()}
-              placeholder="Add profile description or notes..."
-              className="text-xs text-zinc-400 bg-transparent border-b border-transparent hover:border-white/[0.15] focus:border-doom-red focus:outline-none transition-colors px-1 py-0.5 w-full max-w-xl mt-0.5 placeholder-zinc-600"
+              placeholder="Add optional notes or description..."
+              className="text-xs text-zinc-400 bg-transparent border-b border-transparent hover:border-[#22262d] focus:border-zinc-500 focus:outline-none transition-colors px-1 py-0.5 max-w-xl placeholder-zinc-600"
             />
           </div>
         </div>
 
-        {/* Primary Action Toolbar */}
+        {/* Right: Actions Toolbar & Authoritative [ ▶ PLAY NOW ] Button */}
         <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-          {/* Validate Button */}
+          {/* Secondary Actions: Validate, Duplicate, Export, Delete */}
           <Button
             variant="secondary"
             size="sm"
             onClick={runValidation}
             isLoading={isValidating}
-            leftIcon={<CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+            leftIcon={<RotateCw className={clsx('w-3.5 h-3.5 text-zinc-400', isValidating && 'animate-spin')} />}
+            className="text-xs h-9 bg-[#14171c] hover:bg-[#181f26] border-[#22262d] text-zinc-300"
+            title="Validate configuration"
           >
             Validate
           </Button>
 
-          {/* Export YAML */}
           <Button
             variant="secondary"
             size="sm"
             onClick={handleExportYAML}
-            leftIcon={<Download className="w-4 h-4 text-zinc-400" />}
-            title="Export profile as YAML specification"
+            leftIcon={<Download className="w-3.5 h-3.5 text-zinc-400" />}
+            className="text-xs h-9 bg-[#14171c] hover:bg-[#181f26] border-[#22262d] text-zinc-300"
+            title="Export preset as YAML specification"
           >
             Export
           </Button>
 
-          {/* Duplicate Profile */}
           <Button
             variant="secondary"
             size="sm"
             onClick={handleDuplicate}
-            leftIcon={<Copy className="w-4 h-4 text-zinc-400" />}
-            title="Duplicate profile"
+            leftIcon={<Copy className="w-3.5 h-3.5 text-zinc-400" />}
+            className="text-xs h-9 bg-[#14171c] hover:bg-[#181f26] border-[#22262d] text-zinc-300"
+            title="Duplicate preset"
           >
             Duplicate
           </Button>
 
-          {/* Delete Profile */}
           <Button
             variant="ghost"
             size="icon"
             onClick={handleDelete}
-            title="Delete profile"
-            className="text-zinc-400 hover:text-red-400 hover:bg-red-950/30"
+            title="Delete preset"
+            className="h-9 w-9 text-zinc-400 hover:text-red-400 hover:bg-red-950/30 rounded-lg"
           >
             <Trash2 className="w-4 h-4" />
           </Button>
 
-          {/* Primary PLAY Launch Button */}
-          <Button
-            variant={validation?.status === 'CANNOT_LAUNCH' ? 'secondary' : 'primary'}
-            size="md"
+          {/* Authoritative Primary Launch CTA: [ ▶ PLAY NOW ] */}
+          <button
+            type="button"
             onClick={handleLaunch}
             disabled={isLaunching || validation?.status === 'CANNOT_LAUNCH'}
-            isLoading={isLaunching}
-            leftIcon={!isLaunching && <Play className="w-4 h-4 fill-current" />}
-            className="px-5 font-bold tracking-wide"
+            className={clsx(
+              'h-9 px-6 font-bold text-xs tracking-wider uppercase rounded-lg transition-colors flex items-center gap-2 shadow-lg shadow-red-950/20 text-white select-none',
+              validation?.status === 'CANNOT_LAUNCH'
+                ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-[#22262d]'
+                : 'bg-[#dc2626] hover:bg-[#ef4444] active:bg-[#b91c1c]'
+            )}
           >
-            {isLaunching
-              ? 'RUNNING...'
-              : validation?.status === 'CANNOT_LAUNCH'
-              ? 'CANNOT LAUNCH'
-              : validation?.status === 'READY_WITH_WARNINGS'
-              ? 'PLAY ANYWAY'
-              : 'PLAY'}
-          </Button>
+            {isLaunching ? (
+              <>
+                <RotateCw className="w-3.5 h-3.5 animate-spin text-white" />
+                <span>Launching...</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-3.5 h-3.5 fill-current text-white" />
+                <span>PLAY NOW</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
-      {/* Validation Status Banner */}
+      {/* Validation Banner (if issues exist) */}
       <ValidationBanner
         validation={validation}
         isValidating={isValidating}
         onValidate={runValidation}
       />
 
-      {/* Core Setup Grid: Source Port Engine & Base Game IWAD */}
+      {/* 2. Setup Grid: Source Port Engine & Base Game IWAD Side by Side */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Engine Selector Card */}
-        <div className="p-4.5 rounded-xl border border-white/[0.08] bg-[#15181c] flex flex-col gap-3">
+        {/* Source Port Engine Selector Card */}
+        <div className="p-4 rounded-xl border border-[#22262d] bg-[#14171c] flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-bold uppercase tracking-wider text-zinc-200 flex items-center gap-2">
-              <Cpu className="w-4 h-4 text-blue-400" />
-              Source Port Engine
-            </label>
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-300">
+              <Cpu className="w-3.5 h-3.5 text-blue-400" />
+              <span>Source Port Engine</span>
+            </div>
             {selectedEngineObj && (
-              <Badge variant="blue" size="xs">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#101317] border border-[#22262d] text-zinc-400 uppercase">
                 {selectedEngineObj.family}
-              </Badge>
+              </span>
             )}
           </div>
 
           <select
             value={engineId}
             onChange={(e) => handleEngineSelect(e.target.value)}
-            className="w-full bg-black/40 border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-doom-red font-medium"
+            className="w-full bg-[#101317] border border-[#22262d] rounded-lg px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-zinc-500 font-medium"
           >
-            <option value="">-- Select Doom Engine --</option>
+            <option value="">-- Select Source Port Engine --</option>
             {engines.map((eng) => (
-              <option key={eng.id} value={eng.id} className="bg-[#141619] text-zinc-100">
-                {eng.name} {eng.version ? `(${eng.version})` : ''} - [{eng.family}]
+              <option key={eng.id} value={eng.id} className="bg-[#14171c] text-zinc-100">
+                {eng.name} {eng.version ? `v${eng.version}` : ''} ({eng.family})
               </option>
             ))}
           </select>
 
           {selectedEngineObj ? (
-            <div className="flex flex-col gap-1 text-xs text-zinc-400 font-mono bg-black/30 p-2.5 rounded-lg border border-white/[0.06]">
+            <div className="flex flex-col gap-1 text-xs text-zinc-400 bg-[#101317] p-2.5 rounded-lg border border-[#22262d]/60">
               <div className="flex items-center justify-between">
-                <span className="text-zinc-200 font-semibold">{selectedEngineObj.name}</span>
+                <span className="text-zinc-200 font-medium">{selectedEngineObj.name}</span>
                 {selectedEngineObj.version && (
-                  <span className="text-[11px] text-zinc-400">v{selectedEngineObj.version}</span>
+                  <span className="text-[11px] font-mono text-zinc-500">v{selectedEngineObj.version}</span>
                 )}
               </div>
-              <span className="truncate text-[11px] text-zinc-500" title={selectedEngineObj.executable}>
+              <span className="font-mono text-[11px] text-zinc-500 truncate" title={selectedEngineObj.executable}>
                 {selectedEngineObj.executable}
               </span>
             </div>
           ) : (
-            <div className="text-xs text-amber-400 flex items-center gap-1.5 p-2 rounded-lg bg-[#2b2011] border border-amber-800/30">
+            <div className="text-xs text-amber-400 flex items-center gap-1.5 p-2 rounded-lg bg-amber-950/20 border border-amber-800/30">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
               <span>No engine selected. Game cannot launch without a source port.</span>
             </div>
           )}
         </div>
 
-        {/* IWAD Selector Card */}
-        <div className="p-4.5 rounded-xl border border-white/[0.08] bg-[#15181c] flex flex-col gap-3">
+        {/* Base Game IWAD Selector Card */}
+        <div className="p-4 rounded-xl border border-[#22262d] bg-[#14171c] flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-bold uppercase tracking-wider text-zinc-200 flex items-center gap-2">
-              <Disc className="w-4 h-4 text-amber-400" />
-              Base Game IWAD
-            </label>
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-300">
+              <Disc className="w-3.5 h-3.5 text-amber-400" />
+              <span>Base Game IWAD</span>
+            </div>
             {selectedIWADObj && (
-              <Badge variant="amber" size="xs">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#101317] border border-[#22262d] text-zinc-400 uppercase">
                 {selectedIWADObj.type}
-              </Badge>
+              </span>
             )}
           </div>
 
           <select
             value={iwadId}
             onChange={(e) => handleIWADSelect(e.target.value)}
-            className="w-full bg-black/40 border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-doom-red font-medium"
+            className="w-full bg-[#101317] border border-[#22262d] rounded-lg px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-zinc-500 font-medium"
           >
-            <option value="">-- Select Game IWAD --</option>
+            <option value="">-- Select Base Game IWAD --</option>
             {iwads.map((iwad) => (
-              <option key={iwad.id} value={iwad.id} className="bg-[#141619] text-zinc-100">
-                {iwad.name} ({iwad.type.toUpperCase()}) - {iwad.lumpCount} lumps
+              <option key={iwad.id} value={iwad.id} className="bg-[#14171c] text-zinc-100">
+                {iwad.name} ({iwad.type.toUpperCase()})
+                {iwad.lumpCount ? ` • ${iwad.lumpCount} lumps` : ''}
               </option>
             ))}
           </select>
 
           {selectedIWADObj ? (
-            <div className="flex flex-col gap-1 text-xs text-zinc-400 font-mono bg-black/30 p-2.5 rounded-lg border border-white/[0.06]">
+            <div className="flex flex-col gap-1 text-xs text-zinc-400 bg-[#101317] p-2.5 rounded-lg border border-[#22262d]/60">
               <div className="flex items-center justify-between">
-                <span className="text-zinc-200 font-semibold">{selectedIWADObj.name}</span>
-                <span className="text-[11px] text-zinc-400">{selectedIWADObj.lumpCount} lumps</span>
+                <span className="text-zinc-200 font-medium">{selectedIWADObj.name}</span>
+                {selectedIWADObj.lumpCount ? (
+                  <span className="text-[11px] font-mono text-zinc-500">
+                    {selectedIWADObj.lumpCount} lumps
+                  </span>
+                ) : null}
               </div>
-              <span className="truncate text-[11px] text-zinc-500" title={selectedIWADObj.path}>
+              <span className="font-mono text-[11px] text-zinc-500 truncate" title={selectedIWADObj.path}>
                 {selectedIWADObj.path}
               </span>
             </div>
           ) : (
-            <div className="text-xs text-amber-400 flex items-center gap-1.5 p-2 rounded-lg bg-[#2b2011] border border-amber-800/30">
+            <div className="text-xs text-amber-400 flex items-center gap-1.5 p-2 rounded-lg bg-amber-950/20 border border-amber-800/30">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
               <span>No IWAD selected. Game requires DOOM2.WAD, DOOM.WAD, or compatible IWAD.</span>
             </div>
@@ -719,32 +774,30 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
         </div>
       </div>
 
-      {/* Mod Load Order Management Section */}
-      <div className="p-4.5 rounded-xl border border-white/[0.08] bg-[#15181c] flex flex-col gap-4">
-        {/* If Parent Profile is selected: Informational Banner */}
+      {/* 3. Mod Load Order Workshop */}
+      <div className="p-4.5 rounded-xl border border-[#22262d] bg-[#14171c] flex flex-col gap-4">
+        {/* Parent Profile Inheritance Notice */}
         {selectedParentProfile && (
-          <div className="p-3.5 rounded-lg bg-[#132232] border border-blue-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-blue-200">
-            <div className="flex items-start gap-3">
-              <Layers className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+          <div className="p-3 rounded-lg bg-[#101826] border border-blue-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-blue-300">
+            <div className="flex items-start gap-2.5">
+              <Layers className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
               <div className="flex flex-col gap-0.5">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-bold uppercase tracking-wider text-blue-300">
+                  <span className="text-xs font-semibold text-blue-200">
                     Base Mixin Active: {selectedParentProfile.name}
                   </span>
-                  <Badge variant="blue" size="xs">
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-950/60 border border-blue-800/40 text-blue-300">
                     INHERITED
-                  </Badge>
+                  </span>
                 </div>
-                <p className="text-xs text-blue-200/80">
-                  Inheriting {selectedParentProfile.mods?.length || 0} mod(s) from parent profile. Inherited base mods load first before local profile mods.
+                <p className="text-[11px] text-blue-300/80">
+                  Inheriting {selectedParentProfile.mods?.length || 0} mod(s) from parent profile. Base mods load first before local mods.
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <Badge variant="blue" size="xs">
-                {selectedParentProfile.mods?.filter((m) => m.enabled).length || 0} Active Inherited Mod(s)
-              </Badge>
-            </div>
+            <span className="text-xs font-mono text-blue-400 self-start sm:self-auto shrink-0">
+              {selectedParentProfile.mods?.filter((m) => m.enabled).length || 0} Active Inherited Mod(s)
+            </span>
           </div>
         )}
 
@@ -759,57 +812,55 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
         />
       </div>
 
-      {/* Progressive Disclosure: Advanced Execution Options */}
-      <div className="rounded-xl border border-white/[0.08] bg-[#15181c] overflow-hidden">
+      {/* 4. Progressive Disclosure: Launch Options & Parameters Accordion */}
+      <div className="rounded-xl border border-[#22262d] bg-[#14171c] overflow-hidden">
         <button
           type="button"
           onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
-          className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-white/[0.03] transition-colors text-left"
+          className="w-full flex items-center justify-between px-4.5 py-3.5 hover:bg-[#181f26] transition-colors text-left"
         >
           <div className="flex items-center gap-2.5">
             <Sliders className="w-4 h-4 text-zinc-400" />
-            <span className="text-xs font-bold uppercase tracking-wider text-zinc-200">
-              {'Advanced Execution & Configuration'}
+            <span className="text-xs font-semibold uppercase tracking-wider text-zinc-200">
+              Launch Options & Parameters
             </span>
-            {(workingDir || parsedArguments.length > 0 || isolateSaves || parentProfileId) && (
-              <Badge variant="secondary" size="xs">
+            {hasConfiguredOptions && (
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#101317] border border-[#22262d] text-zinc-400">
                 Configured
-              </Badge>
+              </span>
             )}
           </div>
-          <div className="flex items-center gap-2 text-zinc-400">
-            <span className="text-xs">
-              {isAdvancedOpen ? 'Hide Advanced' : 'Show Advanced'}
-            </span>
+          <div className="flex items-center gap-2 text-zinc-500 text-xs">
+            <span>{isAdvancedOpen ? 'Hide Options' : 'Show Options'}</span>
             {isAdvancedOpen ? (
-              <ChevronUp className="w-4 h-4" />
+              <ChevronUp className="w-3.5 h-3.5" />
             ) : (
-              <ChevronDown className="w-4 h-4" />
+              <ChevronDown className="w-3.5 h-3.5" />
             )}
           </div>
         </button>
 
         {isAdvancedOpen && (
-          <div className="p-5 border-t border-white/[0.07] flex flex-col gap-5 bg-black/20">
-            {/* Base Mixin / Parent Profile & Savegame Isolation */}
+          <div className="p-5 border-t border-[#22262d] flex flex-col gap-5 bg-[#101317]/40">
+            {/* Row 1: Base Mixin & Save Game Isolation */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               {/* Base Mixin Selector */}
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-semibold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
+                <label className="text-xs font-medium text-zinc-300 flex items-center gap-2">
                   <Layers className="w-3.5 h-3.5 text-blue-400" />
-                  Base Mixin / Parent Profile
+                  <span>Base Mixin / Parent Profile</span>
                 </label>
                 <select
                   value={parentProfileId}
                   onChange={(e) => handleParentProfileSelect(e.target.value)}
                   disabled={isLoadingProfiles}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-doom-red font-medium"
+                  className="w-full bg-[#101317] border border-[#22262d] rounded-lg px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-zinc-500 font-medium"
                 >
-                  <option value="">None (Standalone Profile)</option>
+                  <option value="">None (Standalone Preset)</option>
                   {eligibleParentProfiles.map((p) => {
                     const modCount = p.mods?.filter((m) => m.enabled).length ?? p.mods?.length ?? 0;
                     return (
-                      <option key={p.id} value={p.id} className="bg-[#141619] text-zinc-100">
+                      <option key={p.id} value={p.id} className="bg-[#14171c] text-zinc-100">
                         {p.name} ({modCount} mod{modCount !== 1 ? 's' : ''})
                       </option>
                     );
@@ -822,20 +873,20 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
 
               {/* Save Game Isolation */}
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-semibold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
+                <label className="text-xs font-medium text-zinc-300 flex items-center gap-2">
                   <FolderLock className="w-3.5 h-3.5 text-amber-400" />
-                  Save Game Isolation
+                  <span>Save Game Isolation</span>
                 </label>
-                <div className="flex items-center justify-between gap-3 bg-black/30 p-2.5 rounded-lg border border-white/[0.06]">
+                <div className="flex items-center justify-between gap-3 bg-[#101317] p-2.5 rounded-lg border border-[#22262d]">
                   <label className="flex items-center gap-2.5 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={isolateSaves}
                       onChange={(e) => handleToggleIsolateSaves(e.target.checked)}
-                      className="w-4 h-4 rounded border-zinc-700 bg-black text-doom-red focus:ring-doom-red cursor-pointer accent-red-600"
+                      className="w-4 h-4 rounded border-[#22262d] bg-black text-[#dc2626] focus:ring-[#dc2626] cursor-pointer accent-red-600"
                     />
-                    <span className="text-xs font-semibold text-zinc-200">
-                      Dedicated savegame folder
+                    <span className="text-xs font-medium text-zinc-200">
+                      Dedicated savegame directory for this preset
                     </span>
                   </label>
 
@@ -846,29 +897,31 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
                       size="xs"
                       onClick={handleOpenSaveFolder}
                       leftIcon={<FolderOpen className="w-3 h-3 text-amber-400" />}
+                      className="text-xs h-7 bg-[#181f26] border-[#22262d] text-zinc-300"
                     >
                       Open Saves
                     </Button>
                   )}
                 </div>
                 <p className="text-[11px] text-zinc-500">
-                  Prevents save state corruption between complex mod packs.
+                  Prevents save state corruption between complex mod configurations.
                 </p>
               </div>
             </div>
 
-            {/* Custom Launch Arguments */}
-            <div className="flex flex-col gap-2 pt-3 border-t border-white/[0.06]">
+            {/* Row 2: Custom Launch Arguments with Token Pills & Flag Calculator */}
+            <div className="flex flex-col gap-2 pt-3 border-t border-[#22262d]">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-zinc-300 uppercase tracking-wider flex items-center gap-2">
+                <label className="text-xs font-medium text-zinc-300 flex items-center gap-2">
                   <Terminal className="w-3.5 h-3.5 text-zinc-400" />
-                  Custom Launch Arguments
+                  <span>Custom Launch Arguments</span>
                 </label>
                 <Button
                   variant="secondary"
                   size="xs"
                   onClick={() => setIsDmFlagsOpen(true)}
                   leftIcon={<Sliders className="w-3 h-3 text-blue-400" />}
+                  className="text-xs h-7 bg-[#181f26] border-[#22262d] text-zinc-300"
                 >
                   ZDoom Flag Calculator
                 </Button>
@@ -882,8 +935,8 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
                 }}
                 onBlur={() => handleSave({ arguments: parsedArguments })}
                 placeholder="-skill 4 -warp MAP01 +sv_cheats 1"
-                leftIcon={<Terminal className="w-4 h-4" />}
-                className="font-mono text-xs"
+                leftIcon={<Terminal className="w-3.5 h-3.5 text-zinc-500" />}
+                className="font-mono text-xs bg-[#101317] border-[#22262d]"
               />
 
               {parsedArguments.length > 0 && (
@@ -892,7 +945,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
                   {parsedArguments.map((tok, idx) => (
                     <span
                       key={idx}
-                      className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#132232] border border-blue-800/30 text-blue-200 font-medium"
+                      className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#101317] border border-[#22262d] text-zinc-300"
                     >
                       {tok}
                     </span>
@@ -901,14 +954,17 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
               )}
             </div>
 
-            {/* Custom Working Directory */}
-            <div className="flex flex-col gap-2 pt-3 border-t border-white/[0.06]">
-              <label className="text-xs font-semibold text-zinc-300 uppercase tracking-wider flex items-center justify-between">
-                <span>Custom Working Directory</span>
+            {/* Row 3: Custom Working Directory */}
+            <div className="flex flex-col gap-2 pt-3 border-t border-[#22262d]">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-zinc-300 flex items-center gap-2">
+                  <FolderOpen className="w-3.5 h-3.5 text-zinc-400" />
+                  <span>Custom Working Directory</span>
+                </label>
                 <span className="text-[11px] text-zinc-500 font-normal">
-                  Leave blank to use engine default folder
+                  Leave blank to use engine default directory
                 </span>
-              </label>
+              </div>
               <div className="flex items-center gap-2">
                 <div className="flex-1">
                   <Input
@@ -920,15 +976,16 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
                     }}
                     onBlur={() => handleSave({ workingDir })}
                     placeholder="Defaults to engine executable directory"
-                    leftIcon={<FolderOpen className="w-4 h-4" />}
-                    className="font-mono text-xs"
+                    leftIcon={<FolderOpen className="w-3.5 h-3.5 text-zinc-500" />}
+                    className="font-mono text-xs bg-[#101317] border-[#22262d]"
                   />
                 </div>
                 <Button
                   variant="secondary"
                   size="sm"
                   onClick={handleBrowseWorkingDir}
-                  leftIcon={<FolderOpen className="w-4 h-4 text-zinc-400" />}
+                  leftIcon={<FolderOpen className="w-3.5 h-3.5 text-zinc-400" />}
+                  className="text-xs h-9 bg-[#181f26] border-[#22262d] text-zinc-300"
                 >
                   Browse
                 </Button>
@@ -940,7 +997,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
                       setWorkingDir('');
                       handleSave({ workingDir: '' });
                     }}
-                    className="text-zinc-400 hover:text-white text-xs"
+                    className="text-zinc-500 hover:text-zinc-300 text-xs h-9"
                   >
                     Clear
                   </Button>
