@@ -10,10 +10,11 @@ import {
   Search,
   CheckCircle2,
   XCircle,
-  Terminal,
   Copy,
   Check,
   Flame,
+  X,
+  Loader2,
 } from 'lucide-react';
 import { LaunchRecord, HistoryStats } from '../../types';
 import { api } from '../../services/api';
@@ -69,12 +70,12 @@ export const HistoryView: React.FC = () => {
   const handleLaunchAgain = async (record: LaunchRecord) => {
     setLaunchingId(record.id);
     try {
-      toast.info('Launching Profile', `Starting "${record.profileName || 'Doom'}"...`);
+      toast.info('Launching Preset', `Starting "${record.profileName || 'Doom'}"...`);
       await api.launchProfile(record.profileId);
       toast.success('Game Launched', `Started "${record.profileName || 'Doom'}".`);
       loadHistoryData();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Could not launch profile';
+      const message = err instanceof Error ? err.message : 'Could not launch preset';
       toast.error('Launch Error', message);
     } finally {
       setLaunchingId(null);
@@ -137,116 +138,122 @@ export const HistoryView: React.FC = () => {
   }, [history, statusFilter, searchQuery]);
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#0c0e12] text-zinc-100 select-none">
-      {/* Desktop Toolbar */}
-      <div className="border-b border-[#22262d] bg-[#101317] px-8 py-3.5 space-y-3 shrink-0">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Search Input */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search history by profile, engine, IWAD..."
-              className="w-full rounded-md border border-[#22262d] bg-black/40 pl-8 pr-16 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-red-600 focus:outline-hidden font-mono"
-            />
-            <span className="absolute right-2.5 top-2 text-[10px] font-mono text-zinc-500">
-              {filteredHistory.length}/{history.length}
-            </span>
+    <div className="flex-1 flex flex-col h-full w-full overflow-hidden bg-[#0c0e12] text-zinc-100 select-none">
+      {/* TOOLBAR: Search, Status Filters, Row Limit, Refresh, Clear (44px) */}
+      <div className="border-b border-[#22262d] bg-[#14171c] px-6 py-2.5 flex items-center justify-between gap-4 shrink-0 flex-wrap">
+        {/* Left: Search input */}
+        <div className="relative flex items-center flex-1 max-w-md">
+          <Search className="absolute left-3 h-3.5 w-3.5 text-zinc-500 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search history by preset, engine, IWAD..."
+            className="w-full rounded-md border border-[#22262d] bg-[#0c0e12] pl-9 pr-8 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-zinc-500 focus:outline-hidden transition-colors font-normal"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors"
+              title="Clear search"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+
+        {/* Right: Status Filters, Limit, Refresh, Clear */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          {/* Status Filter Pills */}
+          <div className="flex items-center rounded border border-[#22262d] bg-[#0c0e10] p-0.5 text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => setStatusFilter('all')}
+              className={`px-2.5 py-1 rounded transition-colors ${
+                statusFilter === 'all'
+                  ? 'bg-[#1b1f26] text-zinc-100 font-semibold'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              All ({history.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('success')}
+              className={`px-2.5 py-1 rounded transition-colors ${
+                statusFilter === 'success'
+                  ? 'bg-emerald-950/40 text-emerald-300 font-semibold border border-emerald-800/40'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              Success
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('failed')}
+              className={`px-2.5 py-1 rounded transition-colors ${
+                statusFilter === 'failed'
+                  ? 'bg-red-950/40 text-red-300 font-semibold border border-red-800/40'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              Failed
+            </button>
           </div>
 
-          {/* Right Action Controls */}
-          <div className="flex items-center gap-2.5">
-            {/* Status Filter Pills */}
-            <div className="flex items-center rounded-md border border-[#22262d] bg-black/40 p-0.5 text-xs font-medium">
-              <button
-                type="button"
-                onClick={() => setStatusFilter('all')}
-                className={`px-2.5 py-1 rounded transition-colors duration-150 ${
-                  statusFilter === 'all'
-                    ? 'bg-white/[0.12] text-white'
-                    : 'text-zinc-400 hover:text-white'
-                }`}
-              >
-                All ({history.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('success')}
-                className={`px-2.5 py-1 rounded transition-colors duration-150 ${
-                  statusFilter === 'success'
-                    ? 'bg-emerald-950/40 text-emerald-300 border border-emerald-800/40'
-                    : 'text-zinc-400 hover:text-white'
-                }`}
-              >
-                Success
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('failed')}
-                className={`px-2.5 py-1 rounded transition-colors duration-150 ${
-                  statusFilter === 'failed'
-                    ? 'bg-red-950/40 text-red-300 border border-red-800/40'
-                    : 'text-zinc-400 hover:text-white'
-                }`}
-              >
-                Failed
-              </button>
-            </div>
-
-            {/* Limit Selector */}
-            <div className="flex items-center gap-1.5 text-xs text-zinc-400 font-mono">
-              <select
-                value={limit}
-                onChange={(e) => setLimit(Number(e.target.value))}
-                className="bg-black/40 border border-[#22262d] rounded-md px-2 py-1 text-xs text-zinc-200 focus:outline-hidden focus:border-white/[0.2]"
-              >
-                <option value={50}>50 rows</option>
-                <option value={100}>100 rows</option>
-                <option value={250}>250 rows</option>
-                <option value={500}>500 rows</option>
-              </select>
-            </div>
-
-            <div className="h-4 w-px bg-[#22262d] mx-1 hidden sm:block" />
-
-            <Button
-              variant="secondary"
-              size="xs"
-              onClick={loadHistoryData}
-              isLoading={isLoading}
-              leftIcon={<RotateCw className="h-3 w-3" />}
+          {/* Limit Selector */}
+          <div className="flex items-center gap-1.5 text-xs text-zinc-400 font-mono">
+            <select
+              value={limit}
+              onChange={(e) => setLimit(Number(e.target.value))}
+              aria-label="Row limit"
+              className="bg-[#14171c] border border-[#22262d] rounded px-2.5 py-1 text-xs text-zinc-200 focus:outline-none cursor-pointer"
             >
-              Refresh
-            </Button>
-            <Button
-              variant="danger"
-              size="xs"
-              onClick={() => setIsClearModalOpen(true)}
-              disabled={history.length === 0}
-              leftIcon={<Trash2 className="h-3 w-3" />}
-            >
-              Clear
-            </Button>
+              <option value={50}>50 rows</option>
+              <option value={100}>100 rows</option>
+              <option value={250}>250 rows</option>
+              <option value={500}>500 rows</option>
+            </select>
           </div>
+
+          <div className="h-4 w-px bg-[#22262d]" />
+
+          <button
+            type="button"
+            onClick={loadHistoryData}
+            title="Refresh history"
+            className="p-1.5 rounded text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors"
+          >
+            <RotateCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsClearModalOpen(true)}
+            disabled={history.length === 0}
+            className="inline-flex items-center gap-1.5 rounded border border-red-900/40 bg-red-950/20 hover:bg-red-950/40 px-2.5 py-1 text-xs font-medium text-red-400 transition-colors disabled:opacity-40"
+          >
+            <Trash2 className="h-3 w-3" />
+            <span>Clear</span>
+          </button>
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
-        {/* Summary Telemetry Bar */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* MAIN CONTENT VIEWPORT */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* Compact Telemetry Strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {/* Total Launches */}
           <div className="p-3.5 rounded-lg border border-[#22262d] bg-[#14171c] flex items-center justify-between">
             <div>
               <span className="text-[11px] text-zinc-400 font-medium block">Total Launches</span>
-              <span className="text-lg font-semibold text-zinc-100 font-mono mt-0.5 block">
+              <span className="text-base font-bold text-zinc-100 font-mono mt-0.5 block">
                 {stats ? stats.totalLaunches : history.length}
               </span>
             </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[#1b1f26] text-red-400 border border-[#22262d]">
-              <Flame className="h-4 w-4" />
+            <div className="flex h-7 w-7 items-center justify-center rounded bg-[#181c22] text-[#dc2626] border border-[#22262d]">
+              <Flame className="h-3.5 w-3.5" />
             </div>
           </div>
 
@@ -254,66 +261,64 @@ export const HistoryView: React.FC = () => {
           <div className="p-3.5 rounded-lg border border-[#22262d] bg-[#14171c] flex items-center justify-between">
             <div>
               <span className="text-[11px] text-zinc-400 font-medium block">Total Playtime</span>
-              <span className="text-lg font-semibold text-zinc-100 font-mono mt-0.5 block">
+              <span className="text-base font-bold text-emerald-400 font-mono mt-0.5 block">
                 {stats && stats.totalPlayTimeMs
                   ? formatDuration(stats.totalPlayTimeMs)
                   : formatDuration(history.reduce((acc, curr) => acc + (curr.durationMs || 0), 0))}
               </span>
             </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[#1b1f26] text-blue-400 border border-[#22262d]">
-              <Clock className="h-4 w-4" />
+            <div className="flex h-7 w-7 items-center justify-center rounded bg-[#181c22] text-blue-400 border border-[#22262d]">
+              <Clock className="h-3.5 w-3.5" />
             </div>
           </div>
 
           {/* Last Played */}
           <div className="p-3.5 rounded-lg border border-[#22262d] bg-[#14171c] flex items-center justify-between">
             <div>
-              <span className="text-[11px] text-zinc-400 font-medium block">Last Played</span>
+              <span className="text-[11px] text-zinc-400 font-medium block">Last Session</span>
               <span className="text-xs text-zinc-300 mt-1 block truncate max-w-[140px]">
                 {history[0]?.startedAt ? formatTimeAgo(history[0].startedAt) : 'No sessions yet'}
               </span>
             </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[#1b1f26] text-emerald-400 border border-[#22262d]">
-              <Calendar className="h-4 w-4" />
+            <div className="flex h-7 w-7 items-center justify-center rounded bg-[#181c22] text-emerald-400 border border-[#22262d]">
+              <Calendar className="h-3.5 w-3.5" />
             </div>
           </div>
 
-          {/* Most Played Profile */}
+          {/* Favorite Setup */}
           <div className="p-3.5 rounded-lg border border-[#22262d] bg-[#14171c] flex items-center justify-between">
             <div className="min-w-0 flex-1 mr-2">
-              <span className="text-[11px] text-zinc-400 font-medium block">Favorite Setup</span>
+              <span className="text-[11px] text-zinc-400 font-medium block">Most Played</span>
               <span className="text-xs font-semibold text-zinc-200 mt-1 block truncate">
-                {stats?.mostPlayedProfileName || (history.length > 0 ? history[0].profileName : '-')}
+                {stats?.mostPlayedProfileName || (history.length > 0 ? history[0].profileName : 'None')}
               </span>
             </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[#1b1f26] text-amber-400 border border-[#22262d] shrink-0">
-              <Trophy className="h-4 w-4" />
+            <div className="flex h-7 w-7 items-center justify-center rounded bg-[#181c22] text-amber-400 border border-[#22262d] shrink-0">
+              <Trophy className="h-3.5 w-3.5" />
             </div>
           </div>
         </div>
 
-        {/* History Table */}
+        {/* History Table / Empty State */}
         {isLoading ? (
-          <div className="flex h-64 flex-col items-center justify-center gap-3">
-            <RotateCw className="h-6 w-6 animate-spin text-zinc-400" />
-            <span className="text-xs font-medium text-zinc-400">Loading launch history...</span>
+          <div className="flex h-64 flex-col items-center justify-center gap-3 text-zinc-500">
+            <RotateCw className="h-6 w-6 animate-spin" />
+            <span className="text-xs">Loading launch history...</span>
           </div>
         ) : filteredHistory.length === 0 ? (
           /* Empty State */
-          <div className="flex min-h-[360px] flex-col items-center justify-center rounded-lg border border-dashed border-[#22262d] bg-[#14171c]/50 p-8 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#1b1f26] border border-[#22262d] text-zinc-400 mb-3">
-              <HistoryIcon className="h-6 w-6" />
-            </div>
+          <div className="flex min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed border-[#22262d] bg-[#14171c]/40 p-8 text-center">
+            <HistoryIcon className="h-10 w-10 text-zinc-600 mb-3" />
             {history.length === 0 ? (
               <>
-                <h3 className="text-sm font-semibold text-zinc-100">No Launch History Recorded</h3>
+                <h3 className="text-sm font-semibold text-zinc-200">No Launch History Recorded</h3>
                 <p className="mt-1 max-w-md text-xs text-zinc-400 leading-relaxed">
-                  When you launch a Doom profile from the Launchpad, execution logs, runtimes, and status results will automatically appear here.
+                  When you launch a Doom preset, execution runtimes, exit codes, and durations will automatically be logged here.
                 </p>
               </>
             ) : (
               <>
-                <h3 className="text-sm font-semibold text-zinc-100">No matching records found</h3>
+                <h3 className="text-sm font-semibold text-zinc-200">No matching records found</h3>
                 <p className="mt-1 text-xs text-zinc-400">
                   Try adjusting your search query or switching status filters.
                 </p>
@@ -334,105 +339,111 @@ export const HistoryView: React.FC = () => {
         ) : (
           /* History Table */
           <div className="overflow-hidden rounded-lg border border-[#22262d] bg-[#14171c]">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-[#22262d] bg-black/30 text-zinc-400 font-medium">
-                <tr>
-                  <th className="px-4 py-2.5">Status</th>
-                  <th className="px-4 py-2.5">Profile</th>
-                  <th className="px-4 py-2.5">Engine</th>
-                  <th className="px-4 py-2.5">Base IWAD</th>
-                  <th className="px-4 py-2.5">Duration</th>
-                  <th className="px-4 py-2.5">Date</th>
-                  <th className="px-4 py-2.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#22262d]">
-                {filteredHistory.map((record) => {
-                  const isSuccess = record.status === 'success' || record.exitCode === 0;
-                  const isLaunching = launchingId === record.id;
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-[#22262d] bg-[#101317] text-[11px] font-semibold text-zinc-400 select-none">
+                    <th className="px-4 py-2.5">Status</th>
+                    <th className="px-4 py-2.5">Preset</th>
+                    <th className="px-4 py-2.5">Port</th>
+                    <th className="px-4 py-2.5">Base IWAD</th>
+                    <th className="px-4 py-2.5">Duration</th>
+                    <th className="px-4 py-2.5">When</th>
+                    <th className="px-4 py-2.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#1e2229]">
+                  {filteredHistory.map((record) => {
+                    const isSuccess = record.status === 'success' || record.exitCode === 0;
+                    const isLaunching = launchingId === record.id;
 
-                  return (
-                    <tr
-                      key={record.id}
-                      className="hover:bg-[#1b1f26] transition-colors duration-150 group cursor-pointer"
-                      onClick={() => setSelectedRecord(record)}
-                    >
-                      {/* Status */}
-                      <td className="px-4 py-2.5 whitespace-nowrap">
-                        {isSuccess ? (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-mono font-medium bg-emerald-950/40 text-emerald-300 border border-emerald-800/30">
-                            <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" />
-                            <span>Success</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-mono font-medium bg-red-950/40 text-red-300 border border-red-800/30">
-                            <XCircle className="h-3 w-3 text-red-400 shrink-0" />
-                            <span>Failed ({record.exitCode ?? 1})</span>
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Profile Name */}
-                      <td className="px-4 py-2.5 font-medium text-zinc-100">
-                        <span className="truncate group-hover:text-white transition-colors duration-150 max-w-[180px] block">
-                          {record.profileName || 'Unknown Profile'}
-                        </span>
-                      </td>
-
-                      {/* Engine */}
-                      <td className="px-4 py-2.5 text-zinc-300 font-mono text-[11px]">
-                        {record.engineName || 'Default Port'}
-                      </td>
-
-                      {/* IWAD */}
-                      <td className="px-4 py-2.5 text-zinc-300 font-mono text-[11px]">
-                        {record.iwadName || 'DOOM2.WAD'}
-                      </td>
-
-                      {/* Duration */}
-                      <td className="px-4 py-2.5 font-mono text-zinc-300 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <Clock className="h-3 w-3 text-zinc-500" />
-                          <span>{formatDuration(record.durationMs)}</span>
-                        </div>
-                      </td>
-
-                      {/* Date */}
-                      <td className="px-4 py-2.5 text-zinc-400 whitespace-nowrap">
-                        <div>{formatDate(record.startedAt)}</div>
-                        <div className="text-[10px] text-zinc-500">{formatTimeAgo(record.startedAt)}</div>
-                      </td>
-
-                      {/* Actions */}
-                      <td
-                        className="px-4 py-2.5 text-right whitespace-nowrap"
-                        onClick={(e) => e.stopPropagation()}
+                    return (
+                      <tr
+                        key={record.id}
+                        className="hover:bg-[#181c22] transition-colors duration-100 group cursor-pointer"
+                        onClick={() => setSelectedRecord(record)}
                       >
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => setSelectedRecord(record)}
-                            leftIcon={<Terminal className="h-3 w-3" />}
-                          >
-                            Details
-                          </Button>
-                          <Button
-                            variant="primary"
-                            size="xs"
-                            onClick={() => handleLaunchAgain(record)}
-                            isLoading={isLaunching}
-                            leftIcon={<Play className="h-3 w-3 fill-current" />}
-                          >
-                            Play Again
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        {/* Status */}
+                        <td className="px-4 py-2.5 whitespace-nowrap">
+                          {isSuccess ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-emerald-950/40 text-emerald-400 border border-emerald-800/40">
+                              <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" />
+                              <span>Success</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-red-950/40 text-red-400 border border-red-800/40">
+                              <XCircle className="h-3 w-3 text-red-400 shrink-0" />
+                              <span>Failed ({record.exitCode ?? 1})</span>
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Preset Name */}
+                        <td className="px-4 py-2.5 font-semibold text-zinc-100">
+                          <span className="truncate group-hover:text-white transition-colors max-w-[200px] block">
+                            {record.profileName || 'Default Setup'}
+                          </span>
+                        </td>
+
+                        {/* Engine */}
+                        <td className="px-4 py-2.5 text-zinc-400 font-mono text-[11px]">
+                          {record.engineName || 'Port'}
+                        </td>
+
+                        {/* IWAD */}
+                        <td className="px-4 py-2.5 text-zinc-400 font-mono text-[11px]">
+                          {record.iwadName || 'DOOM2.WAD'}
+                        </td>
+
+                        {/* Duration */}
+                        <td className="px-4 py-2.5 font-mono text-zinc-400 whitespace-nowrap">
+                          {formatDuration(record.durationMs)}
+                        </td>
+
+                        {/* When */}
+                        <td className="px-4 py-2.5 text-zinc-400 whitespace-nowrap" title={formatDate(record.startedAt)}>
+                          {formatTimeAgo(record.startedAt)}
+                        </td>
+
+                        {/* Actions */}
+                        <td
+                          className="px-4 py-2.5 text-right whitespace-nowrap"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedRecord(record)}
+                              className="px-2 py-1 text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] rounded transition-colors"
+                            >
+                              Details
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleLaunchAgain(record)}
+                              disabled={isLaunching}
+                              className="inline-flex items-center gap-1.5 rounded bg-[#dc2626] hover:bg-[#ef4444] px-2.5 py-1 text-xs font-semibold text-white transition-colors disabled:opacity-50"
+                            >
+                              {isLaunching ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  <span>Starting</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Play className="h-3 w-3 fill-current" />
+                                  <span>Play</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
@@ -441,27 +452,13 @@ export const HistoryView: React.FC = () => {
       <Modal
         isOpen={Boolean(selectedRecord)}
         onClose={() => setSelectedRecord(null)}
-        title={
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#1b1f26] text-zinc-300 border border-[#22262d]">
-              <Terminal className="h-3.5 w-3.5" />
-            </div>
-            <div>
-              <div className="text-sm font-semibold text-zinc-100">
-                Launch Execution Details
-              </div>
-              <div className="text-xs text-zinc-400 font-normal">
-                Profile: {selectedRecord?.profileName}
-              </div>
-            </div>
-          </div>
-        }
+        title="Launch Execution Details"
         size="lg"
       >
         {selectedRecord && (
           <div className="space-y-4">
             {/* Metadata Summary Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-lg bg-black/40 border border-[#22262d] text-xs font-mono">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-lg bg-[#101317] border border-[#22262d] text-xs font-mono">
               <div>
                 <span className="text-[10px] text-zinc-500 uppercase block">Status</span>
                 <span
@@ -499,32 +496,46 @@ export const HistoryView: React.FC = () => {
 
             {/* Execution Command Line */}
             {selectedRecord.commandLine && (
-              <div>
-                <div className="flex items-center justify-between text-xs text-zinc-400 mb-1.5 font-medium">
-                  <span>Full Command Executed</span>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-zinc-400 font-medium">
+                  <span>Executed Command</span>
                   <button
                     type="button"
                     onClick={() => handleCopyCommandLine(selectedRecord.commandLine)}
-                    className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-white transition-colors"
+                    className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
                   >
                     {copiedCmd ? (
-                      <Check className="h-3 w-3 text-emerald-400" />
+                      <>
+                        <Check className="h-3 w-3 text-emerald-400" />
+                        <span className="text-emerald-400">Copied</span>
+                      </>
                     ) : (
-                      <Copy className="h-3 w-3" />
+                      <>
+                        <Copy className="h-3 w-3" />
+                        <span>Copy</span>
+                      </>
                     )}
-                    <span>{copiedCmd ? 'Copied' : 'Copy Command'}</span>
                   </button>
                 </div>
-                <div className="bg-[#101214] border border-[#22262d] rounded-lg p-3 font-mono text-xs text-zinc-300 break-all select-all max-h-36 overflow-y-auto">
+
+                <div className="p-3 rounded-lg bg-[#101317] border border-[#22262d] font-mono text-xs text-zinc-300 break-all leading-relaxed select-all">
                   {selectedRecord.commandLine}
                 </div>
               </div>
             )}
+
+            {/* Timestamps */}
+            <div className="flex items-center justify-between text-xs text-zinc-500 pt-2 border-t border-[#22262d] font-mono">
+              <span>Started: {formatDate(selectedRecord.startedAt)}</span>
+              {selectedRecord.finishedAt && (
+                <span>Finished: {formatDate(selectedRecord.finishedAt)}</span>
+              )}
+            </div>
           </div>
         )}
       </Modal>
 
-      {/* Confirm Clear History Modal */}
+      {/* Clear History Confirmation Modal */}
       <Modal
         isOpen={isClearModalOpen}
         onClose={() => setIsClearModalOpen(false)}
@@ -537,17 +548,16 @@ export const HistoryView: React.FC = () => {
             </Button>
             <Button
               variant="danger"
-              isLoading={isClearing}
               onClick={handleClearHistory}
+              isLoading={isClearing}
             >
               Clear All Records
             </Button>
           </>
         }
       >
-        <p className="text-sm text-zinc-300 leading-relaxed">
-          Are you sure you want to delete all <span className="font-semibold text-white">{history.length}</span> logged
-          launch history sessions? This will reset your logged playtime telemetry statistics.
+        <p className="text-xs text-zinc-300 leading-relaxed">
+          Are you sure you want to delete all logged launch session records and telemetry? This action cannot be undone.
         </p>
       </Modal>
     </div>
