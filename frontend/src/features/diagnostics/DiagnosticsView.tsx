@@ -3,22 +3,22 @@ import {
   AlertTriangle,
   CheckCircle2,
   Database,
-  FileCode2,
   HardDrive,
   Layers,
-  RefreshCw,
+  RotateCw,
   Trash2,
   Wrench,
   XCircle,
   Terminal,
   ShieldCheck,
   Search,
+  X,
+  Cpu,
+  Disc,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { DiagnosticsReport, DiagnosticIssue, LogEntry } from '../../types';
-import { Badge } from '../../components/ui/Badge';
-import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
+import { cn } from '../../utils/cn';
 
 interface DiagnosticsViewProps {
   onNotify?: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
@@ -69,10 +69,13 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onNotify }) =>
   };
 
   const handlePruneAll = async () => {
+    if (!window.confirm('Prune all missing files and clean broken references across your profiles?')) {
+      return;
+    }
     setIsLoading(true);
     try {
       await api.repairDiagnosticIssue('prune_all_missing', '');
-      onNotify?.('Successfully pruned all missing files and cleaned profiles', 'success');
+      onNotify?.('Successfully pruned missing files and cleaned profiles', 'success');
       await fetchDiagnostics();
     } catch (err: unknown) {
       console.error('Prune failed:', err);
@@ -105,70 +108,72 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onNotify }) =>
   );
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#0c0e12] text-zinc-100 select-none">
-      {/* Desktop Toolbar */}
-      <div className="border-b border-[#22262d] bg-[#101317] px-8 py-3.5 flex items-center justify-between gap-4 shrink-0">
+    <div className="flex-1 flex flex-col h-full w-full overflow-hidden bg-[#0c0e12] text-zinc-100 select-none">
+      {/* TOOLBAR: Title, Status Badge, Re-scan, Prune All (44px) */}
+      <div className="border-b border-[#22262d] bg-[#14171c] px-6 py-2.5 flex items-center justify-between gap-4 shrink-0 flex-wrap">
         <div className="flex items-center gap-3">
-          <span className="text-xs font-semibold text-zinc-200">
-            System Health & Diagnostics Audit
-          </span>
+          <h1 className="text-sm font-bold text-zinc-100 tracking-tight">
+            Diagnostics & Health
+          </h1>
           {report?.overallStatus && (
             <span
-              className={`rounded-md px-2 py-0.5 text-[11px] font-mono font-semibold uppercase ${
+              className={cn(
+                'rounded px-2 py-0.5 text-[11px] font-mono font-medium uppercase tracking-wider',
                 report.overallStatus === 'healthy'
-                  ? 'bg-emerald-950/40 text-emerald-300 border border-emerald-800/40'
+                  ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/40'
                   : report.overallStatus === 'warning'
-                  ? 'bg-amber-950/40 text-amber-300 border border-amber-800/40'
-                  : 'bg-red-950/40 text-red-300 border border-red-800/40'
-              }`}
+                  ? 'bg-amber-950/40 text-amber-400 border border-amber-800/40'
+                  : 'bg-red-950/40 text-red-400 border border-red-800/40'
+              )}
             >
               {report.overallStatus}
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <Button
-            variant="secondary"
-            size="xs"
+        <div className="flex items-center gap-2.5 shrink-0">
+          <button
+            type="button"
             onClick={fetchDiagnostics}
             disabled={isLoading}
-            leftIcon={<RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />}
+            className="inline-flex items-center gap-1.5 rounded border border-[#22262d] bg-[#181c21] hover:bg-[#1f242e] px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white transition-colors disabled:opacity-50"
           >
-            Re-scan
-          </Button>
+            <RotateCw className={cn('w-3.5 h-3.5', isLoading && 'animate-spin')} />
+            <span>Re-scan Health</span>
+          </button>
+
           {(report?.summary?.totalIssues ?? 0) > 0 && (
-            <Button
-              variant="danger"
-              size="xs"
+            <button
+              type="button"
               onClick={handlePruneAll}
               disabled={isLoading}
-              leftIcon={<Trash2 className="w-3 h-3" />}
+              className="inline-flex items-center gap-1.5 rounded border border-red-900/40 bg-red-950/20 hover:bg-red-950/40 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors disabled:opacity-50"
             >
-              Prune All Missing
-            </Button>
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Prune Missing Resources</span>
+            </button>
           )}
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
+      {/* MAIN CONTENT VIEWPORT */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {/* Health Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Status Card */}
           <div className="p-4 rounded-lg bg-[#14171c] border border-[#22262d] flex flex-col justify-between">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-medium text-zinc-400">Overall System Status</span>
+              <span className="text-[11px] font-medium text-zinc-400">System Integrity</span>
               {report?.overallStatus === 'healthy' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
               {report?.overallStatus === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-400" />}
               {report?.overallStatus === 'error' && <XCircle className="w-4 h-4 text-red-400" />}
             </div>
             <div className="mt-3">
-              <div className="text-lg font-semibold capitalize text-zinc-100">
+              <div className="text-base font-bold capitalize text-zinc-100">
                 {report?.overallStatus || 'Checking...'}
               </div>
               <p className="text-[11px] text-zinc-500 font-mono mt-0.5">
-                Checked: {report?.generatedAt ? new Date(report.generatedAt).toLocaleTimeString() : '-'}
+                Audited: {report?.generatedAt ? new Date(report.generatedAt).toLocaleTimeString() : '-'}
               </p>
             </div>
           </div>
@@ -176,7 +181,7 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onNotify }) =>
           {/* Database Health Card */}
           <div className="p-4 rounded-lg bg-[#14171c] border border-[#22262d] flex flex-col justify-between">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-medium text-zinc-400">SQLite Database Integrity</span>
+              <span className="text-[11px] font-medium text-zinc-400">SQLite Database Engine</span>
               <Database className="w-4 h-4 text-blue-400" />
             </div>
             <div className="mt-3">
@@ -184,13 +189,13 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onNotify }) =>
                 Integrity: <span className="text-emerald-400 font-mono">{report?.database?.integrityCheck || 'ok'}</span>
               </div>
               <div className="text-[11px] text-zinc-400 mt-1 flex flex-wrap gap-2 font-mono">
-                <span>Mods: {report?.database?.modCount ?? 0}</span>
+                <span>{report?.database?.modCount ?? 0} mods</span>
                 <span className="text-zinc-600">•</span>
-                <span>IWADs: {report?.database?.iwadCount ?? 0}</span>
+                <span>{report?.database?.iwadCount ?? 0} IWADs</span>
                 <span className="text-zinc-600">•</span>
-                <span>Engines: {report?.database?.engineCount ?? 0}</span>
+                <span>{report?.database?.engineCount ?? 0} ports</span>
                 <span className="text-zinc-600">•</span>
-                <span>Profiles: {report?.database?.profileCount ?? 0}</span>
+                <span>{report?.database?.profileCount ?? 0} presets</span>
               </div>
             </div>
           </div>
@@ -198,73 +203,77 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onNotify }) =>
           {/* Issues Summary Card */}
           <div className="p-4 rounded-lg bg-[#14171c] border border-[#22262d] flex flex-col justify-between">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-medium text-zinc-400">Identified System Issues</span>
+              <span className="text-[11px] font-medium text-zinc-400">Identified Issues</span>
               <ShieldCheck className="w-4 h-4 text-zinc-400" />
             </div>
             <div className="mt-3 flex items-center gap-4">
               <div>
-                <span className="text-lg font-semibold font-mono text-red-400">{report?.summary?.errorCount ?? 0}</span>
+                <span className="text-base font-bold font-mono text-red-400">{report?.summary?.errorCount ?? 0}</span>
                 <span className="text-[11px] text-zinc-400 block font-medium">Errors</span>
               </div>
               <div className="border-l border-[#22262d] pl-3.5">
-                <span className="text-lg font-semibold font-mono text-amber-400">{report?.summary?.warningCount ?? 0}</span>
+                <span className="text-base font-bold font-mono text-amber-400">{report?.summary?.warningCount ?? 0}</span>
                 <span className="text-[11px] text-zinc-400 block font-medium">Warnings</span>
               </div>
               <div className="border-l border-[#22262d] pl-3.5">
-                <span className="text-lg font-semibold font-mono text-blue-400">{report?.summary?.infoCount ?? 0}</span>
-                <span className="text-[11px] text-zinc-400 block font-medium">Info</span>
+                <span className="text-base font-bold font-mono text-blue-400">{report?.summary?.infoCount ?? 0}</span>
+                <span className="text-[11px] text-zinc-400 block font-medium">Notices</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Tabs Selection */}
+        {/* Tabs Selection (Issues vs Logs) */}
         <div className="flex items-center justify-between border-b border-[#22262d] pb-2">
           <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => setActiveTab('all')}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors duration-150 ${
+              className={cn(
+                'px-3 py-1 text-xs font-medium rounded transition-colors',
                 activeTab === 'all'
-                  ? 'bg-[#1b1f26] text-white border border-white/[0.12] font-semibold'
+                  ? 'bg-[#1c2026] text-white border border-[#2c323d] font-semibold'
                   : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
-              }`}
+              )}
             >
               All Issues ({report?.summary?.totalIssues ?? 0})
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('errors')}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors duration-150 ${
+              className={cn(
+                'px-3 py-1 text-xs font-medium rounded transition-colors',
                 activeTab === 'errors'
                   ? 'bg-red-950/40 text-red-300 border border-red-800/40 font-semibold'
                   : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
-              }`}
+              )}
             >
               Errors ({report?.summary?.errorCount ?? 0})
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('warnings')}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors duration-150 ${
+              className={cn(
+                'px-3 py-1 text-xs font-medium rounded transition-colors',
                 activeTab === 'warnings'
                   ? 'bg-amber-950/40 text-amber-300 border border-amber-800/40 font-semibold'
                   : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
-              }`}
+              )}
             >
               Warnings ({report?.summary?.warningCount ?? 0})
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('logs')}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors duration-150 flex items-center gap-1.5 ${
+              className={cn(
+                'px-3 py-1 text-xs font-medium rounded transition-colors flex items-center gap-1.5',
                 activeTab === 'logs'
                   ? 'bg-blue-950/40 text-blue-300 border border-blue-800/40 font-semibold'
                   : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
-              }`}
+              )}
             >
               <Terminal className="w-3.5 h-3.5 text-blue-400" />
-              System Logs ({logs.length})
+              <span>System Logs ({logs.length})</span>
             </button>
           </div>
         </div>
@@ -274,17 +283,32 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onNotify }) =>
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-4">
               <div className="relative flex-1 max-w-md">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-zinc-400" />
-                <Input
+                <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-zinc-500 pointer-events-none" />
+                <input
+                  type="text"
                   placeholder="Filter logs by message or level..."
                   value={logFilter}
                   onChange={(e) => setLogFilter(e.target.value)}
-                  className="pl-8 bg-black/40 border-[#22262d] text-xs py-1.5 font-mono"
+                  className="w-full rounded border border-[#22262d] bg-[#101317] pl-9 pr-8 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-zinc-500 focus:outline-none font-mono"
                 />
+                {logFilter && (
+                  <button
+                    type="button"
+                    onClick={() => setLogFilter('')}
+                    className="absolute right-2.5 p-0.5 text-zinc-500 hover:text-zinc-300"
+                    title="Clear filter"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
               </div>
-              <Button variant="ghost" size="xs" onClick={handleClearLogs} className="text-zinc-400 hover:text-white">
+              <button
+                type="button"
+                onClick={handleClearLogs}
+                className="text-xs text-zinc-400 hover:text-white px-2.5 py-1 rounded hover:bg-white/[0.04] transition-colors"
+              >
                 Clear Logs
-              </Button>
+              </button>
             </div>
 
             <div className="bg-[#101317] border border-[#22262d] rounded-lg p-4 font-mono text-xs overflow-x-auto max-h-[500px] space-y-1.5">
@@ -298,12 +322,12 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onNotify }) =>
                   if (log.level === 'INFO') badgeColor = 'text-blue-400';
 
                   return (
-                    <div key={idx} className="flex items-start gap-3 hover:bg-white/[0.04] p-1 rounded-md">
-                      <span className="text-zinc-500 select-none">
+                    <div key={idx} className="flex items-start gap-3 hover:bg-white/[0.02] p-1 rounded">
+                      <span className="text-zinc-500 select-none shrink-0">
                         {new Date(log.timestamp).toLocaleTimeString()}
                       </span>
-                      <span className={`w-14 uppercase ${badgeColor}`}>[{log.level}]</span>
-                      <span className="text-zinc-300 flex-1">{log.message}</span>
+                      <span className={`w-14 uppercase shrink-0 ${badgeColor}`}>[{log.level}]</span>
+                      <span className="text-zinc-300 flex-1 break-all">{log.message}</span>
                     </div>
                   );
                 })
@@ -325,48 +349,48 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onNotify }) =>
             ) : (
               filteredIssues.map((issue: DiagnosticIssue) => {
                 let categoryIcon = <HardDrive className="w-3.5 h-3.5" />;
-                if (issue.category === 'engine') categoryIcon = <FileCode2 className="w-3.5 h-3.5" />;
+                if (issue.category === 'engine') categoryIcon = <Cpu className="w-3.5 h-3.5" />;
                 if (issue.category === 'profile') categoryIcon = <Layers className="w-3.5 h-3.5" />;
+                if (issue.category === 'iwad') categoryIcon = <Disc className="w-3.5 h-3.5" />;
                 if (issue.category === 'database') categoryIcon = <Database className="w-3.5 h-3.5" />;
 
                 return (
                   <div
                     key={issue.id}
-                    className="p-4 rounded-lg bg-[#14171c] border border-[#22262d] hover:border-white/[0.14] transition-colors duration-150 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 select-none"
+                    className="p-4 rounded-lg bg-[#14171c] border border-[#22262d] hover:border-zinc-700 transition-colors duration-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 select-none"
                   >
                     <div className="flex items-start gap-3 flex-1">
-                      <div className="mt-0.5">
+                      <div className="mt-0.5 shrink-0">
                         {issue.severity === 'error' && <XCircle className="w-4 h-4 text-red-400" />}
                         {issue.severity === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-400" />}
                         {issue.severity === 'info' && <CheckCircle2 className="w-4 h-4 text-blue-400" />}
                       </div>
-                      <div className="space-y-1">
+                      <div className="space-y-1 min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs font-semibold text-zinc-100">{issue.title}</span>
-                          <Badge variant="secondary" className="capitalize text-[10px] flex items-center gap-1">
+                          <span className="inline-flex items-center gap-1 rounded bg-[#101317] border border-[#22262d] px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 uppercase">
                             {categoryIcon}
-                            {issue.category}
-                          </Badge>
+                            <span>{issue.category}</span>
+                          </span>
                         </div>
                         <p className="text-xs text-zinc-300">{issue.description}</p>
                         {issue.targetPath && (
-                          <p className="text-[11px] font-mono text-zinc-400 break-all">{issue.targetPath}</p>
+                          <p className="text-[11px] font-mono text-zinc-500 break-all">{issue.targetPath}</p>
                         )}
                       </div>
                     </div>
 
                     {issue.canRepair && issue.repairAction && (
                       <div className="shrink-0">
-                        <Button
-                          variant="secondary"
-                          size="xs"
+                        <button
+                          type="button"
                           disabled={repairingId === issue.id || isLoading}
                           onClick={() => handleRepair(issue)}
-                          className="flex items-center gap-1.5 text-xs"
+                          className="inline-flex items-center gap-1.5 rounded border border-[#22262d] bg-[#181c21] hover:bg-[#202732] px-3 py-1.5 text-xs font-medium text-zinc-200 hover:text-white transition-colors disabled:opacity-40"
                         >
-                          <Wrench className={`w-3.5 h-3.5 ${repairingId === issue.id ? 'animate-spin' : ''}`} />
-                          {issue.repairDescription || 'Repair'}
-                        </Button>
+                          <Wrench className={cn('w-3.5 h-3.5', repairingId === issue.id && 'animate-spin')} />
+                          <span>{issue.repairDescription || 'Repair'}</span>
+                        </button>
                       </div>
                     )}
                   </div>
