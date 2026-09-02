@@ -325,7 +325,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'direct
       <div className="flex-1 overflow-hidden flex flex-col">
         {/* TAB 1: CONTENT DIRECTORIES */}
         {activeTab === 'directories' && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-6 max-w-4xl">
+          <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 w-full">
             {/* Header info */}
             <div>
               <h2 className="text-sm font-semibold text-zinc-100">Configured Search Paths</h2>
@@ -549,7 +549,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'direct
 
         {/* TAB 2: LAUNCH BEHAVIOR */}
         {activeTab === 'behavior' && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-5 max-w-3xl">
+          <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 w-full">
             <div>
               <h2 className="text-sm font-semibold text-zinc-100">Process & Execution Options</h2>
               <p className="text-xs text-zinc-400 mt-0.5">
@@ -621,7 +621,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'direct
 
         {/* TAB 3: INTERFACE & APPEARANCE */}
         {activeTab === 'interface' && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-6 max-w-3xl">
+          <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 w-full">
             <div>
               <h2 className="text-sm font-semibold text-zinc-100">Interface & Display Preferences</h2>
               <p className="text-xs text-zinc-400 mt-0.5">
@@ -715,7 +715,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'direct
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-2.5">
                 {SUPPORTED_FORMATS.map((fmt) => {
                   const isChecked = settings.formatVisibility?.includes(fmt);
                   return (
@@ -752,7 +752,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'direct
 
         {/* TAB 4: SYSTEM & ABOUT */}
         {activeTab === 'system' && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-6 max-w-3xl">
+          <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 w-full">
             <div>
               <h2 className="text-sm font-semibold text-zinc-100">Application Info & Maintenance</h2>
               <p className="text-xs text-zinc-400 mt-0.5">
