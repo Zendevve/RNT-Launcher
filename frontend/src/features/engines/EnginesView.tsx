@@ -13,7 +13,9 @@ import {
   RotateCw,
   ShieldCheck,
   LayoutGrid,
-  List,
+  List as ListIcon,
+  X,
+  FolderSearch,
 } from 'lucide-react';
 import { Engine, EngineFamily } from '../../types';
 import { api } from '../../services/api';
@@ -40,7 +42,7 @@ export const EnginesView: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFamilyTab, setActiveFamilyTab] = useState('all');
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -122,6 +124,20 @@ export const EnginesView: React.FC = () => {
     }
   };
 
+  // Quick background scan trigger
+  const handleScanFolders = async () => {
+    try {
+      toast.info('Scanning Folders', 'Checking configured directories for engine executables...');
+      await api.startScan();
+      setTimeout(() => {
+        loadEngines();
+      }, 3000);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Scan failed';
+      toast.error('Scan Error', message);
+    }
+  };
+
   // Delete engine
   const handleConfirmDelete = async () => {
     if (!engineToDelete) return;
@@ -160,7 +176,7 @@ export const EnginesView: React.FC = () => {
   }, [engines, activeFamilyTab, searchQuery]);
 
   // Helpers for family badge appearance
-  const getFamilyBadgeColor = (family: EngineFamily) => {
+  const getFamilyBadgeStyle = (family: EngineFamily) => {
     switch (family) {
       case 'gzdoom':
         return 'bg-purple-950/40 text-purple-300 border-purple-800/30';
@@ -173,89 +189,99 @@ export const EnginesView: React.FC = () => {
       case 'chocolate-doom':
         return 'bg-amber-950/40 text-amber-300 border-amber-800/30';
       case 'prboom-plus':
-        return 'bg-blue-950/40 text-blue-300 border-blue-800/30';
+        return 'bg-cyan-950/40 text-cyan-300 border-cyan-800/30';
       default:
         return 'bg-white/[0.04] text-zinc-300 border-white/[0.08]';
     }
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#0c0e12] text-zinc-100 select-none">
-      {/* Desktop Toolbar */}
-      <div className="border-b border-[#22262d] bg-[#101317] px-8 py-3.5 space-y-3 shrink-0">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Search Input */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search source ports by name, family, executable..."
-              className="w-full rounded-md border border-[#22262d] bg-black/40 pl-8 pr-16 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-red-600 focus:outline-hidden font-mono"
-            />
-            <span className="absolute right-2.5 top-2 text-[10px] font-mono text-zinc-500">
-              {filteredEngines.length}/{engines.length}
-            </span>
-          </div>
-
-          {/* Right Action Controls */}
-          <div className="flex items-center gap-2.5">
-            {/* View Mode Switcher */}
-            <div className="flex items-center rounded-md border border-[#22262d] bg-black/40 p-0.5">
-              <button
-                type="button"
-                onClick={() => setViewMode('grid')}
-                className={`p-1 rounded transition-colors duration-150 ${
-                  viewMode === 'grid'
-                    ? 'bg-white/[0.12] text-white'
-                    : 'text-zinc-400 hover:text-white'
-                }`}
-                title="Grid Cards View"
-              >
-                <LayoutGrid className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('table')}
-                className={`p-1 rounded transition-colors duration-150 ${
-                  viewMode === 'table'
-                    ? 'bg-white/[0.12] text-white'
-                    : 'text-zinc-400 hover:text-white'
-                }`}
-                title="Compact Table View"
-              >
-                <List className="h-3.5 w-3.5" />
-              </button>
-            </div>
-
-            <div className="h-4 w-px bg-[#22262d] mx-1 hidden sm:block" />
-
-            <Button
-              variant="secondary"
-              size="xs"
-              onClick={loadEngines}
-              isLoading={isLoading}
-              leftIcon={<RotateCw className="h-3 w-3" />}
+    <div className="flex-1 flex flex-col h-full w-full overflow-hidden bg-[#0c0e12] text-zinc-100 select-none">
+      {/* TIER 1 TOOLBAR: Search & Primary Actions (44px) */}
+      <div className="border-b border-[#22262d] bg-[#14171c] px-6 py-2.5 flex items-center justify-between gap-4 shrink-0">
+        {/* Left: Search input */}
+        <div className="relative flex items-center flex-1 max-w-md">
+          <Search className="absolute left-3 h-3.5 w-3.5 text-zinc-500 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search source ports by name, family, executable..."
+            className="w-full rounded-md border border-[#22262d] bg-[#0c0e12] pl-9 pr-8 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-zinc-500 focus:outline-hidden transition-colors font-normal"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors"
+              title="Clear search"
             >
-              Refresh
-            </Button>
-            <Button
-              variant="primary"
-              size="xs"
-              onClick={() => {
-                setSelectedEngine(null);
-                setIsModalOpen(true);
-              }}
-              leftIcon={<Plus className="h-3.5 w-3.5" />}
-            >
-              Add Engine
-            </Button>
-          </div>
+              <X className="w-3 h-3" />
+            </button>
+          )}
         </div>
 
-        {/* Family Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 border-t border-[#22262d]/50 pt-2">
+        {/* Right: Table/Grid switcher, Scan, + Add Engine */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Table vs Grid View Toggle */}
+          <div className="flex items-center rounded border border-[#22262d] bg-[#0c0e10] p-0.5">
+            <button
+              type="button"
+              title="Table View (Dense)"
+              onClick={() => setViewMode('table')}
+              className={`rounded px-2 py-1 flex items-center gap-1.5 text-xs transition-colors ${
+                viewMode === 'table'
+                  ? 'bg-[#1b1f26] text-zinc-100 font-medium'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              <ListIcon className="h-3.5 w-3.5" />
+              <span>Table</span>
+            </button>
+            <button
+              type="button"
+              title="Grid Cards View"
+              onClick={() => setViewMode('grid')}
+              className={`rounded px-2 py-1 flex items-center gap-1.5 text-xs transition-colors ${
+                viewMode === 'grid'
+                  ? 'bg-[#1b1f26] text-zinc-100 font-medium'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              <span>Grid</span>
+            </button>
+          </div>
+
+          <div className="h-4 w-px bg-[#22262d]" />
+
+          <button
+            type="button"
+            onClick={handleScanFolders}
+            className="inline-flex items-center gap-1.5 rounded border border-[#22262d] bg-[#181c21] hover:bg-[#1f242e] px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white transition-colors"
+          >
+            <FolderSearch className="h-3.5 w-3.5 text-zinc-400" />
+            <span>Scan Folders</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedEngine(null);
+              setIsModalOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 rounded bg-[#dc2626] hover:bg-[#ef4444] px-3.5 py-1.5 text-xs font-semibold text-white transition-colors shadow-xs"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>Add Source Port</span>
+          </button>
+        </div>
+      </div>
+
+      {/* TIER 2 TOOLBAR: Family Filter Pills & Live Count (38px) */}
+      <div className="border-b border-[#22262d] bg-[#101317] px-6 py-2 flex items-center justify-between gap-4 shrink-0 flex-wrap">
+        {/* Left: Family filter pills */}
+        <div className="flex items-center gap-1 overflow-x-auto py-0.5">
           {FAMILY_TABS.map((tab) => {
             const count =
               tab.id === 'all'
@@ -268,64 +294,71 @@ export const EnginesView: React.FC = () => {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveFamilyTab(tab.id)}
-                className={`flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-md text-xs font-medium transition-colors duration-150 ${
+                className={`inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded text-xs font-medium transition-colors select-none ${
                   isActive
-                    ? 'bg-[#1b1f26] text-zinc-100 border border-white/[0.14] font-semibold'
-                    : 'bg-white/[0.03] hover:bg-white/[0.06] text-zinc-400 hover:text-zinc-200 border border-[#22262d]'
+                    ? 'bg-[#1c2026] text-zinc-100 border border-[#2c323d]'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]'
                 }`}
               >
                 <span>{tab.label}</span>
                 {count > 0 && (
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                      isActive ? 'bg-black/40 text-zinc-200' : 'bg-black/30 text-zinc-500'
-                    }`}
-                  >
-                    {count}
+                  <span className="text-[10px] font-mono text-zinc-500">
+                    ({count})
                   </span>
                 )}
               </button>
             );
           })}
         </div>
+
+        {/* Right: Match count badge */}
+        <span className="font-mono text-[11px] text-zinc-400 bg-[#14171c] border border-[#22262d] px-2.5 py-1 rounded">
+          {filteredEngines.length} of {engines.length} ports
+        </span>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
+      {/* MAIN CONTENT VIEWPORT */}
+      <div className="flex-1 overflow-y-auto p-6">
         {isLoading ? (
-          <div className="flex h-64 flex-col items-center justify-center gap-3">
-            <RotateCw className="h-6 w-6 animate-spin text-zinc-400" />
-            <span className="text-xs font-medium text-zinc-400">Scanning registered engines...</span>
+          <div className="flex h-64 flex-col items-center justify-center gap-3 text-zinc-500">
+            <RotateCw className="h-6 w-6 animate-spin" />
+            <span className="text-xs">Scanning registered engines...</span>
           </div>
         ) : filteredEngines.length === 0 ? (
           /* Empty State */
-          <div className="flex min-h-[360px] flex-col items-center justify-center rounded-lg border border-dashed border-[#22262d] bg-[#14171c]/50 p-8 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#1b1f26] border border-[#22262d] text-zinc-400 mb-3">
-              <Cpu className="h-6 w-6" />
-            </div>
+          <div className="flex min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed border-[#22262d] bg-[#14171c]/40 p-8 text-center">
+            <Cpu className="h-10 w-10 text-zinc-600 mb-3" />
             {engines.length === 0 ? (
               <>
-                <h3 className="text-sm font-semibold text-zinc-100">No Source Ports Registered</h3>
+                <h3 className="text-sm font-semibold text-zinc-200">No Source Ports Registered</h3>
                 <p className="mt-1 max-w-md text-xs text-zinc-400 leading-relaxed">
-                  Register your installed Doom engine executables (such as GZDoom, DSDA-Doom, or Woof) to start creating profiles and launching mods.
+                  Register your installed Doom engine executables (such as GZDoom, PRBoom+, DSDA-Doom, or Woof) to configure setups and launch games.
                 </p>
-                <div className="mt-5">
-                  <Button
-                    variant="primary"
-                    size="sm"
+                <div className="mt-4 flex items-center gap-3">
+                  <button
+                    type="button"
                     onClick={() => {
                       setSelectedEngine(null);
                       setIsModalOpen(true);
                     }}
-                    leftIcon={<Plus className="h-4 w-4" />}
+                    className="inline-flex items-center gap-1.5 rounded bg-[#dc2626] hover:bg-[#ef4444] px-4 py-1.5 text-xs font-semibold text-white transition-colors"
                   >
-                    Add Your First Engine
-                  </Button>
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Add Source Port</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleScanFolders}
+                    className="inline-flex items-center gap-1.5 rounded border border-[#22262d] bg-[#181c21] hover:bg-[#1f242e] px-4 py-1.5 text-xs font-medium text-zinc-300 hover:text-white transition-colors"
+                  >
+                    <FolderSearch className="h-3.5 w-3.5 text-zinc-400" />
+                    <span>Auto-Detect</span>
+                  </button>
                 </div>
               </>
             ) : (
               <>
-                <h3 className="text-sm font-semibold text-zinc-100">No matching engines found</h3>
+                <h3 className="text-sm font-semibold text-zinc-200">No matching engines found</h3>
                 <p className="mt-1 text-xs text-zinc-400">
                   Try clearing your search query or switching to All Engines.
                 </p>
@@ -343,8 +376,148 @@ export const EnginesView: React.FC = () => {
               </>
             )}
           </div>
-        ) : viewMode === 'grid' ? (
-          /* Grid of Engine Cards */
+        ) : viewMode === 'table' ? (
+          /* Default: Clean Desktop Table View */
+          <div className="overflow-hidden rounded-lg border border-[#22262d] bg-[#14171c]">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-[#22262d] bg-[#101317] text-[11px] font-semibold text-zinc-400 select-none">
+                    <th className="px-4 py-2.5">Source Port</th>
+                    <th className="px-4 py-2.5">Family</th>
+                    <th className="px-4 py-2.5">Version</th>
+                    <th className="px-4 py-2.5">Executable Path</th>
+                    <th className="px-4 py-2.5">Binary Status</th>
+                    <th className="px-4 py-2.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#1e2229]">
+                  {filteredEngines.map((engine) => {
+                    const status = validationStatuses[engine.id];
+                    return (
+                      <tr
+                        key={engine.id}
+                        className="hover:bg-[#181c22] transition-colors duration-100 group"
+                      >
+                        {/* Port Name */}
+                        <td className="px-4 py-2.5 font-semibold text-zinc-100">
+                          {engine.name}
+                        </td>
+
+                        {/* Family */}
+                        <td className="px-4 py-2.5">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono uppercase border ${getFamilyBadgeStyle(
+                              engine.family
+                            )}`}
+                          >
+                            {engine.family}
+                          </span>
+                        </td>
+
+                        {/* Version */}
+                        <td className="px-4 py-2.5 font-mono text-zinc-400">
+                          {engine.version ? `v${engine.version}` : '-'}
+                        </td>
+
+                        {/* Executable Path with copy & open folder */}
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-2 max-w-lg">
+                            <span
+                              className="font-mono text-xs text-zinc-400 truncate hover:text-zinc-200 transition-colors"
+                              title={engine.executable}
+                            >
+                              {engine.executable}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyPath(engine)}
+                              className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors shrink-0"
+                              title="Copy Executable Path"
+                            >
+                              {copiedId === engine.id ? (
+                                <Check className="h-3.5 w-3.5 text-emerald-400" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenFolder(engine)}
+                              className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors shrink-0"
+                              title="Open in Explorer"
+                            >
+                              <FolderOpen className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+
+                        {/* Status */}
+                        <td className="px-4 py-2.5">
+                          {status ? (
+                            status.testing ? (
+                              <span className="inline-flex items-center gap-1.5 text-zinc-400 font-mono text-[11px]">
+                                <RotateCw className="h-3 w-3 animate-spin text-zinc-400" />
+                                <span>Testing</span>
+                              </span>
+                            ) : status.valid ? (
+                              <span className="inline-flex items-center gap-1.5 text-emerald-400 font-mono text-[11px]">
+                                <CheckCircle2 className="h-3 w-3" />
+                                <span>Verified</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 text-red-400 font-mono text-[11px]" title={status.message}>
+                                <AlertCircle className="h-3 w-3" />
+                                <span>Failed</span>
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-zinc-500 font-mono text-[11px]">Not verified</span>
+                          )}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-4 py-2.5 text-right">
+                          <div className="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => handleTestEngine(engine)}
+                              disabled={status?.testing}
+                              title="Verify Executable"
+                              className="p-1.5 rounded text-zinc-400 hover:text-emerald-400 hover:bg-white/[0.04] transition-colors disabled:opacity-40"
+                            >
+                              <ShieldCheck className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedEngine(engine);
+                                setIsModalOpen(true);
+                              }}
+                              title="Edit Port Configuration"
+                              className="p-1.5 rounded text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEngineToDelete(engine)}
+                              title="Delete Port"
+                              className="p-1.5 rounded text-zinc-400 hover:text-red-400 hover:bg-red-950/30 transition-colors"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          /* Grid View Toggle */
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {filteredEngines.map((engine) => {
               const status = validationStatuses[engine.id];
@@ -352,52 +525,48 @@ export const EnginesView: React.FC = () => {
               return (
                 <div
                   key={engine.id}
-                  className="group flex flex-col justify-between rounded-lg border border-[#22262d] bg-[#14171c] hover:bg-[#1b1f26] hover:border-white/[0.14] transition-colors duration-150 select-none"
+                  className="group flex flex-col justify-between rounded-lg border border-[#22262d] bg-[#14171c] hover:bg-[#181c22] transition-colors duration-100 p-4 select-none"
                 >
-                  {/* Card Body */}
-                  <div className="p-5 pb-3">
+                  <div>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-sm text-zinc-100 truncate group-hover:text-white transition-colors">
-                            {engine.name}
-                          </h3>
-                        </div>
+                        <h3 className="font-semibold text-sm text-zinc-100 truncate group-hover:text-white">
+                          {engine.name}
+                        </h3>
 
                         <div className="flex items-center gap-2 mt-2 flex-wrap">
                           <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-mono font-medium uppercase border ${getFamilyBadgeColor(
+                            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-medium uppercase border ${getFamilyBadgeStyle(
                               engine.family
                             )}`}
                           >
                             {engine.family}
                           </span>
                           {engine.version && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-mono bg-black/30 text-zinc-300 border border-[#22262d]">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono bg-[#181c21] text-zinc-400 border border-[#22262d]">
                               v{engine.version}
                             </span>
                           )}
                         </div>
                       </div>
 
-                      {/* Header Action Buttons */}
-                      <div className="flex items-center gap-1 opacity-75 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-0.5 opacity-80 group-hover:opacity-100 transition-opacity">
                         <button
                           type="button"
                           onClick={() => {
                             setSelectedEngine(engine);
                             setIsModalOpen(true);
                           }}
-                          className="p-1.5 rounded-md hover:bg-white/[0.08] text-zinc-400 hover:text-white transition-colors duration-150"
-                          title="Edit Engine Details"
+                          className="p-1.5 rounded text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors"
+                          title="Edit Port"
                         >
                           <Edit2 className="h-3.5 w-3.5" />
                         </button>
                         <button
                           type="button"
                           onClick={() => setEngineToDelete(engine)}
-                          className="p-1.5 rounded-md hover:bg-red-950/40 text-zinc-400 hover:text-red-400 transition-colors duration-150"
-                          title="Delete Engine"
+                          className="p-1.5 rounded text-zinc-400 hover:text-red-400 hover:bg-red-950/30 transition-colors"
+                          title="Delete Port"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -405,7 +574,7 @@ export const EnginesView: React.FC = () => {
                     </div>
 
                     {/* Executable Path Row */}
-                    <div className="mt-4 p-2 rounded-md bg-black/40 border border-[#22262d] flex items-center justify-between gap-2">
+                    <div className="mt-3.5 p-2 rounded bg-[#0c0e12] border border-[#22262d] flex items-center justify-between gap-2">
                       <span
                         className="font-mono text-xs text-zinc-400 truncate"
                         title={engine.executable}
@@ -416,8 +585,8 @@ export const EnginesView: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleCopyPath(engine)}
-                          className="p-1 rounded-md hover:bg-white/[0.08] text-zinc-400 hover:text-white transition-colors duration-150"
-                          title="Copy Full Executable Path"
+                          className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors"
+                          title="Copy Path"
                         >
                           {copiedId === engine.id ? (
                             <Check className="h-3.5 w-3.5 text-emerald-400" />
@@ -428,187 +597,50 @@ export const EnginesView: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleOpenFolder(engine)}
-                          className="p-1 rounded-md hover:bg-white/[0.08] text-zinc-400 hover:text-blue-400 transition-colors duration-150"
-                          title="Open Containing Folder"
+                          className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors"
+                          title="Open in Explorer"
                         >
                           <FolderOpen className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     </div>
-
-                    {/* Executable Verification Indicator */}
-                    {status && (
-                      <div
-                        className={`mt-3 flex items-center gap-2 p-2 rounded-md text-xs font-mono border ${
-                          status.testing
-                            ? 'border-[#22262d] bg-black/20 text-zinc-400'
-                            : status.valid
-                            ? 'border-emerald-800/30 bg-emerald-950/30 text-emerald-300'
-                            : 'border-red-800/30 bg-red-950/30 text-red-300'
-                        }`}
-                      >
-                        {status.testing ? (
-                          <RotateCw className="h-3.5 w-3.5 animate-spin text-zinc-400 shrink-0" />
-                        ) : status.valid ? (
-                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                        ) : (
-                          <AlertCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
-                        )}
-                        <span className="truncate">{status.message || 'Status unknown'}</span>
-                      </div>
-                    )}
                   </div>
 
-                  {/* Card Footer: Validation & Edit Links */}
-                  <div className="px-5 py-2.5 border-t border-[#22262d] bg-black/20 flex items-center justify-between text-xs text-zinc-400">
+                  {/* Card Footer */}
+                  <div className="mt-3.5 pt-3 border-t border-[#22262d] flex items-center justify-between text-xs text-zinc-400">
+                    <div>
+                      {status ? (
+                        status.testing ? (
+                          <span className="inline-flex items-center gap-1 text-zinc-400 font-mono text-[10px]">
+                            <RotateCw className="h-3 w-3 animate-spin" /> Testing
+                          </span>
+                        ) : status.valid ? (
+                          <span className="inline-flex items-center gap-1 text-emerald-400 font-mono text-[10px]">
+                            <CheckCircle2 className="h-3 w-3" /> Verified
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-red-400 font-mono text-[10px]">
+                            <AlertCircle className="h-3 w-3" /> Failed
+                          </span>
+                        )
+                      ) : (
+                        <span className="text-zinc-500 font-mono text-[10px]">Not verified</span>
+                      )}
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => handleTestEngine(engine)}
                       disabled={status?.testing}
-                      className="inline-flex items-center gap-1.5 text-zinc-400 hover:text-zinc-200 transition-colors duration-150 disabled:opacity-50"
+                      className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-emerald-400 transition-colors disabled:opacity-40"
                     >
-                      <ShieldCheck className="h-3.5 w-3.5 text-zinc-400" />
-                      <span>{status?.testing ? 'Testing...' : 'Verify Binary'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedEngine(engine);
-                        setIsModalOpen(true);
-                      }}
-                      className="text-zinc-300 hover:text-white font-medium transition-colors duration-150"
-                    >
-                      Configure
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                      <span>Verify</span>
                     </button>
                   </div>
                 </div>
               );
             })}
-          </div>
-        ) : (
-          /* Table View */
-          <div className="overflow-hidden rounded-lg border border-[#22262d] bg-[#14171c]">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-[#22262d] bg-black/30 text-zinc-400 font-medium">
-                <tr>
-                  <th className="px-4 py-2.5">Source Port</th>
-                  <th className="px-4 py-2.5">Family</th>
-                  <th className="px-4 py-2.5">Version</th>
-                  <th className="px-4 py-2.5">Executable Path</th>
-                  <th className="px-4 py-2.5">Status</th>
-                  <th className="px-4 py-2.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#22262d]">
-                {filteredEngines.map((engine) => {
-                  const status = validationStatuses[engine.id];
-                  return (
-                    <tr
-                      key={engine.id}
-                      className="hover:bg-[#1b1f26] transition-colors duration-150 group"
-                    >
-                      <td className="px-4 py-2.5 font-medium text-zinc-100">
-                        {engine.name}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-mono uppercase border ${getFamilyBadgeColor(
-                            engine.family
-                          )}`}
-                        >
-                          {engine.family}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 font-mono text-zinc-400">
-                        {engine.version ? `v${engine.version}` : '-'}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <div className="flex items-center gap-2 max-w-xs">
-                          <span
-                            className="font-mono text-xs text-zinc-400 truncate"
-                            title={engine.executable}
-                          >
-                            {engine.executable}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleCopyPath(engine)}
-                            className="p-1 rounded-md hover:bg-white/[0.08] text-zinc-400 hover:text-white transition-colors duration-150 shrink-0"
-                            title="Copy Path"
-                          >
-                            {copiedId === engine.id ? (
-                              <Check className="h-3 w-3 text-emerald-400" />
-                            ) : (
-                              <Copy className="h-3 w-3" />
-                            )}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenFolder(engine)}
-                            className="p-1 rounded-md hover:bg-white/[0.08] text-zinc-400 hover:text-blue-400 transition-colors duration-150 shrink-0"
-                            title="Open Folder"
-                          >
-                            <FolderOpen className="h-3 w-3" />
-                          </button>
-                        </div>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        {status ? (
-                          status.testing ? (
-                            <span className="inline-flex items-center gap-1 text-zinc-400 font-mono text-[11px]">
-                              <RotateCw className="h-3 w-3 animate-spin" /> Testing
-                            </span>
-                          ) : status.valid ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-400 font-mono text-[11px]">
-                              <CheckCircle2 className="h-3 w-3" /> Verified
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-red-400 font-mono text-[11px]">
-                              <AlertCircle className="h-3 w-3" /> Failed
-                            </span>
-                          )
-                        ) : (
-                          <span className="text-zinc-500 font-mono text-[11px]">Not verified</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => handleTestEngine(engine)}
-                            disabled={status?.testing}
-                            title="Verify Binary"
-                          >
-                            <ShieldCheck className="h-3.5 w-3.5 text-zinc-400" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => {
-                              setSelectedEngine(engine);
-                              setIsModalOpen(true);
-                            }}
-                            title="Edit Engine"
-                          >
-                            <Edit2 className="h-3.5 w-3.5 text-zinc-400" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => setEngineToDelete(engine)}
-                            title="Delete Engine"
-                          >
-                            <Trash2 className="h-3.5 w-3.5 text-zinc-400 hover:text-red-400" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
           </div>
         )}
       </div>
@@ -621,16 +653,18 @@ export const EnginesView: React.FC = () => {
           setSelectedEngine(null);
         }}
         onSaved={() => {
+          setIsModalOpen(false);
+          setSelectedEngine(null);
           loadEngines();
         }}
         engine={selectedEngine}
       />
 
-      {/* Confirm Delete Modal */}
+      {/* Delete Confirmation Modal */}
       <Modal
         isOpen={Boolean(engineToDelete)}
         onClose={() => setEngineToDelete(null)}
-        title="Delete Source Port"
+        title="Remove Source Port"
         size="sm"
         footer={
           <>
@@ -639,18 +673,16 @@ export const EnginesView: React.FC = () => {
             </Button>
             <Button
               variant="danger"
-              isLoading={isDeleting}
               onClick={handleConfirmDelete}
+              isLoading={isDeleting}
             >
-              Delete Engine
+              Delete Port
             </Button>
           </>
         }
       >
-        <p className="text-sm text-zinc-300 leading-relaxed">
-          Are you sure you want to remove{' '}
-          <span className="font-semibold text-white">{engineToDelete?.name}</span> from registered
-          engines? Any profiles using this engine will fail pre-flight validation until reassigned.
+        <p className="text-xs text-zinc-300 leading-relaxed">
+          Are you sure you want to remove &quot;{engineToDelete?.name}&quot;? Profiles using this port will require reassignment before launching.
         </p>
       </Modal>
     </div>
