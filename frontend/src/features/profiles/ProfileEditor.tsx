@@ -15,6 +15,10 @@ import {
   Layers,
   Sliders,
   FileText,
+  Plus,
+  FileUp,
+  Search,
+  LayoutGrid,
 } from 'lucide-react';
 import {
   Profile,
@@ -32,23 +36,32 @@ import { LoadOrderList } from './LoadOrderList';
 import { ValidationBanner } from './ValidationBanner';
 import { SelectModsModal } from './SelectModsModal';
 import { DmFlagsModal } from './DmFlagsModal';
+import { RecentProfileCard } from '../dashboard/RecentProfileCard';
 
 export interface ProfileEditorProps {
   profile: Profile;
+  profiles: Profile[];
   engines: Engine[];
   iwads: IWAD[];
   onProfileChange: (updated: Profile) => void;
   onProfileDeleted: (profileId: string) => void;
   onProfileDuplicated: (duplicated: Profile) => void;
+  onSelectProfile: (profileId: string) => void;
+  onCreateProfileClick?: () => void;
+  onImportClick?: () => void;
 }
 
 export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   profile,
+  profiles,
   engines,
   iwads,
   onProfileChange,
   onProfileDeleted,
   onProfileDuplicated,
+  onSelectProfile,
+  onCreateProfileClick,
+  onImportClick,
 }) => {
   const toast = useToast();
 
@@ -70,12 +83,10 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   const [workingDir, setWorkingDir] = useState(profile.workingDir || '');
   const [isFavorite, setIsFavorite] = useState(profile.isFavorite || false);
 
-  // Available profiles list for base mixin selector
-  const [availableProfiles, setAvailableProfiles] = useState<Profile[]>([]);
-  const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
+  // Sub-Tab state: 'mods' | 'parameters' | 'all-presets' | 'details'
+  const [activeTab, setActiveTab] = useState<'mods' | 'parameters' | 'all-presets' | 'details'>('mods');
+  const [presetSearchFilter, setPresetSearchFilter] = useState('');
 
-  // Tab selection state: 'mods' | 'parameters' | 'details'
-  const [activeTab, setActiveTab] = useState<'mods' | 'parameters' | 'details'>('mods');
   // Modals state
   const [isSelectModsOpen, setIsSelectModsOpen] = useState(false);
   const [isDmFlagsOpen, setIsDmFlagsOpen] = useState(false);
@@ -90,23 +101,6 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   // Dirty state tracking & saving
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-
-  // Fetch available profiles for parent mixin dropdown
-  const loadProfiles = useCallback(async () => {
-    setIsLoadingProfiles(true);
-    try {
-      const list = await api.listProfiles();
-      setAvailableProfiles(list || []);
-    } catch (err) {
-      console.error('Failed to load profiles for base mixin selector:', err);
-    } finally {
-      setIsLoadingProfiles(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadProfiles();
-  }, [loadProfiles]);
 
   // Update local state when incoming profile prop changes
   useEffect(() => {
@@ -136,14 +130,14 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
 
   // Eligible parent profiles (exclude self to prevent cyclic dependency)
   const eligibleParentProfiles = useMemo(() => {
-    return availableProfiles.filter((p) => p.id !== profile.id);
-  }, [availableProfiles, profile.id]);
+    return profiles.filter((p) => p.id !== profile.id);
+  }, [profiles, profile.id]);
 
   // Currently selected parent profile object
   const selectedParentProfile = useMemo(() => {
     if (!parentProfileId) return null;
-    return availableProfiles.find((p) => p.id === parentProfileId) || null;
-  }, [availableProfiles, parentProfileId]);
+    return profiles.find((p) => p.id === parentProfileId) || null;
+  }, [profiles, parentProfileId]);
 
   // Split arguments into tokens for visual badge display
   const parsedArguments = useMemo(() => {
@@ -188,7 +182,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
     setIsSaving(true);
     const updatedProfile: Profile = {
       ...profile,
-      name: name.trim() || 'Untitled Profile',
+      name: name.trim() || 'Untitled Preset',
       description: description.trim(),
       engineId,
       engineName: engines.find((e) => e.id === engineId)?.name || '',
@@ -209,7 +203,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
       onProfileChange(updatedProfile);
       runValidation();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to save profile';
+      const msg = err instanceof Error ? err.message : 'Failed to save preset';
       toast.error('Save Error', msg);
     } finally {
       setIsSaving(false);
@@ -240,22 +234,18 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
 
   const handleParentProfileSelect = (newParentId: string) => {
     setParentProfileId(newParentId);
-    handleSave({
-      parentProfileId: newParentId,
-    });
+    handleSave({ parentProfileId: newParentId });
   };
 
   const handleToggleIsolateSaves = (checked: boolean) => {
     setIsolateSaves(checked);
-    handleSave({
-      isolateSaves: checked,
-    });
+    handleSave({ isolateSaves: checked });
   };
 
   const handleOpenSaveFolder = async () => {
     try {
       await api.openProfileSaveFolder(profile.id);
-      toast.info('Save Folder', 'Opened profile saves folder in file explorer');
+      toast.info('Save Folder', 'Opened preset saves folder in file explorer');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to open save folder';
       toast.error('Save Folder Error', msg);
@@ -268,7 +258,6 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
     try {
       await api.toggleProfileFavorite(profile.id);
       onProfileChange({ ...profile, isFavorite: next });
-      toast.info(next ? 'Added to favorites' : 'Removed from favorites');
     } catch (err) {
       console.error('Failed to toggle favorite:', err);
     }
@@ -292,15 +281,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   const handleToggleMod = (modId: string, enabled: boolean) => {
     const updated = mods.map((m) => (m.modId === modId ? { ...m, enabled } : m));
     setMods(updated);
-    api
-      .toggleProfileMod(profile.id, modId, enabled)
-      .then(() => {
-        handleSave({ mods: updated });
-      })
-      .catch((err) => {
-        console.error('Failed to toggle mod:', err);
-        handleSave({ mods: updated });
-      });
+    handleSave({ mods: updated });
   };
 
   const handleRemoveMod = (modId: string) => {
@@ -308,47 +289,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
       .filter((m) => m.modId !== modId)
       .map((m, idx) => ({ ...m, order: idx }));
     setMods(updated);
-    api
-      .removeModFromProfile(profile.id, modId)
-      .then(() => {
-        handleSave({ mods: updated });
-        toast.info('Mod removed from load order');
-      })
-      .catch((err) => {
-        console.error('Failed to remove mod:', err);
-        handleSave({ mods: updated });
-      });
-  };
-
-  const handleAddMods = async (selectedMods: Mod[]) => {
-    const startIndex = mods.length;
-    const newProfileMods: ProfileMod[] = selectedMods.map((m, idx) => ({
-      id: `${profile.id}-${m.id}`,
-      profileId: profile.id,
-      modId: m.id,
-      modName: m.name,
-      modPath: m.path,
-      modFormat: m.format,
-      enabled: true,
-      order: startIndex + idx,
-    }));
-
-    const combined = [...mods, ...newProfileMods];
-    setMods(combined);
-
-    try {
-      for (const m of selectedMods) {
-        await api.addModToProfile(profile.id, m.id);
-      }
-      await handleSave({ mods: combined });
-      toast.success(
-        'Mods Added',
-        `Added ${selectedMods.length} mod(s) to ${profile.name}`
-      );
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to add mods';
-      toast.error('Add Mods Error', msg);
-    }
+    handleSave({ mods: updated });
   };
 
   const handleToggleAllMods = (enabled: boolean) => {
@@ -360,37 +301,35 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   const handleClearAllMods = () => {
     setMods([]);
     handleSave({ mods: [] });
-    toast.info('Cleared all mods from profile');
   };
 
-  const handleApplyDmFlags = (newTokens: string[]) => {
-    const currentTokens = argumentsText.trim() ? argumentsText.trim().split(/\s+/) : [];
-    const filtered: string[] = [];
-    for (let i = 0; i < currentTokens.length; i++) {
-      const tok = currentTokens[i];
-      if (tok === '+set' && i + 1 < currentTokens.length) {
-        const next = currentTokens[i + 1].toLowerCase();
-        if (['dmflags', 'dmflags2', 'compatflags', 'compatflags2'].includes(next)) {
-          i += 2;
-          continue;
-        }
-      }
-      filtered.push(tok);
-    }
-    const combinedTokens = [...filtered, ...newTokens];
-    const combinedStr = combinedTokens.join(' ');
-    setArgumentsText(combinedStr);
-    handleSave({ arguments: combinedTokens });
-    toast.success('Flags Applied', 'Updated profile custom launch arguments');
+  const handleAddMods = (selectedMods: Mod[]) => {
+    const currentMaxOrder = mods.length;
+    const newProfileMods: ProfileMod[] = selectedMods.map((sm, idx) => ({
+      id: `${profile.id}-${sm.id}-${Date.now()}-${idx}`,
+      profileId: profile.id,
+      modId: sm.id,
+      modName: sm.name,
+      modFormat: sm.format,
+      modPath: sm.path,
+      order: currentMaxOrder + idx,
+      enabled: true,
+    }));
+    const updated = [...mods, ...newProfileMods];
+    setMods(updated);
+    handleSave({ mods: updated });
+    setIsSelectModsOpen(false);
+  };
+
+  const handleApplyDmFlags = (newArgs: string[]) => {
+    setArgumentsText(newArgs.join(' '));
+    handleSave({ arguments: newArgs });
   };
 
   // Browse Directory for Working Dir
   const handleBrowseWorkingDir = async () => {
     try {
-      const selected = await api.openDirectoryDialog(
-        'Select Working Directory',
-        workingDir
-      );
+      const selected = await api.openDirectoryDialog('Select Working Directory', workingDir);
       if (selected) {
         setWorkingDir(selected);
         handleSave({ workingDir: selected });
@@ -405,10 +344,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
     try {
       const yamlStr = await api.exportProfileYAML(profile.id);
       await navigator.clipboard.writeText(yamlStr);
-      toast.success(
-        'YAML Exported',
-        'Profile specification copied to clipboard!'
-      );
+      toast.success('YAML Exported', 'Preset specification copied to clipboard');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Export failed';
       toast.error('Export Failed', msg);
@@ -420,7 +356,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
     try {
       const newName = `${profile.name} (Copy)`;
       const dup = await api.duplicateProfile(profile.id, newName);
-      toast.success('Profile Duplicated', `Created "${dup.name}"`);
+      toast.success('Preset Duplicated', `Created "${dup.name}"`);
       onProfileDuplicated(dup);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Duplicate failed';
@@ -430,14 +366,10 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
 
   // Delete Profile
   const handleDelete = async () => {
-    if (
-      window.confirm(
-        `Are you sure you want to delete profile "${profile.name}"? This action cannot be undone.`
-      )
-    ) {
+    if (window.confirm(`Delete preset "${profile.name}"? This cannot be undone.`)) {
       try {
         await api.deleteProfile(profile.id);
-        toast.info('Profile Deleted', `Deleted "${profile.name}"`);
+        toast.info('Preset Deleted', `Deleted "${profile.name}"`);
         onProfileDeleted(profile.id);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Delete failed';
@@ -449,10 +381,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   // Launch Game Execution
   const handleLaunch = async () => {
     if (validation?.status === 'CANNOT_LAUNCH') {
-      toast.error(
-        'Cannot Launch',
-        'Please resolve pre-launch validation errors before launching.'
-      );
+      toast.error('Cannot Launch', 'Please resolve pre-launch validation errors before launching.');
       return;
     }
 
@@ -466,13 +395,10 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
           `Session finished successfully (${Math.round((record.durationMs || 0) / 1000)}s).`
         );
       } else {
-        toast.warning(
-          'Game Exited',
-          `Process exited with code ${record.exitCode ?? 0}`
-        );
+        toast.warning('Game Exited', `Process exited with code ${record.exitCode ?? 0}`);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to launch profile';
+      const msg = err instanceof Error ? err.message : 'Failed to launch preset';
       toast.error('Launch Failed', msg);
     } finally {
       setIsLaunching(false);
@@ -486,17 +412,17 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   const renderReadinessStatus = () => {
     if (isValidating) {
       return (
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#14171c] border border-[#22262d] text-zinc-400 select-none">
-          <span className="w-2 h-2 rounded-full bg-zinc-400 animate-pulse" />
-          <span>Checking...</span>
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-medium bg-[#14171c] border border-[#22262d] text-zinc-400 select-none">
+          <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-pulse" />
+          <span>Checking</span>
         </div>
       );
     }
 
     if (!validation || validation.status === 'READY') {
       return (
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-950/40 border border-emerald-800/40 text-emerald-400 select-none">
-          <span className="w-2 h-2 rounded-full bg-emerald-400" />
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-medium bg-emerald-950/40 border border-emerald-800/40 text-emerald-400 select-none">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
           <span>Ready to Play</span>
         </div>
       );
@@ -504,7 +430,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
 
     if (validation.status === 'READY_WITH_WARNINGS') {
       return (
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-950/40 border border-amber-800/40 text-amber-400 select-none">
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-medium bg-amber-950/40 border border-amber-800/40 text-amber-400 select-none">
           <span className="text-[10px] leading-none">▲</span>
           <span>Warnings</span>
         </div>
@@ -512,7 +438,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
     }
 
     return (
-      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-red-950/40 border border-red-800/40 text-red-400 select-none">
+      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-medium bg-red-950/40 border border-red-800/40 text-red-400 select-none">
         <span className="text-[10px] leading-none">✖</span>
         <span>Cannot Launch</span>
       </div>
@@ -526,34 +452,72 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
     parentProfileId
   );
 
+  // Filtered profiles for "All Presets" tab
+  const filteredAllProfiles = useMemo(() => {
+    if (!presetSearchFilter.trim()) return profiles;
+    const q = presetSearchFilter.toLowerCase();
+    return profiles.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        (p.engineName && p.engineName.toLowerCase().includes(q)) ||
+        (p.iwadName && p.iwadName.toLowerCase().includes(q))
+    );
+  }, [profiles, presetSearchFilter]);
+
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-[#0c0e12] select-none text-zinc-100">
-      {/* 1. Sleek Compact Stage Header */}
-      <div className="px-5 py-2.5 bg-[#12151a] border-b border-[#22262d] flex items-center justify-between gap-4 shrink-0 flex-wrap">
-        {/* Left: Star + Title + Status */}
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+    <div className="flex flex-col h-full w-full overflow-hidden bg-[#0c0e12] select-none text-zinc-100">
+      {/* 1. Sleek Compact Stage Header with Integrated Preset Switcher */}
+      <div className="px-6 py-2.5 bg-[#12151a] border-b border-[#22262d] flex items-center justify-between gap-4 shrink-0 flex-wrap">
+        {/* Left: Preset Switcher Dropdown + Favorite + New + Import */}
+        <div className="flex items-center gap-2 min-w-0 flex-wrap">
+          <div className="flex items-center gap-1.5 bg-[#161a22] border border-[#2c323e] rounded-md px-2.5 py-1 text-xs">
+            <span className="text-zinc-500 font-medium text-[11px]">Preset:</span>
+            <select
+              value={profile.id}
+              onChange={(e) => onSelectProfile(e.target.value)}
+              aria-label="Select active preset"
+              className="bg-transparent text-zinc-100 font-semibold cursor-pointer focus:outline-none max-w-[180px] sm:max-w-[220px] truncate"
+            >
+              {profiles.map((p) => (
+                <option key={p.id} value={p.id} className="bg-[#14171c] text-zinc-100">
+                  {p.isFavorite ? '★ ' : ''}{p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <button
             type="button"
             onClick={handleFavoriteToggle}
-            className="p-1 rounded text-zinc-500 hover:text-amber-400 transition-colors shrink-0"
+            className="p-1.5 rounded text-zinc-500 hover:text-amber-400 hover:bg-white/[0.04] transition-colors shrink-0"
             title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
           >
-            <Star
-              className={clsx(
-                'w-4 h-4 transition-colors',
-                isFavorite ? 'fill-amber-400 text-amber-400' : 'text-zinc-500'
-              )}
-            />
+            <Star className={clsx('w-4 h-4', isFavorite ? 'fill-amber-400 text-amber-400' : 'text-zinc-500')} />
           </button>
 
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => handleNameChange(e.target.value)}
-            onBlur={() => hasUnsavedChanges && handleSave()}
-            placeholder="Preset Name"
-            className="text-base font-bold tracking-tight text-zinc-100 bg-transparent border-b border-transparent hover:border-[#22262d] focus:border-zinc-500 focus:outline-none transition-colors px-1 py-0.5 truncate max-w-xs"
-          />
+          {onCreateProfileClick && (
+            <button
+              type="button"
+              onClick={onCreateProfileClick}
+              className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded bg-[#181f26] hover:bg-[#202732] border border-[#22262d] text-zinc-200 transition-colors"
+              title="Create a new setup"
+            >
+              <Plus className="w-3.5 h-3.5 text-[#dc2626]" />
+              <span>New</span>
+            </button>
+          )}
+
+          {onImportClick && (
+            <button
+              type="button"
+              onClick={onImportClick}
+              className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded bg-[#181f26] hover:bg-[#202732] border border-[#22262d] text-zinc-400 hover:text-zinc-200 transition-colors"
+              title="Import YAML or .zdl preset"
+            >
+              <FileUp className="w-3.5 h-3.5" />
+              <span>Import</span>
+            </button>
+          )}
 
           {renderReadinessStatus()}
 
@@ -571,7 +535,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
 
         {/* Center: Inline Port and IWAD Selectors */}
         <div className="flex items-center gap-2 shrink-0">
-          <div className="flex items-center gap-1.5 bg-[#171b22] border border-[#22262d] px-2.5 py-1 rounded text-xs">
+          <div className="flex items-center gap-1.5 bg-[#161a22] border border-[#22262d] px-2.5 py-1 rounded text-xs">
             <Cpu className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
             <span className="text-zinc-500 font-medium text-[11px]">Port:</span>
             <select
@@ -580,7 +544,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
               aria-label="Select Source Port"
               className="bg-transparent text-zinc-200 text-xs font-medium cursor-pointer focus:outline-none max-w-[140px] truncate"
             >
-              <option value="">-- Select Port --</option>
+              <option value="">-- Port --</option>
               {engines.map((eng) => (
                 <option key={eng.id} value={eng.id} className="bg-[#14171c] text-zinc-100">
                   {eng.name} {eng.version ? `v${eng.version}` : ''}
@@ -589,7 +553,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
             </select>
           </div>
 
-          <div className="flex items-center gap-1.5 bg-[#171b22] border border-[#22262d] px-2.5 py-1 rounded text-xs">
+          <div className="flex items-center gap-1.5 bg-[#161a22] border border-[#22262d] px-2.5 py-1 rounded text-xs">
             <Disc className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
             <span className="text-zinc-500 font-medium text-[11px]">IWAD:</span>
             <select
@@ -598,7 +562,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
               aria-label="Select Base IWAD"
               className="bg-transparent text-zinc-200 text-xs font-medium cursor-pointer focus:outline-none max-w-[140px] truncate"
             >
-              <option value="">-- Select IWAD --</option>
+              <option value="">-- IWAD --</option>
               {iwads.map((iwad) => (
                 <option key={iwad.id} value={iwad.id} className="bg-[#14171c] text-zinc-100">
                   {iwad.name} ({iwad.type.toUpperCase()})
@@ -615,7 +579,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
             onClick={handleLaunch}
             disabled={isLaunching || validation?.status === 'CANNOT_LAUNCH'}
             className={clsx(
-              'h-8 px-4 font-bold text-xs tracking-wider uppercase rounded-md transition-colors flex items-center gap-2 text-white select-none',
+              'h-8 px-5 font-bold text-xs tracking-wider uppercase rounded-md transition-colors flex items-center gap-2 text-white select-none',
               validation?.status === 'CANNOT_LAUNCH'
                 ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-[#22262d]'
                 : 'bg-[#dc2626] hover:bg-[#ef4444] active:bg-[#b91c1c] shadow-sm'
@@ -673,7 +637,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
       </div>
 
       {/* 2. Sub-Tab Navigation Bar */}
-      <div className="h-10 px-5 bg-[#101317] border-b border-[#22262d] flex items-center justify-between gap-3 shrink-0">
+      <div className="h-10 px-6 bg-[#101317] border-b border-[#22262d] flex items-center justify-between gap-3 shrink-0">
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -711,6 +675,23 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
 
           <button
             type="button"
+            onClick={() => setActiveTab('all-presets')}
+            className={clsx(
+              'px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5',
+              activeTab === 'all-presets'
+                ? 'bg-[#1c2026] text-zinc-100 border border-[#2c323d]'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]'
+            )}
+          >
+            <LayoutGrid className="w-3.5 h-3.5 text-zinc-400" />
+            <span>All Presets</span>
+            <span className="ml-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/40 text-zinc-400">
+              {profiles.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('details')}
             className={clsx(
               'px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5',
@@ -739,11 +720,11 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
         </div>
       </div>
 
-      {/* 3. Main Tab Content Viewport */}
+      {/* 3. Main Full-Width Tab Content Viewport */}
       <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-        {/* TAB 1: MOD LOAD ORDER (Full Height!) */}
+        {/* TAB 1: MOD LOAD ORDER (100% Full Screen Width & Height!) */}
         {activeTab === 'mods' && (
-          <div className="flex-1 flex flex-col min-h-0 p-5 overflow-hidden gap-3">
+          <div className="flex-1 flex flex-col min-h-0 p-6 overflow-hidden gap-3">
             {/* Parent Profile Inheritance Notice */}
             {selectedParentProfile && (
               <div className="p-2.5 rounded-md bg-[#101826] border border-blue-900/40 flex items-center justify-between gap-3 text-blue-300 text-xs shrink-0">
@@ -774,8 +755,23 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
         {/* TAB 2: LAUNCH PARAMETERS & ISOLATION */}
         {activeTab === 'parameters' && (
           <div className="flex-1 overflow-y-auto p-6 space-y-6 max-w-3xl">
-            {/* Custom Launch Arguments */}
+            {/* Preset Name Edit */}
             <div className="space-y-2">
+              <label className="text-xs font-semibold text-zinc-200 uppercase tracking-wider block">
+                Preset Name
+              </label>
+              <Input
+                type="text"
+                value={name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                onBlur={() => hasUnsavedChanges && handleSave()}
+                placeholder="Preset Name"
+                className="bg-[#14171c] border-[#22262d] text-zinc-100"
+              />
+            </div>
+
+            {/* Custom Launch Arguments */}
+            <div className="space-y-2 pt-4 border-t border-[#22262d]">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-zinc-200 uppercase tracking-wider flex items-center gap-2">
                   <Terminal className="w-3.5 h-3.5 text-zinc-400" />
@@ -912,7 +908,6 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
               <select
                 value={parentProfileId}
                 onChange={(e) => handleParentProfileSelect(e.target.value)}
-                disabled={isLoadingProfiles}
                 className="w-full bg-[#14171c] border border-[#22262d] rounded-lg px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-zinc-500 font-medium"
               >
                 <option value="">None (Standalone Preset)</option>
@@ -932,7 +927,67 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
           </div>
         )}
 
-        {/* TAB 3: DETAILS & NOTES & VALIDATION */}
+        {/* TAB 3: ALL PRESETS GALLERY OVERVIEW */}
+        {activeTab === 'all-presets' && (
+          <div className="flex-1 overflow-y-auto p-6 space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="relative flex items-center max-w-sm w-full">
+                <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 pointer-events-none" />
+                <input
+                  type="text"
+                  value={presetSearchFilter}
+                  onChange={(e) => setPresetSearchFilter(e.target.value)}
+                  placeholder="Filter presets..."
+                  className="w-full bg-[#14171c] border border-[#22262d] rounded-md pl-9 pr-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
+                />
+              </div>
+
+              {onCreateProfileClick && (
+                <button
+                  type="button"
+                  onClick={onCreateProfileClick}
+                  className="inline-flex items-center gap-1.5 rounded bg-[#dc2626] hover:bg-[#ef4444] px-3.5 py-1.5 text-xs font-semibold text-white transition-colors shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>New Setup</span>
+                </button>
+              )}
+            </div>
+
+            {filteredAllProfiles.length === 0 ? (
+              <div className="p-8 text-center text-xs text-zinc-500 border border-dashed border-[#22262d] rounded-lg">
+                No presets found matching &quot;{presetSearchFilter}&quot;
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredAllProfiles.map((p) => (
+                  <RecentProfileCard
+                    key={p.id}
+                    profile={p}
+                    onLaunch={async (id) => {
+                      onSelectProfile(id);
+                      try {
+                        await api.launchProfile(id);
+                      } catch (err) {
+                        console.error('Launch failed', err);
+                      }
+                    }}
+                    onToggleFavorite={async (id) => {
+                      await api.toggleProfileFavorite(id);
+                      onProfileChange({ ...p, isFavorite: !p.isFavorite });
+                    }}
+                    onSelectProfile={(id) => {
+                      onSelectProfile(id);
+                      setActiveTab('mods');
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 4: DETAILS & NOTES & VALIDATION */}
         {activeTab === 'details' && (
           <div className="flex-1 overflow-y-auto p-6 space-y-6 max-w-3xl">
             {/* Description Notes */}
