@@ -12,7 +12,7 @@ import {
   RotateCw,
   Sparkles,
 } from 'lucide-react';
-import { Profile, Engine, IWAD, ValidationItem, Settings } from '../../types';
+import { Profile, Engine, IWAD, ValidationItem } from '../../types';
 import { api } from '../../services/api';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -44,7 +44,6 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(
     propSelectedProfileId ?? null
   );
-  const [settings, setSettings] = useState<Settings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAutoDetecting, setIsAutoDetecting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -83,16 +82,14 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [profs, engs, iws, stgs] = await Promise.all([
+      const [profs, engs, iws] = await Promise.all([
         api.listProfiles(),
         api.listEngines(),
         api.listIWADs(),
-        api.getSettings().catch(() => null),
       ]);
       setProfiles(profs || []);
       setEngines(engs || []);
       setIwads(iws || []);
-      if (stgs) setSettings(stgs);
       if (profs && profs.length > 0) {
         setSelectedProfileId((prev) => {
           const next = propSelectedProfileId || (prev && profs.some((p) => p.id === prev) ? prev : profs[0].id);
@@ -293,12 +290,11 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
     setSelectedProfileId(imported.id);
   };
 
-  const isCompact = settings?.uiDensity === 'compact';
 
   return (
     <div className="flex h-full w-full bg-[#0c0e12] overflow-hidden text-zinc-100 select-none">
-      {/* 1. Left Column: Clean Presets List */}
-      <div className="w-80 lg:w-88 flex flex-col border-r border-[#22262d] bg-[#101317] shrink-0">
+      {/* 1. Left Column: Compact Presets List (w-64 lg:w-72) */}
+      <div className="w-64 lg:w-72 flex flex-col border-r border-[#22262d] bg-[#101317] shrink-0">
         {/* Sidebar Header */}
         <div className="p-4 border-b border-[#22262d] flex flex-col gap-3">
           {/* Header Row: Presets Title with Count & + New Setup */}
@@ -422,20 +418,23 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
                     setOpenMenuProfileId(null);
                   }}
                   className={clsx(
-                    'group relative rounded-lg border transition-colors duration-100 ease-out cursor-pointer select-none',
-                    isCompact ? 'p-2.5' : 'p-3',
+                    'group relative rounded-md border transition-colors duration-100 ease-out cursor-pointer select-none px-3 py-2',
                     isSelected
-                      ? 'bg-[#181c22] border-zinc-700/80'
-                      : 'bg-[#14171c] hover:bg-[#181f26] border-[#22262d]'
+                      ? 'bg-[#181c22] border-[#2c323d] text-zinc-100 shadow-xs'
+                      : 'bg-[#14171c]/60 hover:bg-[#181f26] border-[#22262d]'
                   )}
                 >
-                  {/* Top Line: Favorite Star, Preset Name, Context Menu */}
+                  {/* Active Indicator Accent Bar */}
+                  {isSelected && (
+                    <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-[#dc2626] rounded-r" />
+                  )}
+
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       <button
                         type="button"
                         onClick={(e) => handleToggleFavorite(e, p.id)}
-                        className="text-zinc-500 hover:text-amber-400 transition-colors shrink-0"
+                        className="text-zinc-500 hover:text-amber-400 transition-colors shrink-0 p-0.5"
                         title={p.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                       >
                         <Star
@@ -447,12 +446,18 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
                           )}
                         />
                       </button>
-                      <h4 className="text-xs font-semibold text-zinc-100 truncate">
+                      <h4
+                        className={clsx(
+                          'text-xs font-semibold truncate',
+                          isSelected ? 'text-white' : 'text-zinc-200 group-hover:text-white'
+                        )}
+                        title={p.name}
+                      >
                         {p.name}
                       </h4>
                     </div>
 
-                    {/* Context Action Menu */}
+                    {/* Context Action Menu Trigger */}
                     <div className="relative shrink-0">
                       <button
                         type="button"
@@ -463,13 +468,13 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
                         className="p-1 text-zinc-500 hover:text-zinc-200 rounded hover:bg-[#181f26] transition-colors"
                         title="Preset options"
                       >
-                        <MoreVertical className="w-3.5 h-3.5" />
+                        <MoreVertical className="w-3 h-3" />
                       </button>
 
                       {isMenuOpen && (
                         <div
                           ref={menuContainerRef}
-                          className="absolute right-0 top-6 z-40 w-36 rounded-lg bg-[#14171c] border border-[#22262d] shadow-xl py-1 text-xs"
+                          className="absolute right-0 top-6 z-40 w-36 rounded-md bg-[#14171c] border border-[#22262d] shadow-xl py-1 text-xs"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <button
@@ -502,24 +507,14 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Clean Subtitle: Engine • Base IWAD */}
-                  <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-zinc-400 truncate">
-                    <span className="truncate">{p.engineName || 'No Engine'}</span>
-                    <span className="text-zinc-600 shrink-0">•</span>
-                    <span className="truncate">{p.iwadName || 'No IWAD'}</span>
-                  </div>
-
-                  {/* Bottom Line: Mod Count & Savegame Isolation Indicator */}
-                  <div className="mt-2 flex items-center justify-between text-[10px] font-mono text-zinc-500 border-t border-[#22262d]/60 pt-1.5">
-                    <span>
-                      {modCount === 1 ? '1 mod' : `${modCount} mods`}
-                      {modCount > 0 && activeModCount !== modCount && ` (${activeModCount} active)`}
+                  {/* Clean Subtitle: Engine • Base IWAD • Mod Count */}
+                  <div className="mt-1 flex items-center justify-between gap-1 text-[11px] text-zinc-500 font-mono">
+                    <span className="truncate max-w-[150px]">
+                      {p.engineName ? p.engineName.split(' ')[0] : 'No Port'} • {p.iwadName ? p.iwadName.split('.')[0] : 'No IWAD'}
                     </span>
-                    {p.isolateSaves && (
-                      <span className="text-amber-400/90 font-mono text-[9px] uppercase tracking-wider">
-                        Isolated Saves
-                      </span>
-                    )}
+                    <span className="shrink-0 text-[10px] text-zinc-400">
+                      {modCount === 0 ? 'Vanilla' : `${activeModCount} mod${activeModCount !== 1 ? 's' : ''}`}
+                    </span>
                   </div>
                 </div>
               );

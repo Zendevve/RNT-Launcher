@@ -117,7 +117,7 @@ export const LoadOrderList: React.FC<LoadOrderListProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden gap-3">
       {/* Workshop Header & Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#22262d]">
         <div className="flex items-center gap-2.5">
@@ -219,7 +219,7 @@ export const LoadOrderList: React.FC<LoadOrderListProps> = ({
           </Button>
         </div>
       ) : (
-        <div className="flex flex-col">
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           {/* Dense Clean Table Header Row */}
           <div className="flex items-center gap-2.5 px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-zinc-500 border-b border-[#22262d]/60 mb-1.5 select-none">
             <span className="w-5 text-center shrink-0">#</span>
@@ -236,10 +236,9 @@ export const LoadOrderList: React.FC<LoadOrderListProps> = ({
               No mods matching &quot;{searchFilter}&quot;
             </div>
           ) : (
-            <div className="flex flex-col gap-1.5">
+            <div className="flex-1 overflow-y-auto min-h-0 pr-1 flex flex-col gap-1.5">
               {filteredMods.map((mod, idx) => (
                 <LoadOrderItem
-                  key={mod.modId || `${mod.id}-${idx}`}
                   mod={mod}
                   index={idx}
                   totalCount={filteredMods.length}
