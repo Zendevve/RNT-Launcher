@@ -14,7 +14,7 @@ import {
   Cpu,
   Disc,
 } from 'lucide-react';
-import { Profile, Engine, IWAD, ValidationItem } from '../../types';
+import { Profile, Engine, IWAD, ValidationItem, Settings } from '../../types';
 import { api } from '../../services/api';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -30,8 +30,8 @@ export const ProfilesView: React.FC = () => {
   const [engines, setEngines] = useState<Engine[]>([]);
   const [iwads, setIwads] = useState<IWAD[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -53,15 +53,16 @@ export const ProfilesView: React.FC = () => {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [profs, engs, iws] = await Promise.all([
+      const [profs, engs, iws, stgs] = await Promise.all([
         api.listProfiles(),
         api.listEngines(),
         api.listIWADs(),
+        api.getSettings().catch(() => null),
       ]);
       setProfiles(profs || []);
       setEngines(engs || []);
       setIwads(iws || []);
-
+      if (stgs) setSettings(stgs);
       // Auto-select first profile if none selected
       if (profs && profs.length > 0) {
         setSelectedProfileId((prev) => (prev && profs.some((p) => p.id === prev) ? prev : profs[0].id));
@@ -345,6 +346,7 @@ export const ProfilesView: React.FC = () => {
               const modCount = p.mods ? p.mods.length : 0;
               const activeModCount = p.mods ? p.mods.filter((m) => m.enabled).length : 0;
 
+              const isCompact = settings?.uiDensity === 'compact';
               return (
                 <div
                   key={p.id}
@@ -353,13 +355,13 @@ export const ProfilesView: React.FC = () => {
                     setOpenMenuProfileId(null);
                   }}
                   className={clsx(
-                    'group relative p-3 rounded-lg border transition-all duration-150 cursor-pointer select-none',
+                    'group relative rounded-lg border transition-all duration-150 cursor-pointer select-none',
+                    isCompact ? 'p-2.5' : 'p-3',
                     isSelected
                       ? 'bg-doom-card border-doom-red ring-1 ring-doom-red shadow-lg shadow-red-950/20'
                       : 'bg-doom-surface hover:bg-doom-card/80 border-doom-border hover:border-doom-border-bright'
                   )}
                 >
-                  {/* Top Row: Name, Favorite, 3-dots action menu */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <button
@@ -438,30 +440,30 @@ export const ProfilesView: React.FC = () => {
                   </div>
 
                   {/* Metadata Chips: Engine, IWAD, Mods */}
-                  <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                  <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
                     {p.engineName ? (
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-cyan-400 flex items-center gap-1 truncate max-w-[120px]">
+                      <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-zinc-900 border border-zinc-800 text-cyan-400 flex items-center gap-1 truncate max-w-[120px]">
                         <Cpu className="w-2.5 h-2.5 shrink-0 text-doom-red" />
                         <span className="truncate">{p.engineName}</span>
                       </span>
                     ) : (
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-950/40 border border-amber-800 text-amber-400">
+                      <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-amber-950/40 border border-amber-800 text-amber-400">
                         No Engine
                       </span>
                     )}
 
                     {p.iwadName ? (
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-blue-400 flex items-center gap-1 truncate max-w-[110px]">
+                      <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-zinc-900 border border-zinc-800 text-blue-400 flex items-center gap-1 truncate max-w-[110px]">
                         <Disc className="w-2.5 h-2.5 shrink-0 text-doom-red" />
                         <span className="truncate">{p.iwadName}</span>
                       </span>
                     ) : (
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-950/40 border border-amber-800 text-amber-400">
+                      <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-amber-950/40 border border-amber-800 text-amber-400">
                         No IWAD
                       </span>
                     )}
 
-                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-doom-muted ml-auto">
+                    <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-zinc-900 border border-zinc-800 text-doom-muted ml-auto">
                       {modCount > 0 ? `${activeModCount}/${modCount} mods` : '0 mods'}
                     </span>
                   </div>

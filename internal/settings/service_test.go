@@ -69,6 +69,21 @@ func TestSettingsService_GetDefaults(t *testing.T) {
 	if s.CloseOnLaunch {
 		t.Errorf("expected CloseOnLaunch to default to false")
 	}
+	if s.UiDensity != "compact" {
+		t.Errorf("expected default UiDensity 'compact', got %q", s.UiDensity)
+	}
+	if s.ShowFilePaths {
+		t.Errorf("expected ShowFilePaths to default to false")
+	}
+	if s.ShowRecentLaunches != 3 {
+		t.Errorf("expected default ShowRecentLaunches 3, got %d", s.ShowRecentLaunches)
+	}
+	if len(s.FormatVisibility) != 7 {
+		t.Errorf("expected default 7 format visibility items, got %d", len(s.FormatVisibility))
+	}
+	if s.DefaultView != "dashboard" {
+		t.Errorf("expected default DefaultView 'dashboard', got %q", s.DefaultView)
+	}
 	if s.DefaultWorkingDir != "" {
 		t.Errorf("expected empty DefaultWorkingDir, got %q", s.DefaultWorkingDir)
 	}
@@ -88,16 +103,20 @@ func TestSettingsService_Update(t *testing.T) {
 	ctx := context.Background()
 
 	custom := domain.Settings{
-		ModDirectories:    []string{"C:\\Doom\\Mods", "D:\\Mods"},
-		IWADDirectories:   []string{"C:\\Doom\\IWADs"},
-		EngineDirectories: []string{"C:\\Doom\\Engines"},
-		DefaultWorkingDir: "C:\\Doom",
-		Theme:             "light",
-		ConfirmLaunch:     true,
-		AutoScanOnStartup: false,
-		CloseOnLaunch:     true,
+		ModDirectories:     []string{"C:\\Doom\\Mods", "D:\\Mods"},
+		IWADDirectories:    []string{"C:\\Doom\\IWADs"},
+		EngineDirectories:  []string{"C:\\Doom\\Engines"},
+		DefaultWorkingDir:  "C:\\Doom",
+		Theme:              "light",
+		ConfirmLaunch:      true,
+		AutoScanOnStartup:  false,
+		CloseOnLaunch:      true,
+		UiDensity:          "comfortable",
+		ShowFilePaths:      true,
+		ShowRecentLaunches: 5,
+		FormatVisibility:   []string{".wad", ".pk3"},
+		DefaultView:        "profiles",
 	}
-
 	if err := svc.Update(ctx, custom); err != nil {
 		t.Fatalf("Update() failed: %v", err)
 	}
@@ -118,6 +137,21 @@ func TestSettingsService_Update(t *testing.T) {
 	}
 	if !loaded.CloseOnLaunch {
 		t.Errorf("expected CloseOnLaunch true")
+	}
+	if loaded.UiDensity != "comfortable" {
+		t.Errorf("expected UiDensity 'comfortable', got %q", loaded.UiDensity)
+	}
+	if !loaded.ShowFilePaths {
+		t.Errorf("expected ShowFilePaths true")
+	}
+	if loaded.ShowRecentLaunches != 5 {
+		t.Errorf("expected ShowRecentLaunches 5, got %d", loaded.ShowRecentLaunches)
+	}
+	if len(loaded.FormatVisibility) != 2 || loaded.FormatVisibility[0] != ".wad" {
+		t.Errorf("expected custom FormatVisibility [.wad, .pk3], got %+v", loaded.FormatVisibility)
+	}
+	if loaded.DefaultView != "profiles" {
+		t.Errorf("expected DefaultView 'profiles', got %q", loaded.DefaultView)
 	}
 	if loaded.DefaultWorkingDir != "C:\\Doom" {
 		t.Errorf("expected DefaultWorkingDir 'C:\\Doom', got %q", loaded.DefaultWorkingDir)

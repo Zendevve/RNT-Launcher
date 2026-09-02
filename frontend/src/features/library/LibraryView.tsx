@@ -16,7 +16,7 @@ import {
   FileCode,
   Globe,
 } from 'lucide-react';
-import { Mod, Profile } from '../../types';
+import { Mod, Profile, Settings } from '../../types';
 import { api } from '../../services/api';
 import { ModCard } from './ModCard';
 import { ModTableRow } from './ModTableRow';
@@ -66,7 +66,7 @@ const FORMAT_OPTIONS: { label: string; value: string }[] = [
 export const LibraryView: React.FC<LibraryViewProps> = () => {
   const [mods, setMods] = useState<Mod[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
-
+  const [settings, setSettings] = useState<Settings | null>(null);
   // Filters & State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -78,6 +78,17 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
   // Modals & Drawers
   const [inspectingMod, setInspectingMod] = useState<Mod | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const availableFormatOptions = useMemo(() => {
+    const visible = settings?.formatVisibility || ['.wad', '.pk3', '.pk7', '.ipk3', '.zip', '.deh', '.bex'];
+    return FORMAT_OPTIONS.filter((opt) => {
+      if (opt.value === 'all') return true;
+      return visible.some((v) => {
+        const cleanV = v.replace('.', '').toLowerCase();
+        const cleanOpt = opt.value.toLowerCase();
+        return cleanV === cleanOpt || cleanOpt.includes(cleanV) || cleanV.includes(cleanOpt);
+      });
+    });
+  }, [settings?.formatVisibility]);
   const [isIdgamesModalOpen, setIsIdgamesModalOpen] = useState(false);
   const [modForProfileAdd, setModForProfileAdd] = useState<Mod | null>(null);
 
@@ -99,14 +110,16 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
 
   const loadData = useCallback(async () => {
     try {
-      const [fetchedMods, fetchedProfiles, fetchedUsage] = await Promise.all([
+      const [fetchedMods, fetchedProfiles, fetchedUsage, fetchedSettings] = await Promise.all([
         api.listMods(),
         api.listProfiles(),
         api.getModUsageCounts ? api.getModUsageCounts().catch(() => ({})) : Promise.resolve({}),
+        api.getSettings().catch(() => null),
       ]);
       setMods(fetchedMods || []);
       setProfiles(fetchedProfiles || []);
       setUsageCounts(fetchedUsage || {});
+      if (fetchedSettings) setSettings(fetchedSettings);
     } catch (err) {
       console.error('Failed to load library:', err);
       showNotification('error', 'Failed to load mods from library');
@@ -469,7 +482,7 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
                 aria-label="Filter by file format"
                 className="bg-transparent text-doom-text focus:outline-hidden cursor-pointer"
               >
-                {FORMAT_OPTIONS.map((f) => (
+                {availableFormatOptions.map((f) => (
                   <option key={f.value} value={f.value} className="bg-doom-surface text-doom-text">
                     {f.label}
                   </option>
@@ -620,6 +633,8 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
                 key={mod.id}
                 mod={mod}
                 usageCount={usageCounts[mod.id] || 0}
+                showFilePaths={settings?.showFilePaths ?? false}
+                density={settings?.uiDensity ?? 'compact'}
                 onInspect={(m) => setInspectingMod(m)}
                 onToggleFavorite={handleToggleFavorite}
                 onAddToProfile={(m) => setModForProfileAdd(m)}
@@ -652,6 +667,8 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
                       key={mod.id}
                       mod={mod}
                       usageCount={usageCounts[mod.id] || 0}
+                      showFilePaths={settings?.showFilePaths ?? false}
+                      density={settings?.uiDensity ?? 'compact'}
                       onInspect={(m) => setInspectingMod(m)}
                       onToggleFavorite={handleToggleFavorite}
                       onAddToProfile={(m) => setModForProfileAdd(m)}

@@ -162,6 +162,8 @@
 
 ## 1. Executive Summary
 
+> **Beautifully simple. Designed from the very start to be as visually minimal and space efficient as possible. No cluttered interface. Fast and lightweight opens practically instantly, and switching is just as quick, all while having low memory and CPU usage. Fully-featured minimalism doesn't have to be a compromise. Configurable features a myriad of configurable preferences to ensure the best experience for as many people as possible. Supports all common formats.**
+
 Build a modern, cross-platform desktop application for managing, organizing, configuring, validating, and launching Doom games and mods.
 
 The application takes the strongest ideas from the existing Doom launcher ecosystem while avoiding the limitations and dated workflows found in older launchers.
@@ -174,8 +176,7 @@ The product combines:
 - **DoomLauncher**: library and metadata concepts
 - **RocketLauncher2**: source-port abstraction
 
-The result should not feel like a replacement for one specific launcher. It should feel like a modern Doom mod management environment.
-
+The result does not feel like a bloated replacement for one specific launcher. It is a modern, lightweight, beautifully simple Doom mod management environment.
 ### Core Workflow
 
 ```text
@@ -344,7 +345,11 @@ If the application can't confidently determine:
 
 It should say **Unknown** rather than making a guess.
 
----
+### 6.7 Visual Minimalism & Zero Clutter
+The interface must remain clean, space-efficient, and free from extraneous widgets, promotional banners, or bloated whitespace. Density modes (`Compact` default vs `Comfortable`) allow users to tailor viewport efficiency.
+
+### 6.8 Deep Configurability & Format Coverage
+Full compatibility across all common Doom formats (`.wad`, `.pk3`, `.pk7`, `.ipk3`, `.zip`, `.deh`, `.bex`) with user-configurable format visibility and display options.
 
 ## 7. Competitive Research
 
@@ -1450,17 +1455,17 @@ Scanning Doom library...
 
 ---
 
-## 56. UI Design
+## 56. UI Design & Density Modes
 
 The application should feel like a serious, professional desktop utility:
-- Dense information presentation
-- Clear visual hierarchy
-- Keyboard-friendly navigation
-- Fast, snappy rendering
-- Dark mode default
-- Restrained visual styling
-- Strong typography
-- Useful empty states
+- **Dense information presentation**: Maximize screen real-estate with purposeful data placement.
+- **UI Density Modes**: `Compact` (Recommended default) for maximum viewport data efficiency; `Comfortable` for relaxed touch/large screen viewing.
+- **Minimal Path Disclosure**: Mod listings feature clean names by default, hiding long absolute paths unless toggled or viewed inside the inspector drawer.
+- **Clear visual hierarchy**: Primary play actions stand out; secondary options reveal progressively.
+- **Keyboard-friendly navigation**: Full shortcut support (`Ctrl+K`, `Ctrl+Enter`, `Ctrl+S`).
+- **Fast, snappy rendering**: Instant sub-second navigation between views without layout shifts.
+- **Dark mode default**: Industrial dark slate palette with vibrant crimson accents.
+- **Restrained visual styling**: Purposeful borders, subtle elevation, zero fluff.
 
 ### Anti-Patterns to Avoid
 - Giant decorative cards
@@ -1468,7 +1473,6 @@ The application should feel like a serious, professional desktop utility:
 - Gratuitous animations
 - Fake dashboards
 - Web-app-like exaggerated whitespace
-
 ---
 
 ## 57. Primary Layout
@@ -1581,28 +1585,31 @@ C:\Games\gzdoom.exe
 
 ---
 
-## 63. Settings
+## 63. Settings Specifications
 
-### General
-- Theme selection
-- Startup page
-- Confirm launch toggle
+### Interface & Density
+- **UI Density Mode**: `Compact` (default) vs `Comfortable`.
+- **Default Initial View**: Configurable starting view (`Dashboard`, `Profiles`, `Library`, `IWADs`, `Engines`, `History`, `Diagnostics`, `Settings`).
+- **Mod Path Display**: Toggle to show full absolute file paths in mod cards and tables.
+- **Dashboard Recent Launches Limit**: Configurable recent sessions count (0 to hide section completely, 1–10).
+- **Mod Format Visibility**: Multi-select filtering enabling/disabling visibility for `.wad`, `.pk3`, `.pk7`, `.ipk3`, `.zip`, `.deh`, and `.bex`.
+
+### General & Launching
+- Theme selection (`doom-dark` default)
+- Confirm launch toggle (pre-flight status modal prior to process creation)
 - Automatic scan on startup
+- Minimize or close launcher upon game launch
+- Default working directory override
 
-### Library
-- Mod scan directories
+### Directory Management
+- Mod scan directories (`.wad`, `.pk3`, `.pk7`, `.ipk3`, `.zip`, `.deh`, `.bex`)
 - IWAD scan directories
-- Engine scan directories
+- Engine & source port scan directories
 
-### Launching
-- Default working directory
-- Behavior on validation warnings (block vs warn)
-
-### Advanced
-- Structured log level
-- Database file location
-- Debug mode toggle
-
+### Diagnostics & Storage
+- Pure-Go SQLite database persistence
+- Manual force re-scan trigger
+- Restore factory default configuration
 ---
 
 ## 64. Automatic Scanning

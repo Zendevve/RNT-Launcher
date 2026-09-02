@@ -12,8 +12,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Flame,
+  Minimize2,
+  Maximize2,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import { UiDensity } from '../../types';
+
 export type NavViewId =
   | 'dashboard'
   | 'library'
@@ -23,6 +27,7 @@ export type NavViewId =
   | 'history'
   | 'diagnostics'
   | 'settings';
+
 export interface NavItemConfig {
   id: NavViewId;
   label: string;
@@ -36,6 +41,8 @@ export interface SidebarProps {
   onViewChange: (view: NavViewId) => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  density?: UiDensity;
+  onToggleDensity?: () => void;
   counts?: {
     mods?: number;
     profiles?: number;
@@ -57,58 +64,63 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onViewChange,
   collapsed = false,
   onToggleCollapse,
+  density = 'compact',
+  onToggleDensity,
   counts = {},
   systemStatus,
   className,
 }) => {
+  const isCompact = density === 'compact';
+  const iconSize = isCompact ? 'w-4 h-4 flex-shrink-0' : 'w-5 h-5 flex-shrink-0';
+
   const navItems: NavItemConfig[] = [
     {
       id: 'dashboard',
       label: 'Dashboard',
-      icon: <LayoutDashboard className="w-5 h-5 flex-shrink-0" />,
+      icon: <LayoutDashboard className={iconSize} />,
     },
     {
       id: 'library',
       label: 'Mod Library',
-      icon: <Library className="w-5 h-5 flex-shrink-0" />,
+      icon: <Library className={iconSize} />,
       badge: counts.mods,
     },
     {
       id: 'profiles',
       label: 'Profiles',
-      icon: <Crosshair className="w-5 h-5 flex-shrink-0" />,
+      icon: <Crosshair className={iconSize} />,
       badge: counts.profiles,
       badgeVariant: counts.warnings ? 'warning' : undefined,
     },
     {
       id: 'engines',
       label: 'Engines',
-      icon: <Cpu className="w-5 h-5 flex-shrink-0" />,
+      icon: <Cpu className={iconSize} />,
       badge: counts.engines,
     },
     {
       id: 'iwads',
       label: 'IWADs',
-      icon: <Disc className="w-5 h-5 flex-shrink-0" />,
+      icon: <Disc className={iconSize} />,
       badge: counts.iwads,
     },
     {
       id: 'history',
       label: 'History',
-      icon: <Clock className="w-5 h-5 flex-shrink-0" />,
+      icon: <Clock className={iconSize} />,
       badge: counts.history,
     },
     {
       id: 'diagnostics',
       label: 'Diagnostics',
-      icon: <Activity className="w-5 h-5 flex-shrink-0" />,
+      icon: <Activity className={iconSize} />,
       badge: counts.warnings ? counts.warnings : undefined,
       badgeVariant: counts.warnings ? 'warning' : undefined,
     },
     {
       id: 'settings',
       label: 'Settings',
-      icon: <Settings className="w-5 h-5 flex-shrink-0" />,
+      icon: <Settings className={iconSize} />,
     },
   ];
 
@@ -116,7 +128,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <aside
       className={cn(
         'h-full bg-doom-surface border-r border-doom-border flex flex-col justify-between transition-all duration-200 select-none z-30',
-        collapsed ? 'w-16' : 'w-60',
+        collapsed ? 'w-16' : isCompact ? 'w-56' : 'w-60',
         className
       )}
     >
@@ -124,21 +136,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="flex flex-col flex-shrink-0">
         <div
           className={cn(
-            'h-14 flex items-center border-b border-doom-border/80 px-4 gap-3 bg-doom-card/40',
+            'flex items-center border-b border-doom-border/80 px-3.5 gap-2.5 bg-doom-card/40 transition-all',
+            isCompact ? 'h-12' : 'h-14',
             collapsed ? 'justify-center px-2' : 'justify-between'
           )}
         >
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-8 h-8 rounded bg-doom-red flex items-center justify-center flex-shrink-0 shadow-md shadow-red-950/60 border border-red-500/40">
-              <Flame className="w-5 h-5 text-white" />
+          <div className="flex items-center gap-2 overflow-hidden">
+            <div
+              className={cn(
+                'rounded bg-doom-red flex items-center justify-center flex-shrink-0 shadow-md shadow-red-950/60 border border-red-500/40 transition-all',
+                isCompact ? 'w-7 h-7' : 'w-8 h-8'
+              )}
+            >
+              <Flame className={cn('text-white transition-all', isCompact ? 'w-4 h-4' : 'w-5 h-5')} />
             </div>
 
             {!collapsed && (
               <div className="flex flex-col min-w-0">
-                <span className="font-extrabold text-sm tracking-wider uppercase text-doom-text truncate">
+                <span className={cn('font-extrabold tracking-wider uppercase text-doom-text truncate', isCompact ? 'text-xs' : 'text-sm')}>
                   RNT Launcher
                 </span>
-                <span className="font-mono text-[10px] text-doom-muted tracking-tight -mt-0.5">
+                <span className="font-mono text-[9px] text-doom-muted tracking-tight -mt-0.5">
                   DOOM MOD MANAGER
                 </span>
               </div>
@@ -158,7 +176,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Navigation List */}
-        <nav className="p-2 space-y-1 overflow-y-auto">
+        <nav className={cn('overflow-y-auto space-y-0.5', isCompact ? 'p-1.5' : 'p-2 space-y-1')}>
           {navItems.map((item) => {
             const isActive = activeView === item.id;
             const hasBadge =
@@ -172,7 +190,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => onViewChange(item.id)}
                 title={collapsed ? item.label : undefined}
                 className={cn(
-                  'w-full flex items-center gap-3 px-3 py-2.5 rounded text-xs font-medium transition-all duration-150 relative group',
+                  'w-full flex items-center gap-2.5 rounded font-medium transition-all duration-150 relative group',
+                  isCompact ? 'px-2.5 py-1.5 text-[11px]' : 'px-3 py-2.5 text-xs',
                   collapsed ? 'justify-center px-0' : 'justify-between',
                   isActive
                     ? 'bg-doom-card text-white border border-doom-border-bright/50 shadow-sm'
@@ -184,7 +203,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <span className="absolute left-0 top-1 bottom-1 w-1 bg-doom-red rounded-r" />
                 )}
 
-                <div className="flex items-center gap-3 truncate">
+                <div className="flex items-center gap-2.5 truncate">
                   <span
                     className={cn(
                       'transition-colors',
@@ -199,7 +218,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {!collapsed && hasBadge && (
                   <span
                     className={cn(
-                      'font-mono text-[10px] px-1.5 py-0.5 rounded-full border flex-shrink-0 font-semibold',
+                      'font-mono px-1.5 rounded-full border flex-shrink-0 font-semibold',
+                      isCompact ? 'text-[9px] py-0' : 'text-[10px] py-0.5',
                       item.badgeVariant === 'warning'
                         ? 'bg-amber-950/70 text-amber-300 border-amber-600/60'
                         : item.badgeVariant === 'danger'
@@ -219,20 +239,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Bottom Section / Status & Expand toggle */}
-      <div className="p-2 border-t border-doom-border/80 bg-doom-card/30 flex-shrink-0 flex flex-col gap-2">
-        {collapsed ? (
-          onToggleCollapse && (
+      <div className={cn('border-t border-doom-border/80 bg-doom-card/30 flex-shrink-0 flex flex-col gap-1.5', isCompact ? 'p-1.5' : 'p-2 gap-2')}>
+        {/* Quick Density & Collapse Row */}
+        <div className="flex items-center justify-between gap-1 px-1">
+          {onToggleDensity && (
+            <button
+              type="button"
+              onClick={onToggleDensity}
+              title={isCompact ? 'Switch to Comfortable Density' : 'Switch to Compact Density'}
+              className={cn(
+                'flex items-center gap-1.5 text-doom-muted hover:text-doom-text rounded transition-colors text-[10px] font-mono',
+                collapsed ? 'w-full justify-center p-1.5' : 'px-1.5 py-1 hover:bg-doom-card'
+              )}
+            >
+              {isCompact ? <Maximize2 className="w-3.5 h-3.5 text-doom-cyan" /> : <Minimize2 className="w-3.5 h-3.5 text-doom-red" />}
+              {!collapsed && (
+                <span>{isCompact ? 'Compact' : 'Comfortable'}</span>
+              )}
+            </button>
+          )}
+
+          {collapsed && onToggleCollapse && (
             <button
               type="button"
               onClick={onToggleCollapse}
               aria-label="Expand sidebar"
-              className="w-full flex items-center justify-center p-2 text-doom-muted hover:text-doom-text rounded hover:bg-doom-card transition-colors"
+              className="flex items-center justify-center p-1.5 text-doom-muted hover:text-doom-text rounded hover:bg-doom-card transition-colors"
             >
-              <ChevronRight className="w-5 h-5" />
+              <ChevronRight className="w-4 h-4" />
             </button>
-          )
-        ) : (
-          <div className="px-2 py-1.5 bg-doom-bg/60 border border-doom-border/50 rounded flex flex-col gap-1">
+          )}
+        </div>
+
+        {!collapsed && (
+          <div className="px-2 py-1.5 bg-doom-bg/60 border border-doom-border/50 rounded flex flex-col gap-0.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <span className="relative flex h-2 w-2">
@@ -249,20 +289,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     )}
                   />
                 </span>
-                <span className="text-[11px] font-semibold text-doom-text uppercase tracking-wider">
-                  {systemStatus?.ready !== false ? 'ENGINE READY' : 'SETUP REQUIRED'}
+                <span className="text-[10px] font-semibold text-doom-text uppercase tracking-wider">
+                  {systemStatus?.ready !== false ? 'READY' : 'SETUP REQ'}
                 </span>
               </div>
               <span className="font-mono text-[9px] text-doom-muted">{FULL_VERSION}</span>
             </div>
 
             {systemStatus?.engineName && (
-              <div className="text-[10px] text-doom-muted truncate font-mono">
+              <div className="text-[9.5px] text-doom-muted truncate font-mono">
                 Port: <span className="text-doom-text">{systemStatus.engineName}</span>
               </div>
             )}
             {systemStatus?.iwadName && (
-              <div className="text-[10px] text-doom-muted truncate font-mono">
+              <div className="text-[9.5px] text-doom-muted truncate font-mono">
                 IWAD: <span className="text-doom-text">{systemStatus.iwadName}</span>
               </div>
             )}

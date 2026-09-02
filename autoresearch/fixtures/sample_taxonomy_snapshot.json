@@ -1,0 +1,55 @@
+{
+  "_fixture": true,
+  "_purpose": "Deterministic snapshot showing the expected harness METRIC-line output shape. NOT consumed by the live audit; lives here so devs can verify parsing/printing of metric lines without running the full scorer.",
+  "expected_metric_lines": [
+    "METRIC audit_score=74.62",
+    "METRIC parity_pct=68.87",
+    "METRIC features_total=53",
+    "METRIC features_covered=35",
+    "METRIC features_missing=15",
+    "METRIC critical_gaps=0",
+    "METRIC refs_audited=5",
+    "METRIC taxonomy_size=57"
+  ],
+  "metric_format": "METRIC <name>=<value> with <value> formatted to 2 decimals for floats, integer for counts. Emitted in the order: audit_score, parity_pct, features_total, features_covered, features_missing, critical_gaps, refs_audited, taxonomy_size.",
+  "metric_schema": {
+    "audit_score": {
+      "type": "float",
+      "range": [0.0, 100.0],
+      "meaning": "Weighted percentage: 100 * sum(weight * coverage_factor) / sum(weight). coverage_factor: covered=1.0, partial=0.5, missing=0.0. PRIMARY metric. Higher is better; 100.0 = every weighted feature is fully covered.",
+      "primary": true
+    },
+    "parity_pct": {
+      "type": "float",
+      "range": [0.0, 100.0],
+      "meaning": "Unweighted parity: 100 * (features_covered + 0.5 * partial_count) / features_total."
+    },
+    "features_total": {
+      "type": "int",
+      "meaning": "Count of taxonomy entries with weight > 0."
+    },
+    "features_covered": {
+      "type": "int",
+      "meaning": "Count of weighted features with rnt_status=='covered'."
+    },
+    "features_missing": {
+      "type": "int",
+      "meaning": "Count of weighted features with rnt_status=='missing' (strict). Equals features_total - features_covered - partial_count."
+    },
+    "critical_gaps": {
+      "type": "int",
+      "meaning": "Count of features flagged critical==true that are still missing. Should be zero in any release-grade audit."
+    },
+    "refs_audited": {
+      "type": "int",
+      "value": 5,
+      "meaning": "Number of reference launchers scored: arachnotron, rocketlauncher2, doomlauncher, qzdl, doomrunner."
+    },
+    "taxonomy_size": {
+      "type": "int",
+      "value": 57,
+      "meaning": "Raw size of the candidate feature taxonomy from ref_inventory.json. Contract value is 57."
+    }
+  },
+  "deterministic_seed": 1337
+}

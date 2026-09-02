@@ -248,6 +248,18 @@ export interface ScanResult {
   errors: string[]
 }
 
+export type UiDensity = 'compact' | 'comfortable'
+
+export type DefaultNavView =
+  | 'dashboard'
+  | 'profiles'
+  | 'library'
+  | 'iwads'
+  | 'engines'
+  | 'history'
+  | 'diagnostics'
+  | 'settings'
+
 export interface Settings {
   modDirectories: string[]
   mod_directories?: string[]
@@ -264,7 +276,19 @@ export interface Settings {
   auto_scan_on_startup?: boolean
   closeOnLaunch: boolean
   close_on_launch?: boolean
+  uiDensity?: UiDensity
+  ui_density?: UiDensity
+  showFilePaths?: boolean
+  show_file_paths?: boolean
+  showRecentLaunches?: number
+  show_recent_launches?: number
+  formatVisibility?: string[]
+  format_visibility?: string[]
+  defaultView?: DefaultNavView
+  default_view?: DefaultNavView
 }
+
+export type AppSettings = Settings
 
 export interface HistoryStats {
   totalLaunches: number

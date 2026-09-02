@@ -680,27 +680,37 @@ func (s ScanResult) HasErrors() bool {
 
 // Settings represents global application preferences.
 type Settings struct {
-	ModDirectories    []string `json:"modDirectories"`
-	IWADDirectories   []string `json:"iwadDirectories"`
-	EngineDirectories []string `json:"engineDirectories"`
-	DefaultWorkingDir string   `json:"defaultWorkingDir"`
-	Theme             string   `json:"theme"`
-	ConfirmLaunch     bool     `json:"confirmLaunch"`
-	AutoScanOnStartup bool     `json:"autoScanOnStartup"`
-	CloseOnLaunch     bool     `json:"closeOnLaunch"`
+	ModDirectories     []string `json:"modDirectories"`
+	IWADDirectories    []string `json:"iwadDirectories"`
+	EngineDirectories  []string `json:"engineDirectories"`
+	DefaultWorkingDir  string   `json:"defaultWorkingDir"`
+	Theme              string   `json:"theme"`
+	ConfirmLaunch      bool     `json:"confirmLaunch"`
+	AutoScanOnStartup  bool     `json:"autoScanOnStartup"`
+	CloseOnLaunch      bool     `json:"closeOnLaunch"`
+	UiDensity          string   `json:"uiDensity"`
+	ShowFilePaths      bool     `json:"showFilePaths"`
+	ShowRecentLaunches int      `json:"showRecentLaunches"`
+	FormatVisibility   []string `json:"formatVisibility"`
+	DefaultView        string   `json:"defaultView"`
 }
 
 // DefaultSettings returns a new Settings struct with default values.
 func DefaultSettings() Settings {
 	return Settings{
-		ModDirectories:    []string{},
-		IWADDirectories:   []string{},
-		EngineDirectories: []string{},
-		DefaultWorkingDir: "",
-		Theme:             "dark",
-		ConfirmLaunch:     false,
-		AutoScanOnStartup: true,
-		CloseOnLaunch:     false,
+		ModDirectories:     []string{},
+		IWADDirectories:    []string{},
+		EngineDirectories:  []string{},
+		DefaultWorkingDir:  "",
+		Theme:              "dark",
+		ConfirmLaunch:      false,
+		AutoScanOnStartup:  true,
+		CloseOnLaunch:      false,
+		UiDensity:          "compact",
+		ShowFilePaths:      false,
+		ShowRecentLaunches: 3,
+		FormatVisibility:   []string{".wad", ".pk3", ".pk7", ".ipk3", ".zip", ".deh", ".bex"},
+		DefaultView:        "dashboard",
 	}
 }
 

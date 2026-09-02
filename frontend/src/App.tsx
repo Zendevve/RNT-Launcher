@@ -20,7 +20,7 @@ import { HistoryView } from './features/history';
 import { SettingsView } from './features/settings';
 import { DiagnosticsView } from './features/diagnostics';
 import { api } from './services/api';
-import { Mod, Profile, Engine, IWAD, ScanResult, LaunchRecord, ScanProgress } from './types';
+import { Mod, Profile, Engine, IWAD, ScanResult, LaunchRecord, ScanProgress, UiDensity, Settings } from './types';
 import {
   Search,
   Crosshair,
@@ -30,7 +30,6 @@ import {
   Play,
   Flame,
 } from 'lucide-react';
-
 function AppContent() {
   const toast = useToast();
   const notify = (message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
@@ -40,9 +39,10 @@ function AppContent() {
     else toast.info(message);
   };
   const [activeView, setActiveView] = useState<NavViewId>('dashboard');
+  const [density, setDensity] = useState<UiDensity>('compact');
+  const [appSettings, setAppSettings] = useState<Settings | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [hasDismissedOnboarding, setHasDismissedOnboarding] = useState(false);
-  // Global counts for sidebar badges
   const [counts, setCounts] = useState<{
     mods: number;
     profiles: number;
@@ -76,6 +76,44 @@ function AppContent() {
 
   // Selected Profile for direct navigation from Dashboard or Global Search
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+
+  // Load settings on initial startup for density and default view
+  useEffect(() => {
+    let isMounted = true;
+    api
+      .getSettings()
+      .then((s) => {
+        if (!isMounted || !s) return;
+        setAppSettings(s);
+        if (s.uiDensity) {
+          setDensity(s.uiDensity);
+        }
+        if (s.defaultView) {
+          setActiveView(s.defaultView as NavViewId);
+        }
+      })
+      .catch(() => {
+        // Fallback for standalone/dev
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleToggleDensity = useCallback(async () => {
+    const nextDensity: UiDensity = density === 'compact' ? 'comfortable' : 'compact';
+    setDensity(nextDensity);
+    if (appSettings) {
+      const updated = { ...appSettings, uiDensity: nextDensity };
+      setAppSettings(updated);
+      try {
+        await api.updateSettings(updated);
+      } catch {
+        // ignore
+      }
+    }
+    notify(`Switched to ${nextDensity} density`, 'info');
+  }, [density, appSettings]);
 
   // Fetch counts and library data
   const refreshData = useCallback(async () => {
@@ -293,7 +331,10 @@ function AppContent() {
   };
 
   return (
-    <div className="flex h-screen w-screen bg-doom-bg text-doom-text font-sans antialiased overflow-hidden select-none">
+    <div
+      data-density={density}
+      className="flex h-screen w-screen bg-doom-bg text-doom-text font-sans antialiased overflow-hidden select-none"
+    >
       {/* Navigation Sidebar */}
       <Sidebar
         activeView={activeView}
@@ -303,9 +344,10 @@ function AppContent() {
         }}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
+        density={density}
+        onToggleDensity={handleToggleDensity}
         counts={counts}
       />
-
       {/* Main Content Viewport */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Top Header */}

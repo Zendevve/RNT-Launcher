@@ -9,9 +9,39 @@
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Support-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/zendevve)
 [![Discord](https://img.shields.io/badge/Discord-Artano-5865F2?style=flat&logo=discord&logoColor=white)](https://discord.gg/Y4rDyTScPe)
 
+> **Beautifully simple. Designed from the very start to be as visually minimal and space efficient as possible. No cluttered interface. Fast and lightweight opens practically instantly, and switching is just as quick, all while having low memory and CPU usage. Fully-featured minimalism doesn't have to be a compromise. Configurable features a myriad of configurable preferences to ensure the best experience for as many people as possible. Supports all common formats.**
+
 **RNT Launcher** is a modern, fast, local-first cross-platform desktop application for organizing, configuring, validating, and launching Doom games and modifications.
 
 Built with an interface-agnostic Go application core, embedded SQLite metadata database, and a high-density industrial dark desktop GUI using Wails and React.
+
+---
+
+## Design Philosophy & Core Pillars
+
+| Pillar | Principle | Implementation in RNT Launcher |
+|---|---|---|
+| 🎯 **Beautifully Simple** | Zero clutter & spatial efficiency | Minimized chrome, progressive disclosure, clean typography, and zero extraneous ads or distracting widgets. |
+| ⚡ **Fast & Lightweight** | Instant responsiveness | Opens practically instantly, switches views seamlessly, and maintains low CPU and RAM consumption ($<60\text{ MB}$). |
+| 🛡️ **Fully-Featured Minimalism** | Power without compromise | Multi-engine management, lump inspection, pre-flight launch validation, YAML v1 presets, and telemetry tracking. |
+| 🎛️ **Deeply Configurable** | Tailored to your workflow | Granular UI density (`Compact` vs `Comfortable`), mod format visibility toggles, path disclosure settings, and custom launch limits. |
+| 📦 **Universal Compatibility** | All common Doom formats | First-class parsing, inspection, and execution support for `.wad`, `.pk3`, `.pk7`, `.ipk3`, `.zip`, `.deh`, and `.bex`. |
+
+---
+
+## Supported Formats Matrix
+
+RNT Launcher provides complete scanning, lump inspection, duplicate detection, and launch ordering across all standard Doom package formats:
+
+| Format | Extension | Category | Description & Capabilities |
+|---|---|---|---|
+| **WAD / PWAD** | `.wad` | Binary Lump Archive | Classic Doom binary package; auto-detects IWAD vs PWAD magic, lump count, and map markers (`MAP01`–`MAP99`, `E1M1`–`E4M9`). |
+| **PK3 Archive** | `.pk3` | ZIP Mod Archive | ZIP-based directory structure; inspects `ZSCRIPT`, `DECORATE`, `MAPINFO`, `SNDINFO`, `TEXTURES`, and `GLDEFS`. |
+| **PK7 / 7Z** | `.pk7` | 7-Zip Archive | 7-Zip compressed modern mod container with high compression ratios. |
+| **IPK3 Game** | `.ipk3` | Standalone Game Package | Standalone game or total conversion package for modern source ports. |
+| **ZIP Archive** | `.zip` | Compressed Package | Standard ZIP archive containing binary lumps or structured mod packages. |
+| **DEH Patch** | `.deh` | DeHackEd Modification | Text-based engine behavior, weapon frame, sound, and text patch. |
+| **BEX Patch** | `.bex` | Extended Boom DeHackEd | Extended Boom-compatible DeHackEd modification patch. |
 
 ---
 
@@ -20,13 +50,14 @@ Built with an interface-agnostic Go application core, embedded SQLite metadata d
 ### 1-Click Launch Cockpit & Dashboard
 - Launch your favorite and recent profiles instantly with one click.
 - Live system status overview displaying active source ports, base IWADs, and mod counts.
-- Recent launch feed showing duration, completion status, and timestamps.
+- Recent launch feed showing duration, completion status, and timestamps (configurable row limits or complete hiding).
 - Quick scan trigger with a live progressive scan banner.
 
 ### Mod Library & Drag-and-Drop
-- Recursive background directory scanner for `.wad`, `.pk3`, `.pk7`, `.ipk3`, `.zip`, `.deh`, and `.bex` files.
+- Recursive background directory scanner for all supported formats (`.wad`, `.pk3`, `.pk7`, `.ipk3`, `.zip`, `.deh`, `.bex`).
 - Instant search across mod names, filenames, and absolute paths (<100ms response time).
-- Categorization and filtering by format (`.wad`, `.pk3`, `.zip`, etc.) and mod type (*Gameplay*, *Maps*, *Megawads*, *Weapons*, *Monsters*, *Textures*, *Audio*, *UI*, *Utility*).
+- Categorization and filtering by format and mod type (*Gameplay*, *Maps*, *Megawads*, *Weapons*, *Monsters*, *Textures*, *Audio*, *UI*, *Utility*).
+- Customizable format visibility filters to tailor library views to specific file types.
 - Seamless Drag-and-Drop ingestion directly into the library without moving or altering user files on disk.
 
 ### Deep Mod Inspector
@@ -69,6 +100,7 @@ Never fail at launch time. The pre-flight validator executes 5 core verification
 - `Ctrl+S`: Save active profile.
 - `Ctrl+Shift+S`: Export profile to YAML.
 - `Esc`: Close open modals and drawers.
+- **UI Density Toggle**: Quick-switch between **Compact** (maximum data density) and **Comfortable** (roomy padding) layouts.
 
 ---
 
@@ -112,7 +144,7 @@ Never fail at launch time. The pre-flight validator executes 5 core verification
 | **Profile Schema** | `gopkg.in/yaml.v3` | YAML Profile Specification Version 1 |
 | **Frontend** | React 18 & TypeScript | Type-safe single-page desktop GUI |
 | **State Management** | TanStack Query | Query caching, invalidation, and async state |
-| **Styling** | Tailwind CSS | Dark Doom-industrial design system |
+| **Styling** | Tailwind CSS | Dark Doom-industrial design system with density modes |
 | **Icons** | Lucide React | Crisp modern interface iconography |
 
 ---
@@ -121,16 +153,15 @@ Never fail at launch time. The pre-flight validator executes 5 core verification
 
 ### Prerequisites
 - **Go**: 1.23 or higher
-- **Node.js**: 18 or higher (Node 20+ recommended)
-- **npm**: 9 or higher
-- **Wails CLI**: `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
+- **Node.js**: 18 or higher (Node 20+ recommended) & `npm`
+- **Wails v2 CLI**: `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
 
 ### Installation & Build
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/Zendevve/RNT-Launcher.git
-   cd RNT-Launcher
+   git clone https://github.com/zendevve/rnt-launcher.git
+   cd rnt-launcher
    ```
 
 2. **Install frontend dependencies**:

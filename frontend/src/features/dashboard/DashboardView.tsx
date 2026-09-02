@@ -17,10 +17,12 @@ import {
   Zap,
   History as HistoryIcon,
 } from 'lucide-react';
-import { Profile, Mod, IWAD, Engine, LaunchRecord, HistoryStats } from '../../types';
+import { Profile, Mod, IWAD, Engine, LaunchRecord, HistoryStats, Settings } from '../../types';
 import { api } from '../../services/api';
 import { RecentProfileCard } from './RecentProfileCard';
 import { formatDuration, formatRelativeTime, formatDate } from '../../utils/formatters';
+import { BRAND_SUMMARY } from '../../lib/constants';
+import { cn } from '../../utils/cn';
 
 interface DashboardViewProps {
   onNavigateToLibrary?: () => void;
@@ -41,6 +43,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [engines, setEngines] = useState<Engine[]>([]);
   const [history, setHistory] = useState<LaunchRecord[]>([]);
   const [historyStats, setHistoryStats] = useState<HistoryStats | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
@@ -66,13 +69,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         fetchedEngines,
         fetchedHistory,
         fetchedStats,
+        fetchedSettings,
       ] = await Promise.all([
         api.listProfiles(),
         api.listMods(),
         api.listIWADs(),
         api.listEngines(),
-        api.listLaunchHistory(5),
+        api.listLaunchHistory(10),
         api.getHistoryStats(),
+        api.getSettings().catch(() => null),
       ]);
 
       setProfiles(fetchedProfiles || []);
@@ -81,6 +86,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       setEngines(fetchedEngines || []);
       setHistory(fetchedHistory || []);
       setHistoryStats(fetchedStats || null);
+      if (fetchedSettings) setSettings(fetchedSettings);
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
       showNotification('error', 'Failed to load system dashboard data');
@@ -102,7 +108,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       );
       // Refresh history & stats
       const [updatedHistory, updatedStats] = await Promise.all([
-        api.listLaunchHistory(5),
+        api.listLaunchHistory(10),
         api.getHistoryStats(),
       ]);
       setHistory(updatedHistory);
@@ -142,6 +148,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
   };
 
+  const isCompact = settings?.uiDensity === 'compact';
+
   // Profile selection logic: Favorites first, then most recently created/updated
   const favoriteProfiles = profiles.filter((p) => p.isFavorite);
   const otherProfiles = profiles.filter((p) => !p.isFavorite);
@@ -149,8 +157,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const isLibraryEmpty = mods.length === 0 && iwads.length === 0;
 
+  // Recent launches display limit
+  const maxRecentLaunches = settings?.showRecentLaunches ?? 3;
+  const displayHistory = maxRecentLaunches > 0 ? history.slice(0, maxRecentLaunches) : [];
+
   return (
-    <div className="flex-1 overflow-y-auto bg-doom-bg px-8 py-6 text-doom-text">
+    <div className={cn('flex-1 overflow-y-auto bg-doom-bg text-doom-text', isCompact ? 'px-6 py-5' : 'px-8 py-6')}>
       {/* Toast / Notification Banner */}
       {actionNotification && (
         <div
@@ -169,26 +181,29 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       )}
 
-      {/* Top Header Section */}
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center border-b border-doom-border/60 pb-6">
+      {/* Top Header Section with subtle Brand Promise */}
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center border-b border-doom-border/60 pb-5">
         <div>
           <div className="flex items-center gap-2">
             <span className="flex h-2 w-2 rounded-full bg-doom-red animate-pulse" />
-            <h1 className="font-mono text-2xl font-black uppercase tracking-widest text-doom-text">
+            <h1 className="font-mono text-xl font-black uppercase tracking-widest text-doom-text">
               MISSION CONTROL
             </h1>
+            <span className="rounded bg-doom-red/15 px-2 py-0.5 font-mono text-[9.5px] font-bold text-doom-red-bright border border-doom-red/30 uppercase">
+              Fast &amp; Lightweight
+            </span>
           </div>
-          <p className="mt-1 text-xs font-mono text-doom-muted uppercase tracking-wider">
-            Rip &amp; Tear Doom Mod Manager &amp; Profile Dispatcher
+          <p className="mt-1 text-[11px] font-mono text-doom-muted">
+            {BRAND_SUMMARY}
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
             onClick={handleScan}
             disabled={isScanning}
-            className="inline-flex items-center gap-2 rounded border border-doom-border bg-doom-surface px-3.5 py-2 text-xs font-mono font-medium text-doom-text transition-colors hover:border-doom-border-bright hover:bg-doom-card disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded border border-doom-border bg-doom-surface px-3 py-1.5 text-xs font-mono font-medium text-doom-text transition-colors hover:border-doom-border-bright hover:bg-doom-card disabled:opacity-50"
           >
             <FolderSearch className={`h-3.5 w-3.5 text-doom-cyan ${isScanning ? 'animate-spin' : ''}`} />
             <span>{isScanning ? 'SCANNING...' : 'SCAN DIRECTORIES'}</span>
@@ -197,7 +212,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <button
             type="button"
             onClick={onCreateProfile}
-            className="inline-flex items-center gap-2 rounded bg-doom-red px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-doom-red/20 transition-colors hover:bg-doom-red-bright"
+            className="inline-flex items-center gap-2 rounded bg-doom-red px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-doom-red/20 transition-colors hover:bg-doom-red-bright"
           >
             <Plus className="h-3.5 w-3.5" />
             <span>NEW PROFILE</span>
@@ -207,33 +222,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Empty Library Onboarding CTA */}
       {isLibraryEmpty && !isLoading && (
-        <div className="mt-6 rounded-lg border border-dashed border-doom-border-bright bg-doom-surface/50 p-6 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-doom-card text-doom-amber">
-            <Zap className="h-6 w-6" />
+        <div className="mt-5 rounded-lg border border-dashed border-doom-border-bright bg-doom-surface/50 p-5 text-center">
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-doom-card text-doom-amber">
+            <Zap className="h-5 w-5" />
           </div>
-          <h2 className="mt-3 font-mono text-base font-bold uppercase tracking-wider text-doom-text">
+          <h2 className="mt-2.5 font-mono text-sm font-bold uppercase tracking-wider text-doom-text">
             No Mods or IWADs Registered
           </h2>
-          <p className="mx-auto mt-1 max-w-md text-xs text-doom-muted">
+          <p className="mx-auto mt-1 max-w-md text-[11px] text-doom-muted">
             Scan your system directories to automatically discover GZDoom, Chocolate Doom, DOOM2.WAD,
             and your mod library.
           </p>
-          <div className="mt-4 flex justify-center gap-3">
+          <div className="mt-3.5 flex justify-center gap-2.5">
             <button
               type="button"
               onClick={handleScan}
               disabled={isScanning}
-              className="inline-flex items-center gap-2 rounded bg-doom-red px-5 py-2 text-xs font-bold uppercase tracking-wider text-white shadow hover:bg-doom-red-bright"
+              className="inline-flex items-center gap-2 rounded bg-doom-red px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white shadow hover:bg-doom-red-bright"
             >
-              <FolderSearch className="h-4 w-4" />
+              <FolderSearch className="h-3.5 w-3.5" />
               <span>RUN AUTOMATIC SCAN</span>
             </button>
             <button
               type="button"
               onClick={onNavigateToLibrary}
-              className="inline-flex items-center gap-2 rounded border border-doom-border bg-doom-card px-4 py-2 text-xs font-mono text-doom-text hover:bg-doom-surface"
+              className="inline-flex items-center gap-2 rounded border border-doom-border bg-doom-card px-3.5 py-1.5 text-xs font-mono text-doom-text hover:bg-doom-surface"
             >
-              <FolderOpen className="h-4 w-4" />
+              <FolderOpen className="h-3.5 w-3.5" />
               <span>OPEN MOD LIBRARY</span>
             </button>
           </div>
@@ -241,45 +256,45 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       )}
 
       {/* Stats Banner: 4-Column Grid */}
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className={cn('grid grid-cols-2 gap-3 lg:grid-cols-4', isCompact ? 'mt-4' : 'mt-6')}>
         {/* Metric 1: Total Mods */}
         <div
           onClick={onNavigateToLibrary}
-          className="group flex flex-col justify-between rounded-lg border border-doom-border bg-doom-surface/70 p-4 transition-all duration-200 hover:border-doom-border-bright hover:bg-doom-surface cursor-pointer"
+          className="group flex flex-col justify-between rounded-lg border border-doom-border bg-doom-surface/70 p-3.5 transition-all duration-200 hover:border-doom-border-bright hover:bg-doom-surface cursor-pointer"
         >
           <div className="flex items-center justify-between">
-            <span className="font-mono text-xs font-semibold uppercase tracking-wider text-doom-muted">
+            <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-doom-muted">
               Total Mods
             </span>
-            <div className="rounded bg-doom-card p-1.5 text-doom-amber">
-              <Layers className="h-4 w-4" />
+            <div className="rounded bg-doom-card p-1 text-doom-amber">
+              <Layers className="h-3.5 w-3.5" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="font-mono text-2xl font-extrabold text-doom-text group-hover:text-white">
+          <div className="mt-2">
+            <div className="font-mono text-xl font-extrabold text-doom-text group-hover:text-white">
               {mods.length}
             </div>
-            <p className="mt-1 text-[11px] text-doom-muted">
+            <p className="mt-0.5 text-[10px] text-doom-muted">
               {mods.filter((m) => m.isFavorite).length} favorites in library
             </p>
           </div>
         </div>
 
         {/* Metric 2: Base IWADs */}
-        <div className="flex flex-col justify-between rounded-lg border border-doom-border bg-doom-surface/70 p-4 transition-all duration-200 hover:border-doom-border-bright hover:bg-doom-surface">
+        <div className="flex flex-col justify-between rounded-lg border border-doom-border bg-doom-surface/70 p-3.5 transition-all duration-200 hover:border-doom-border-bright hover:bg-doom-surface">
           <div className="flex items-center justify-between">
-            <span className="font-mono text-xs font-semibold uppercase tracking-wider text-doom-muted">
+            <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-doom-muted">
               Base IWADs
             </span>
-            <div className="rounded bg-doom-card p-1.5 text-doom-blue">
-              <Disc className="h-4 w-4" />
+            <div className="rounded bg-doom-card p-1 text-doom-blue">
+              <Disc className="h-3.5 w-3.5" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="font-mono text-2xl font-extrabold text-doom-text">
+          <div className="mt-2">
+            <div className="font-mono text-xl font-extrabold text-doom-text">
               {iwads.length}
             </div>
-            <p className="mt-1 truncate text-[11px] text-doom-muted">
+            <p className="mt-0.5 truncate text-[10px] text-doom-muted">
               {iwads.length > 0
                 ? iwads.map((i) => i.name.split('.')[0]).join(', ')
                 : 'None detected'}
@@ -288,20 +303,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Metric 3: Source Ports / Engines */}
-        <div className="flex flex-col justify-between rounded-lg border border-doom-border bg-doom-surface/70 p-4 transition-all duration-200 hover:border-doom-border-bright hover:bg-doom-surface">
+        <div className="flex flex-col justify-between rounded-lg border border-doom-border bg-doom-surface/70 p-3.5 transition-all duration-200 hover:border-doom-border-bright hover:bg-doom-surface">
           <div className="flex items-center justify-between">
-            <span className="font-mono text-xs font-semibold uppercase tracking-wider text-doom-muted">
+            <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-doom-muted">
               Engines
             </span>
-            <div className="rounded bg-doom-card p-1.5 text-doom-cyan">
-              <Cpu className="h-4 w-4" />
+            <div className="rounded bg-doom-card p-1 text-doom-cyan">
+              <Cpu className="h-3.5 w-3.5" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="font-mono text-2xl font-extrabold text-doom-text">
+          <div className="mt-2">
+            <div className="font-mono text-xl font-extrabold text-doom-text">
               {engines.length}
             </div>
-            <p className="mt-1 truncate text-[11px] text-doom-muted">
+            <p className="mt-0.5 truncate text-[10px] text-doom-muted">
               {engines.length > 0
                 ? engines.map((e) => e.name).join(', ')
                 : 'No engines registered'}
@@ -310,20 +325,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Metric 4: Total Play Time & Launches */}
-        <div className="flex flex-col justify-between rounded-lg border border-doom-border bg-doom-surface/70 p-4 transition-all duration-200 hover:border-doom-border-bright hover:bg-doom-surface">
+        <div className="flex flex-col justify-between rounded-lg border border-doom-border bg-doom-surface/70 p-3.5 transition-all duration-200 hover:border-doom-border-bright hover:bg-doom-surface">
           <div className="flex items-center justify-between">
-            <span className="font-mono text-xs font-semibold uppercase tracking-wider text-doom-muted">
+            <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-doom-muted">
               Play Time
             </span>
-            <div className="rounded bg-doom-card p-1.5 text-doom-green">
-              <Clock className="h-4 w-4" />
+            <div className="rounded bg-doom-card p-1 text-doom-green">
+              <Clock className="h-3.5 w-3.5" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="font-mono text-2xl font-extrabold text-doom-text">
+          <div className="mt-2">
+            <div className="font-mono text-xl font-extrabold text-doom-text">
               {formatDuration(historyStats?.totalPlayTimeMs || 0)}
             </div>
-            <p className="mt-1 text-[11px] text-doom-muted">
+            <p className="mt-0.5 text-[10px] text-doom-muted">
               {historyStats?.totalLaunches || history.length} total launches logged
             </p>
           </div>
@@ -331,11 +346,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* Quick Launch Cards Section */}
-      <div className="mt-8">
+      <div className={cn(isCompact ? 'mt-6' : 'mt-8')}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Flame className="h-4 w-4 text-doom-red" />
-            <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-doom-text">
+            <h2 className="font-mono text-xs font-bold uppercase tracking-wider text-doom-text">
               QUICK LAUNCH PROFILES
             </h2>
           </div>
@@ -352,19 +367,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {displayProfiles.length === 0 ? (
-          <div className="mt-3 rounded-lg border border-doom-border bg-doom-surface/40 p-8 text-center">
+          <div className="mt-3 rounded-lg border border-doom-border bg-doom-surface/40 p-6 text-center">
             <p className="text-xs text-doom-muted">No launch profiles configured yet.</p>
             <button
               type="button"
               onClick={onCreateProfile}
-              className="mt-3 inline-flex items-center gap-2 rounded bg-doom-red px-3 py-1.5 text-xs font-bold uppercase text-white hover:bg-doom-red-bright"
+              className="mt-2.5 inline-flex items-center gap-2 rounded bg-doom-red px-3 py-1.5 text-xs font-bold uppercase text-white hover:bg-doom-red-bright"
             >
               <Plus className="h-3 w-3" />
               <span>Create Profile</span>
             </button>
           </div>
         ) : (
-          <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
             {displayProfiles.map((prof) => (
               <RecentProfileCard
                 key={prof.id}
@@ -378,113 +393,115 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         )}
       </div>
 
-      {/* Recent Launch History Feed Table */}
-      <div className="mt-8">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <HistoryIcon className="h-4 w-4 text-doom-cyan" />
-            <h2 className="font-mono text-sm font-bold uppercase tracking-wider text-doom-text">
-              RECENT LAUNCH SESSIONS
-            </h2>
+      {/* Recent Launch History Feed Table (Respects showRecentLaunches) */}
+      {maxRecentLaunches > 0 && (
+        <div className={cn(isCompact ? 'mt-6' : 'mt-8')}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <HistoryIcon className="h-4 w-4 text-doom-cyan" />
+              <h2 className="font-mono text-xs font-bold uppercase tracking-wider text-doom-text">
+                RECENT LAUNCH SESSIONS
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={loadDashboardData}
+              title="Refresh dashboard data"
+              className="rounded p-1 text-doom-muted hover:bg-doom-card hover:text-doom-text transition-colors"
+            >
+              <RotateCw className="h-3.5 w-3.5" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={loadDashboardData}
-            title="Refresh dashboard data"
-            className="rounded p-1 text-doom-muted hover:bg-doom-card hover:text-doom-text transition-colors"
-          >
-            <RotateCw className="h-3.5 w-3.5" />
-          </button>
-        </div>
 
-        <div className="mt-3 overflow-hidden rounded-lg border border-doom-border bg-doom-surface/60">
-          {history.length === 0 ? (
-            <div className="p-8 text-center text-xs text-doom-muted font-mono">
-              No recent launch records found. Launch a profile to record gameplay sessions.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs font-mono">
-                <thead>
-                  <tr className="border-b border-doom-border bg-doom-card/80 text-[11px] uppercase tracking-wider text-doom-muted">
-                    <th className="px-4 py-2.5">Status</th>
-                    <th className="px-4 py-2.5">Profile</th>
-                    <th className="px-4 py-2.5">Engine</th>
-                    <th className="px-4 py-2.5">IWAD</th>
-                    <th className="px-4 py-2.5">Duration</th>
-                    <th className="px-4 py-2.5">Launched</th>
-                    <th className="px-4 py-2.5 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-doom-border/40">
-                  {history.map((record) => {
-                    const isSuccess = record.status === 'success' || record.exitCode === 0;
-                    return (
-                      <tr
-                        key={record.id}
-                        className="transition-colors hover:bg-doom-card/40"
-                      >
-                        {/* Status */}
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold uppercase ${
-                              isSuccess
-                                ? 'border border-doom-green/30 bg-doom-green/10 text-doom-green-bright'
-                                : 'border border-doom-red/30 bg-doom-red/10 text-doom-red-bright'
-                            }`}
-                          >
-                            {isSuccess ? 'SUCCESS' : 'FAILED'}
-                          </span>
-                        </td>
-
-                        {/* Profile Name */}
-                        <td className="px-4 py-3 font-semibold text-doom-text">
-                          {record.profileName || 'Default Profile'}
-                        </td>
-
-                        {/* Engine */}
-                        <td className="px-4 py-3 text-doom-cyan">
-                          {record.engineName || 'Engine'}
-                        </td>
-
-                        {/* IWAD */}
-                        <td className="px-4 py-3 text-doom-blue">
-                          {record.iwadName || 'DOOM2.WAD'}
-                        </td>
-
-                        {/* Duration */}
-                        <td className="px-4 py-3 text-doom-muted">
-                          {formatDuration(record.durationMs)}
-                        </td>
-
-                        {/* Timestamp */}
-                        <td
-                          className="px-4 py-3 text-doom-muted"
-                          title={formatDate(record.startedAt)}
+          <div className="mt-3 overflow-hidden rounded-lg border border-doom-border bg-doom-surface/60">
+            {displayHistory.length === 0 ? (
+              <div className="p-6 text-center text-xs text-doom-muted font-mono">
+                No recent launch records found. Launch a profile to record gameplay sessions.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead>
+                    <tr className="border-b border-doom-border bg-doom-card/80 text-[10.5px] uppercase tracking-wider text-doom-muted">
+                      <th className="px-3.5 py-2">Status</th>
+                      <th className="px-3.5 py-2">Profile</th>
+                      <th className="px-3.5 py-2">Engine</th>
+                      <th className="px-3.5 py-2">IWAD</th>
+                      <th className="px-3.5 py-2">Duration</th>
+                      <th className="px-3.5 py-2">Launched</th>
+                      <th className="px-3.5 py-2 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-doom-border/40">
+                    {displayHistory.map((record) => {
+                      const isSuccess = record.status === 'success' || record.exitCode === 0;
+                      return (
+                        <tr
+                          key={record.id}
+                          className="transition-colors hover:bg-doom-card/40"
                         >
-                          {formatRelativeTime(record.startedAt)}
-                        </td>
+                          {/* Status */}
+                          <td className="px-3.5 py-2">
+                            <span
+                              className={`inline-flex items-center gap-1 rounded px-1.5 py-0.2 text-[9.5px] font-bold uppercase ${
+                                isSuccess
+                                  ? 'border border-doom-green/30 bg-doom-green/10 text-doom-green-bright'
+                                  : 'border border-doom-red/30 bg-doom-red/10 text-doom-red-bright'
+                              }`}
+                            >
+                              {isSuccess ? 'SUCCESS' : 'FAILED'}
+                            </span>
+                          </td>
 
-                        {/* Relaunch Action */}
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleLaunch(record.profileId)}
-                            className="inline-flex items-center gap-1 rounded bg-doom-card px-2.5 py-1 text-[11px] font-semibold text-doom-text transition-colors hover:bg-doom-red hover:text-white"
+                          {/* Profile Name */}
+                          <td className="px-3.5 py-2 font-semibold text-doom-text">
+                            {record.profileName || 'Default Profile'}
+                          </td>
+
+                          {/* Engine */}
+                          <td className="px-3.5 py-2 text-doom-cyan">
+                            {record.engineName || 'Engine'}
+                          </td>
+
+                          {/* IWAD */}
+                          <td className="px-3.5 py-2 text-doom-blue">
+                            {record.iwadName || 'DOOM2.WAD'}
+                          </td>
+
+                          {/* Duration */}
+                          <td className="px-3.5 py-2 text-doom-muted">
+                            {formatDuration(record.durationMs)}
+                          </td>
+
+                          {/* Timestamp */}
+                          <td
+                            className="px-3.5 py-2 text-doom-muted"
+                            title={formatDate(record.startedAt)}
                           >
-                            <Play className="h-3 w-3 fill-current" />
-                            <span>PLAY</span>
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+                            {formatRelativeTime(record.startedAt)}
+                          </td>
+
+                          {/* Relaunch Action */}
+                          <td className="px-3.5 py-2 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleLaunch(record.profileId)}
+                              className="inline-flex items-center gap-1 rounded bg-doom-card px-2 py-0.5 text-[10.5px] font-semibold text-doom-text transition-colors hover:bg-doom-red hover:text-white"
+                            >
+                              <Play className="h-2.5 w-2.5 fill-current" />
+                              <span>PLAY</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

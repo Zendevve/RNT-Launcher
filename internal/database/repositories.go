@@ -1260,6 +1260,28 @@ func (r *settingsRepo) GetSettings() (domain.Settings, error) {
 			defaults.AutoScanOnStartup = (val == "1" || val == "true")
 		case "close_on_launch":
 			defaults.CloseOnLaunch = (val == "1" || val == "true")
+		case "ui_density":
+			if val != "" {
+				defaults.UiDensity = val
+			}
+		case "show_file_paths":
+			defaults.ShowFilePaths = (val == "1" || val == "true")
+		case "show_recent_launches":
+			var num int
+			if err := json.Unmarshal([]byte(val), &num); err == nil {
+				defaults.ShowRecentLaunches = num
+			} else {
+				_, _ = fmt.Sscanf(val, "%d", &defaults.ShowRecentLaunches)
+			}
+		case "format_visibility":
+			var vis []string
+			if err := json.Unmarshal([]byte(val), &vis); err == nil && len(vis) > 0 {
+				defaults.FormatVisibility = vis
+			}
+		case "default_view":
+			if val != "" {
+				defaults.DefaultView = val
+			}
 		}
 	}
 
@@ -1288,6 +1310,7 @@ func (r *settingsRepo) SaveSettings(settings domain.Settings) error {
 	modDirsJSON, _ := json.Marshal(settings.ModDirectories)
 	iwadDirsJSON, _ := json.Marshal(settings.IWADDirectories)
 	engDirsJSON, _ := json.Marshal(settings.EngineDirectories)
+	formatVisJSON, _ := json.Marshal(settings.FormatVisibility)
 
 	items := []struct {
 		key string
@@ -1301,8 +1324,12 @@ func (r *settingsRepo) SaveSettings(settings domain.Settings) error {
 		{"confirm_launch", fmt.Sprintf("%t", settings.ConfirmLaunch)},
 		{"auto_scan_on_startup", fmt.Sprintf("%t", settings.AutoScanOnStartup)},
 		{"close_on_launch", fmt.Sprintf("%t", settings.CloseOnLaunch)},
+		{"ui_density", settings.UiDensity},
+		{"show_file_paths", fmt.Sprintf("%t", settings.ShowFilePaths)},
+		{"show_recent_launches", fmt.Sprintf("%d", settings.ShowRecentLaunches)},
+		{"format_visibility", string(formatVisJSON)},
+		{"default_view", settings.DefaultView},
 	}
-
 	for _, item := range items {
 		if _, err := tx.Exec(upsertQuery, item.key, item.val); err != nil {
 			return fmt.Errorf("failed to save setting %s: %w", item.key, err)
