@@ -7,12 +7,13 @@ import {
   FolderSearch,
   Star,
   Layers,
-  UploadCloud,
   CheckCircle2,
   XCircle,
   Filter,
-  X,
   Globe,
+  UploadCloud,
+  ArrowUpDown,
+  X,
 } from 'lucide-react';
 import { Mod, Profile, Settings } from '../../types';
 import { api } from '../../services/api';
@@ -30,6 +31,7 @@ type SortField = 'name-asc' | 'name-desc' | 'size-desc' | 'size-asc' | 'lumps-de
 
 const CATEGORY_TABS: { label: string; value: string }[] = [
   { label: 'All', value: 'all' },
+  { label: 'Favorites', value: 'favorites' },
   { label: 'Gameplay', value: 'gameplay' },
   { label: 'Maps', value: 'maps' },
   { label: 'Weapons', value: 'weapons' },
@@ -37,17 +39,25 @@ const CATEGORY_TABS: { label: string; value: string }[] = [
   { label: 'Textures', value: 'textures' },
   { label: 'Audio', value: 'audio' },
   { label: 'UI', value: 'ui' },
-  { label: 'Favorites', value: 'favorites' },
 ];
 
 const FORMAT_OPTIONS: { label: string; value: string }[] = [
   { label: 'All Formats', value: 'all' },
   { label: 'PK3 Archives', value: 'pk3' },
   { label: 'WAD Files', value: 'wad' },
-  { label: 'PK7 / 7z Archives', value: 'pk7' },
-  { label: 'DEH / BEX Patches', value: 'deh' },
+  { label: 'PK7 / 7z', value: 'pk7' },
+  { label: 'DEH / BEX', value: 'deh' },
   { label: 'ZIP Archives', value: 'zip' },
-  { label: 'IPK3 Archives', value: 'ipk3' },
+  { label: 'IPK3 Game Archives', value: 'ipk3' },
+];
+
+const SORT_OPTIONS: { label: string; value: SortField }[] = [
+  { label: 'Name (A to Z)', value: 'name-asc' },
+  { label: 'Name (Z to A)', value: 'name-desc' },
+  { label: 'Size (Largest)', value: 'size-desc' },
+  { label: 'Size (Smallest)', value: 'size-asc' },
+  { label: 'Lumps (Most)', value: 'lumps-desc' },
+  { label: 'Recently Added', value: 'date-desc' },
 ];
 
 export const LibraryView: React.FC<LibraryViewProps> = () => {
@@ -60,7 +70,7 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedFormat, setSelectedFormat] = useState('all');
-  const [sortOption] = useState<SortField>('name-asc');
+  const [sortOption, setSortOption] = useState<SortField>('name-asc');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
   // Drawer & Modals state
@@ -82,7 +92,7 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
     setNotification({ type, message });
     setTimeout(() => {
       setNotification(null);
-    }, 4000);
+    }, 3500);
   };
 
   // Initial data loading
@@ -110,91 +120,35 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
     loadLibraryData();
   }, [loadLibraryData]);
 
-  // Favorite toggle handler
-  const handleToggleFavorite = async (modId: string) => {
-    try {
-      const isFav = await api.toggleModFavorite(modId);
-      setMods((prev) =>
-        prev.map((m) => (m.id === modId ? { ...m, isFavorite: isFav } : m))
-      );
-      if (inspectingMod && inspectingMod.id === modId) {
-        setInspectingMod((prev) => (prev ? { ...prev, isFavorite: isFav } : null));
-      }
-    } catch (err) {
-      console.error('Failed to toggle favorite:', err);
-    }
-  };
-
-  // Delete mod handler
-  const handleDeleteMod = async (modId: string) => {
-    try {
-      await api.deleteMod(modId);
-      setMods((prev) => prev.filter((m) => m.id !== modId));
-      if (inspectingMod && inspectingMod.id === modId) {
-        setInspectingMod(null);
-      }
-      showNotification('info', 'Mod removed from library.');
-    } catch (err) {
-      console.error('Failed to delete mod:', err);
-      showNotification('error', 'Failed to delete mod.');
-    }
-  };
-
-  // Open directory in native file explorer
-  const handleOpenFolder = async (path: string) => {
-    try {
-      await api.openPathInExplorer(path);
-    } catch (err) {
-      console.error('Failed to open folder:', err);
-      showNotification('error', 'Could not open folder in file explorer.');
-    }
-  };
-
-  // Quick Directory Scan
-  const handleQuickScan = async () => {
-    showNotification('info', 'Scanning configured directories for Doom mods...');
-    try {
-      const res = await api.startScan();
-      showNotification(
-        'success',
-        `Scan complete: discovered ${res.discoveredMods || 0} mods, ${res.discoveredIWADs || 0} IWADs.`
-      );
-      loadLibraryData();
-    } catch (err) {
-      console.error('Scan error:', err);
-      showNotification('error', 'Directory scan encountered an error.');
-    }
-  };
-
-  // Add mod to setup/profile from overlay
-  const handleAddModToProfile = async (profileId: string) => {
-    if (!modForProfileAdd) return;
-    try {
-      await api.addModToProfile(profileId, modForProfileAdd.id);
-      showNotification(
-        'success',
-        `Added "${modForProfileAdd.name}" to setup!`
-      );
-      setModForProfileAdd(null);
-      loadLibraryData();
-    } catch (err) {
-      console.error('Failed to add mod to setup:', err);
-      showNotification('error', 'Could not add mod to setup.');
-    }
-  };
-
-  // Drag and Drop File Handlers
+  // Window Drag and drop handlers
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsWindowDragging(true);
   };
+  const handleAddModToProfile = async (profileId: string) => {
+    if (!modForProfileAdd) return;
+    try {
+      await api.addModToProfile(profileId, modForProfileAdd.id);
+      const targetProfile = profiles.find((p) => p.id === profileId);
+      showNotification(
+        'success',
+        `Added "${modForProfileAdd.name}" to setup "${targetProfile?.name || 'Selected'}"`
+      );
+      setModForProfileAdd(null);
+      loadLibraryData();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Could not add mod to profile';
+      showNotification('error', message);
+    }
+  };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-    setIsWindowDragging(false);
+    if (e.currentTarget === e.target) {
+      setIsWindowDragging(false);
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -207,105 +161,136 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
     e.stopPropagation();
     setIsWindowDragging(false);
 
-    if (!e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
-
     const files = Array.from(e.dataTransfer.files);
-    let importedCount = 0;
+    if (!files || files.length === 0) return;
 
-    for (const file of files) {
-      const filePath = (file as unknown as { path?: string }).path || file.name;
-      try {
-        await api.importModFile(filePath);
-        importedCount++;
-      } catch (err) {
-        console.error(`Failed to import dropped file ${file.name}:`, err);
-      }
+    const validExtensions = ['.wad', '.pk3', '.pk7', '.ipk3', '.zip', '.deh', '.bex', '.7z'];
+    const modFiles = files.filter((f) => {
+      const name = f.name.toLowerCase();
+      return validExtensions.some((ext) => name.endsWith(ext));
+    });
+
+    if (modFiles.length === 0) {
+      showNotification('error', 'No compatible Doom mod files (.wad, .pk3, .pk7, .zip, .deh) found in dropped files.');
+      return;
     }
 
-    if (importedCount > 0) {
-      showNotification(
-        'success',
-        `Successfully imported ${importedCount} mod${importedCount === 1 ? '' : 's'}!`
-      );
-      loadLibraryData();
-    } else {
-      showNotification('error', 'Could not import dropped files as Doom packages.');
-    }
-  };
+    showNotification('info', `Importing ${modFiles.length} mod file(s)...`);
 
-  // Filter format options according to settings
-  const availableFormatOptions = useMemo(() => {
-    if (!settings || !settings.formatVisibility) return FORMAT_OPTIONS;
-    const vis = settings.formatVisibility;
-    return FORMAT_OPTIONS.filter(
-      (opt) => opt.value === 'all' || vis.includes(opt.value)
-    );
-  }, [settings]);
-
-  // Handle manual file addition from modal
-  const handleModImported = (newMod: Mod) => {
-    setMods((prev) => [newMod, ...prev]);
-    showNotification('success', `Imported "${newMod.name}" to library!`);
-  };
-
-  // Filtered & Sorted Mods Calculation
-  const filteredAndSortedMods = useMemo(() => {
-    const result = mods.filter((mod) => {
-      // 1. Text Search query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchesName = mod.name.toLowerCase().includes(q);
-        const matchesPath = mod.path.toLowerCase().includes(q);
-        const matchesFormat = mod.format.toLowerCase().includes(q);
-        const matchesCategory = (mod.category || '').toLowerCase().includes(q);
-        const matchesStructure = (mod.structures || []).some((s) =>
-          s.toLowerCase().includes(q)
-        );
-
-        if (
-          !matchesName &&
-          !matchesPath &&
-          !matchesFormat &&
-          !matchesCategory &&
-          !matchesStructure
-        ) {
-          return false;
-        }
-      }
-
-      // 2. Category Tabs
-      if (selectedCategory !== 'all') {
-        if (selectedCategory === 'favorites') {
-          if (!mod.isFavorite) return false;
-        } else if (selectedCategory === 'maps') {
-          const cat = (mod.category || '').toLowerCase();
-          if (cat !== 'maps' && cat !== 'megawads') return false;
-        } else if (selectedCategory === 'audio') {
-          const cat = (mod.category || '').toLowerCase();
-          if (cat !== 'audio' && cat !== 'sound') return false;
-        } else {
-          if ((mod.category || 'other').toLowerCase() !== selectedCategory.toLowerCase()) {
-            return false;
+    try {
+      let importedCount = 0;
+      for (const file of modFiles) {
+        const filePath =
+          file && typeof file === 'object' && 'path' in file && typeof file.path === 'string'
+            ? file.path
+            : undefined;
+        if (filePath) {
+          try {
+            await api.importModFile(filePath);
+            importedCount++;
+          } catch (err) {
+            console.warn(`Failed to import dropped file ${file.name}:`, err);
           }
         }
       }
 
-      // 3. Format dropdown
-      if (selectedFormat !== 'all') {
-        if (selectedFormat === 'pk7') {
-          if (mod.format.toLowerCase() !== 'pk7' && mod.format.toLowerCase() !== '7z') return false;
-        } else if (selectedFormat === 'deh') {
-          if (mod.format.toLowerCase() !== 'deh' && mod.format.toLowerCase() !== 'bex') return false;
-        } else if (selectedFormat === 'wad') {
-          if (mod.format.toLowerCase() !== 'wad' && mod.format.toLowerCase() !== 'pwad') return false;
-        } else {
-          if (mod.format.toLowerCase() !== selectedFormat.toLowerCase()) return false;
-        }
+      if (importedCount > 0) {
+        showNotification('success', `Imported ${importedCount} file(s) into your library.`);
+        loadLibraryData();
+      } else {
+        showNotification('info', 'Files processed. Use "Scan Folders" for full directory discovery.');
       }
+    } catch (err) {
+      console.error('Failed to process dropped files:', err);
+      showNotification('error', 'Failed to import dropped files.');
+    }
+  };
 
-      return true;
-    });
+  // Toggle favorite status
+  const handleToggleFavorite = async (modId: string) => {
+    try {
+      await api.toggleModFavorite(modId);
+      setMods((prevMods) =>
+        prevMods.map((m) => (m.id === modId ? { ...m, isFavorite: !m.isFavorite } : m))
+      );
+      if (inspectingMod && inspectingMod.id === modId) {
+        setInspectingMod((prev) => (prev ? { ...prev, isFavorite: !prev.isFavorite } : null));
+      }
+    } catch (err) {
+      console.error('Failed to toggle favorite:', err);
+      showNotification('error', 'Could not update favorite status.');
+    }
+  };
 
+  // Delete mod
+  const handleDeleteMod = async (modId: string) => {
+    try {
+      await api.deleteMod(modId);
+      setMods((prev) => prev.filter((m) => m.id !== modId));
+      if (inspectingMod && inspectingMod.id === modId) {
+        setInspectingMod(null);
+      }
+      showNotification('success', 'Mod removed from library.');
+    } catch (err) {
+      console.error('Failed to delete mod:', err);
+      showNotification('error', 'Could not delete mod from library.');
+    }
+  };
+
+  // Open directory in native explorer
+  const handleOpenFolder = async (path: string) => {
+    try {
+      await api.openPathInExplorer(path);
+    } catch (err) {
+      console.error('Failed to open folder:', err);
+      showNotification('error', 'Could not open folder in Explorer.');
+    }
+  };
+
+  // Quick background scan trigger
+  const handleQuickScan = async () => {
+    try {
+      showNotification('info', 'Scanning configured directories...');
+      await api.startScan();
+      setTimeout(() => {
+        loadLibraryData();
+      }, 3000);
+    } catch (err) {
+      console.error('Scan trigger error:', err);
+      showNotification('error', 'Scan failed to start.');
+    }
+  };
+
+  // Filtered & Sorted Mods computation
+  const filteredAndSortedMods = useMemo(() => {
+    let result = [...mods];
+
+    // Search input filtering
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (m) =>
+          m.name.toLowerCase().includes(q) ||
+          m.format.toLowerCase().includes(q) ||
+          (m.category && m.category.toLowerCase().includes(q)) ||
+          (m.path && m.path.toLowerCase().includes(q)) ||
+          (m.structures && m.structures.some((s) => s.toLowerCase().includes(q)))
+      );
+    }
+
+    // Category filter
+    if (selectedCategory === 'favorites') {
+      result = result.filter((m) => m.isFavorite);
+    } else if (selectedCategory !== 'all') {
+      result = result.filter((m) => (m.category || '').toLowerCase() === selectedCategory.toLowerCase());
+    }
+
+    // Format filter
+    if (selectedFormat !== 'all') {
+      result = result.filter((m) => m.format.toLowerCase() === selectedFormat.toLowerCase());
+    }
+
+    // Sorting
     result.sort((a, b) => {
       switch (sortOption) {
         case 'name-asc':
@@ -334,18 +319,18 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      className="relative flex flex-1 flex-col overflow-hidden bg-[#0c0e10] text-zinc-100 select-none h-full"
+      className="relative flex flex-1 flex-col overflow-hidden bg-[#0c0e12] text-zinc-100 select-none h-full w-full"
     >
-      {/* Clean Subtle Dropzone Overlay */}
+      {/* Visual Drag & Drop Overlay */}
       {isWindowDragging && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#0c0e10]/85 backdrop-blur-[2px] p-6">
-          <div className="flex flex-col items-center justify-center max-w-md w-full rounded-xl border border-dashed border-zinc-600 bg-[#14171c] p-8 text-center shadow-xl">
-            <UploadCloud className="h-10 w-10 text-zinc-400 mb-3" />
-            <h2 className="text-sm font-semibold text-zinc-100">
-              Drop mod files to import into library
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#0c0e12]/90 p-6">
+          <div className="flex flex-col items-center justify-center max-w-md w-full rounded-xl border-2 border-dashed border-[#dc2626] bg-[#14171c] p-8 text-center shadow-2xl">
+            <UploadCloud className="h-12 w-12 text-[#dc2626] mb-3 animate-bounce" />
+            <h2 className="text-base font-bold text-white tracking-tight">
+              Drop Mod Files to Import
             </h2>
             <p className="mt-1 text-xs text-zinc-400">
-              Supports .wad, .pk3, .pk7, .zip, .deh, and .bex packages
+              Release .wad, .pk3, .pk7, or .deh files anywhere to index them into your persistent library.
             </p>
           </div>
         </div>
@@ -354,7 +339,7 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
       {/* Notification Toast */}
       {notification && (
         <div
-          className={`fixed bottom-6 right-8 z-50 flex items-center gap-3 rounded-lg border px-4 py-3 text-xs transition-all duration-150 ${
+          className={`fixed bottom-6 right-8 z-50 flex items-center gap-2.5 rounded-lg border px-4 py-2.5 text-xs font-medium shadow-lg transition-all duration-150 ${
             notification.type === 'success'
               ? 'border-emerald-500/30 bg-[#122419] text-emerald-200'
               : notification.type === 'error'
@@ -368,144 +353,179 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
         </div>
       )}
 
-      {/* Single-Row Desktop Toolbar */}
-      <div className="border-b border-[#22262d] bg-[#14171c] px-6 py-2.5">
-        <div className="flex items-center justify-between gap-3 overflow-x-auto">
-          {/* Left section: Search input with match counter pill */}
-          <div className="relative flex items-center min-w-[260px] max-w-xs shrink-0">
-            <Search className="absolute left-2.5 h-3.5 w-3.5 text-zinc-400 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search mods..."
-              className="w-full rounded border border-[#22262d] bg-[#0c0e10] pl-8 pr-24 py-1 text-xs text-zinc-100 placeholder-zinc-500 focus:border-zinc-500 focus:outline-hidden transition-colors"
-            />
-            <span className="absolute right-2 px-1.5 py-0.5 rounded bg-[#181c21] border border-[#22262d] font-mono text-[10px] text-zinc-400 select-none">
-              {filteredAndSortedMods.length} of {mods.length} mods
-            </span>
-          </div>
-
-          {/* Center section: Category tabs */}
-          <div className="flex items-center gap-1 shrink-0">
-            {CATEGORY_TABS.map((tab) => {
-              const isActive = selectedCategory === tab.value;
-              return (
-                <button
-                  key={tab.value}
-                  type="button"
-                  onClick={() => setSelectedCategory(tab.value)}
-                  className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-                    isActive
-                      ? 'bg-[#1b1f26] text-zinc-100 border border-[#22262d]'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-[#181c21]'
-                  }`}
-                >
-                  {tab.value === 'favorites' && (
-                    <Star
-                      className={`h-3 w-3 ${
-                        isActive ? 'fill-amber-400 text-amber-400' : 'text-zinc-500'
-                      }`}
-                    />
-                  )}
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Right section: Format dropdown, Table vs Grid toggle, and Quick actions */}
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Format dropdown */}
-            <div className="flex items-center gap-1.5 rounded border border-[#22262d] bg-[#0c0e10] px-2 py-1 text-xs text-zinc-300">
-              <Filter className="h-3 w-3 text-zinc-400" />
-              <select
-                value={selectedFormat}
-                onChange={(e) => setSelectedFormat(e.target.value)}
-                aria-label="Filter by file format"
-                className="bg-transparent text-zinc-200 focus:outline-hidden cursor-pointer"
-              >
-                {availableFormatOptions.map((f) => (
-                  <option key={f.value} value={f.value} className="bg-[#14171c] text-zinc-200">
-                    {f.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Table vs Grid View Toggle */}
-            <div className="flex items-center rounded border border-[#22262d] bg-[#0c0e10] p-0.5">
-              <button
-                type="button"
-                title="Table View"
-                onClick={() => setViewMode('table')}
-                className={`rounded p-1 transition-colors ${
-                  viewMode === 'table'
-                    ? 'bg-[#1b1f26] text-zinc-100'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                <ListIcon className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                title="Grid Cards View"
-                onClick={() => setViewMode('grid')}
-                className={`rounded p-1 transition-colors ${
-                  viewMode === 'grid'
-                    ? 'bg-[#1b1f26] text-zinc-100'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                <LayoutGrid className="h-3.5 w-3.5" />
-              </button>
-            </div>
-
-            <div className="h-4 w-px bg-[#22262d]" />
-
-            {/* Quick Action: Scan Folders */}
+      {/* TIER 1 TOOLBAR: Search & Primary Action Controls (44px) */}
+      <div className="border-b border-[#22262d] bg-[#14171c] px-6 py-2.5 flex items-center justify-between gap-4 shrink-0">
+        {/* Left: Search input */}
+        <div className="relative flex items-center flex-1 max-w-md">
+          <Search className="absolute left-3 h-3.5 w-3.5 text-zinc-500 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by name, file format, lump structure..."
+            className="w-full rounded-md border border-[#22262d] bg-[#0c0e12] pl-9 pr-8 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-zinc-500 focus:outline-hidden transition-colors"
+          />
+          {searchQuery && (
             <button
               type="button"
-              onClick={handleQuickScan}
-              className="inline-flex items-center gap-1.5 rounded border border-[#22262d] bg-[#181c21] hover:bg-[#1b1f26] px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white transition-colors"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors"
+              title="Clear search"
             >
-              <FolderSearch className="h-3.5 w-3.5 text-zinc-400" />
-              <span>Scan Folders</span>
+              <X className="w-3 h-3" />
             </button>
+          )}
+        </div>
 
-            {/* Quick Action: /idgames Search */}
+        {/* Right: View Switcher, Scan, /idgames, + Add Mod */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Table vs Grid View Toggle */}
+          <div className="flex items-center rounded border border-[#22262d] bg-[#0c0e12] p-0.5">
             <button
               type="button"
-              onClick={() => setIsIdgamesModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded border border-[#22262d] bg-[#181c21] hover:bg-[#1b1f26] px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white transition-colors"
+              title="Table View (Dense)"
+              onClick={() => setViewMode('table')}
+              className={`rounded px-2 py-1 flex items-center gap-1.5 text-xs transition-colors ${
+                viewMode === 'table'
+                  ? 'bg-[#1b1f26] text-zinc-100 font-medium'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
             >
-              <Globe className="h-3.5 w-3.5 text-zinc-400" />
-              <span>/idgames Search</span>
+              <ListIcon className="h-3.5 w-3.5" />
+              <span>Table</span>
             </button>
-
-            {/* Quick Action: + Add Mod */}
             <button
               type="button"
-              onClick={() => setIsAddModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded bg-[#dc2626] hover:bg-[#ef4444] px-3 py-1 text-xs font-medium text-white transition-colors shadow-xs"
+              title="Grid Cards View"
+              onClick={() => setViewMode('grid')}
+              className={`rounded px-2 py-1 flex items-center gap-1.5 text-xs transition-colors ${
+                viewMode === 'grid'
+                  ? 'bg-[#1b1f26] text-zinc-100 font-medium'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
             >
-              <Plus className="h-3.5 w-3.5" />
-              <span>+ Add Mod</span>
+              <LayoutGrid className="h-3.5 w-3.5" />
+              <span>Grid</span>
             </button>
           </div>
+
+          <div className="h-4 w-px bg-[#22262d]" />
+
+          {/* Scan Folders */}
+          <button
+            type="button"
+            onClick={handleQuickScan}
+            className="inline-flex items-center gap-1.5 rounded border border-[#22262d] bg-[#181c21] hover:bg-[#1f242e] px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white transition-colors"
+          >
+            <FolderSearch className="h-3.5 w-3.5 text-zinc-400" />
+            <span>Scan Folders</span>
+          </button>
+
+          {/* /idgames Search */}
+          <button
+            type="button"
+            onClick={() => setIsIdgamesModalOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded border border-[#22262d] bg-[#181c21] hover:bg-[#1f242e] px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white transition-colors"
+          >
+            <Globe className="h-3.5 w-3.5 text-zinc-400" />
+            <span>/idgames</span>
+          </button>
+
+          {/* + Add Mod */}
+          <button
+            type="button"
+            onClick={() => setIsAddModalOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded bg-[#dc2626] hover:bg-[#ef4444] px-3.5 py-1.5 text-xs font-semibold text-white transition-colors shadow-xs"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>Add Mod</span>
+          </button>
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      {/* TIER 2 TOOLBAR: Category Pills, Format, Sort, Live Count (38px) */}
+      <div className="border-b border-[#22262d] bg-[#101317] px-6 py-2 flex items-center justify-between gap-4 shrink-0 flex-wrap">
+        {/* Left: Category pills */}
+        <div className="flex items-center gap-1 overflow-x-auto py-0.5">
+          {CATEGORY_TABS.map((tab) => {
+            const isActive = selectedCategory === tab.value;
+            return (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => setSelectedCategory(tab.value)}
+                className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors select-none ${
+                  isActive
+                    ? 'bg-[#1c2026] text-zinc-100 border border-[#2c323d]'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]'
+                }`}
+              >
+                {tab.value === 'favorites' && (
+                  <Star
+                    className={`h-3 w-3 ${
+                      isActive ? 'fill-amber-400 text-amber-400' : 'text-zinc-500'
+                    }`}
+                  />
+                )}
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Right: Format filter, Sort selector, Count badge */}
+        <div className="flex items-center gap-2.5 shrink-0 text-xs">
+          {/* Format selector */}
+          <div className="flex items-center gap-1.5 bg-[#14171c] border border-[#22262d] px-2.5 py-1 rounded">
+            <Filter className="h-3 w-3 text-zinc-500" />
+            <select
+              value={selectedFormat}
+              onChange={(e) => setSelectedFormat(e.target.value)}
+              aria-label="Filter by file format"
+              className="bg-transparent text-zinc-300 focus:outline-none cursor-pointer"
+            >
+              {FORMAT_OPTIONS.map((f) => (
+                <option key={f.value} value={f.value} className="bg-[#14171c] text-zinc-200">
+                  {f.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sort selector */}
+          <div className="flex items-center gap-1.5 bg-[#14171c] border border-[#22262d] px-2.5 py-1 rounded">
+            <ArrowUpDown className="h-3 w-3 text-zinc-500" />
+            <select
+              value={sortOption}
+              onChange={(e) => setSortOption(e.target.value as SortField)}
+              aria-label="Sort mods"
+              className="bg-transparent text-zinc-300 focus:outline-none cursor-pointer"
+            >
+              {SORT_OPTIONS.map((s) => (
+                <option key={s.value} value={s.value} className="bg-[#14171c] text-zinc-200">
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Match count badge */}
+          <span className="font-mono text-[11px] text-zinc-400 bg-[#14171c] border border-[#22262d] px-2.5 py-1 rounded">
+            {filteredAndSortedMods.length} of {mods.length} mods
+          </span>
+        </div>
+      </div>
+
+      {/* MAIN CONTENT VIEWPORT */}
+      <div className="flex-1 overflow-y-auto p-6">
         {filteredAndSortedMods.length === 0 ? (
-          <div className="flex min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed border-[#22262d] bg-[#14171c]/50 p-8 text-center">
-            <Layers className="h-10 w-10 text-zinc-500 mb-3" />
+          <div className="flex min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed border-[#22262d] bg-[#14171c]/40 p-8 text-center">
+            <Layers className="h-10 w-10 text-zinc-600 mb-3" />
             <h3 className="text-sm font-semibold text-zinc-200">No Mods Found</h3>
-            <p className="mt-1 text-xs text-zinc-400 max-w-sm">
+            <p className="mt-1 text-xs text-zinc-400 max-w-sm leading-relaxed">
               {searchQuery || selectedCategory !== 'all' || selectedFormat !== 'all'
-                ? 'Try adjusting your search terms or clearing selected filters.'
-                : 'Drag and drop WAD, PK3, or DEH files here, or use Scan Folders to populate your mod library.'}
+                ? 'Try adjusting your search query or clearing the selected category and format filters.'
+                : 'Drag and drop WAD, PK3, or DEH files into this window, or click "Scan Folders" to discover mods.'}
             </p>
           </div>
         ) : viewMode === 'table' ? (
@@ -514,17 +534,17 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-[#22262d] bg-[#181c21] text-[11px] font-medium text-zinc-400 select-none">
+                  <tr className="border-b border-[#22262d] bg-[#101317] text-[11px] font-semibold text-zinc-400 select-none">
                     <th className="w-9 px-3 py-2.5 text-center">Star</th>
                     <th className="w-16 px-3 py-2.5">Format</th>
-                    <th className="px-3 py-2.5">Name</th>
+                    <th className="px-3 py-2.5">Mod Name</th>
                     <th className="hidden sm:table-cell px-3 py-2.5">Category</th>
                     <th className="px-3 py-2.5">Size</th>
-                    <th className="hidden md:table-cell px-3 py-2.5">Usage</th>
+                    <th className="hidden md:table-cell px-3 py-2.5">Preset Usage</th>
                     <th className="px-3 py-2.5 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-[#1e2229]">
                   {filteredAndSortedMods.map((mod) => (
                     <ModTableRow
                       key={mod.id}
@@ -545,7 +565,7 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
           </div>
         ) : (
           /* Grid View Toggle */
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
             {filteredAndSortedMods.map((mod) => (
               <ModCard
                 key={mod.id}
@@ -564,7 +584,7 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
         )}
       </div>
 
-      {/* Mod Inspector Drawer */}
+      {/* Slide-over Mod Inspector Drawer */}
       <ModInspectorDrawer
         mod={inspectingMod}
         isOpen={Boolean(inspectingMod)}
@@ -582,72 +602,73 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
       <AddModModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        onModAdded={handleModImported}
-      />
-
-      {/* /idgames Archive Search & Import Modal */}
-      <IdgamesSearchModal
-        isOpen={isIdgamesModalOpen}
-        onClose={() => setIsIdgamesModalOpen(false)}
-        onModImported={(newMod) => {
-          setMods((prev) => [newMod, ...prev.filter((m) => m.id !== newMod.id)]);
-          showNotification('success', `Imported "${newMod.name}" from /idgames!`);
+        onModAdded={() => {
+          setIsAddModalOpen(false);
+          loadLibraryData();
         }}
       />
 
-      {/* Add to Setup Selection Modal */}
+      {/* /idgames Archive Search Modal */}
+      <IdgamesSearchModal
+        isOpen={isIdgamesModalOpen}
+        onClose={() => setIsIdgamesModalOpen(false)}
+        onModImported={() => {
+          setIsIdgamesModalOpen(false);
+          loadLibraryData();
+        }}
+      />
+
+      {/* Add to Preset Selection Modal */}
       {modForProfileAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[2px]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
           <div className="w-full max-w-md rounded-lg border border-[#22262d] bg-[#14171c] p-5 text-zinc-100 shadow-2xl">
             <div className="flex items-center justify-between border-b border-[#22262d] pb-3">
               <div>
                 <h3 className="text-sm font-semibold text-zinc-100">
-                  Add Mod to Setup
+                  Add Mod to Preset Setup
                 </h3>
-                <p className="mt-0.5 truncate text-xs text-zinc-400" title={modForProfileAdd.name}>
+                <p className="mt-0.5 truncate text-xs text-emerald-400 font-mono" title={modForProfileAdd.name}>
                   {modForProfileAdd.name}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setModForProfileAdd(null)}
-                className="rounded p-1 text-zinc-400 hover:text-zinc-200 transition-colors"
+                className="rounded p-1 text-zinc-400 hover:text-white transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="mt-4 max-h-64 overflow-y-auto space-y-2">
+            <div className="mt-4 max-h-64 overflow-y-auto space-y-1.5 pr-1">
               {profiles.length === 0 ? (
                 <div className="p-4 text-center text-xs text-zinc-500">
-                  No launch setups exist yet. Create a setup first.
+                  No preset setups exist yet. Create a setup first in Profiles.
                 </div>
               ) : (
                 profiles.map((prof) => {
-                  const alreadyInProfile = prof.mods?.some(
-                    (m) => m.modId === modForProfileAdd.id
-                  );
+                  const alreadyInProfile = prof.mods?.some((m) => m.modId === modForProfileAdd.id);
                   return (
                     <button
                       key={prof.id}
                       type="button"
                       onClick={() => handleAddModToProfile(prof.id)}
-                      className="w-full flex items-center justify-between rounded-lg border border-[#22262d] bg-[#181c21] p-3 text-left transition-colors hover:border-[#2f3540] hover:bg-[#1b1f26]"
+                      className="w-full flex items-center justify-between rounded-md border border-[#22262d] bg-[#181c22] p-3 text-left transition-colors hover:border-[#2f3540] hover:bg-[#1e232b]"
                     >
-                      <div>
-                        <div className="text-xs font-medium text-zinc-100">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-semibold text-zinc-200 truncate">
                           {prof.name}
                         </div>
-                        <div className="mt-0.5 text-[11px] text-zinc-400">
-                          {prof.engineName} • {prof.iwadName}
+                        <div className="mt-0.5 text-[11px] text-zinc-500 font-mono truncate">
+                          {prof.engineName || 'No Port'} • {prof.iwadName || 'No IWAD'}
                         </div>
                       </div>
                       {alreadyInProfile ? (
-                        <span className="rounded bg-[#1b1f26] px-2 py-0.5 text-[10px] text-zinc-400 border border-[#22262d]">
+                        <span className="rounded bg-emerald-950/40 px-2 py-0.5 text-[10px] text-emerald-400 border border-emerald-800/40 shrink-0 ml-2">
                           In Setup
                         </span>
                       ) : (
-                        <span className="rounded bg-[#10b981]/15 px-2 py-0.5 text-[10px] font-medium text-[#86efac] border border-[#10b981]/30">
+                        <span className="rounded bg-[#22262d] hover:bg-[#dc2626] px-2 py-0.5 text-[10px] text-zinc-300 hover:text-white shrink-0 ml-2 transition-colors">
                           + Add
                         </span>
                       )}
@@ -655,16 +676,6 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
                   );
                 })
               )}
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-[#22262d] flex justify-end">
-              <button
-                type="button"
-                onClick={() => setModForProfileAdd(null)}
-                className="rounded px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
-              >
-                Cancel
-              </button>
             </div>
           </div>
         </div>
