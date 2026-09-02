@@ -141,7 +141,7 @@ export const AddModModal: React.FC<AddModModalProps> = ({
           >
             <UploadCloud className="h-8 w-8 text-doom-muted mb-2" />
             <p className="font-mono text-xs font-semibold text-doom-text">
-              Drag &amp; Drop Doom Mod File Here
+              {'Drag & Drop Doom Mod File Here'}
             </p>
             <p className="mt-1 text-[11px] font-mono text-doom-muted">
               Supports .WAD, .PK3, .PK7, .IPK3, .ZIP, .DEH, .BEX

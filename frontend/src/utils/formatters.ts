@@ -43,9 +43,9 @@ export function formatRelativeTime(isoString?: string): string {
 }
 
 export function formatDate(isoString?: string): string {
-  if (!isoString) return '—';
+  if (!isoString) return '-';
   const date = new Date(isoString);
-  if (isNaN(date.getTime())) return '—';
+  if (isNaN(date.getTime())) return '-';
   return date.toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',

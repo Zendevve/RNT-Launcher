@@ -5,7 +5,6 @@ import {
   Plus,
   Search,
   Star,
-  Download,
   Copy,
   Trash2,
   MoreVertical,
@@ -13,6 +12,7 @@ import {
   Flame,
   Cpu,
   Disc,
+  RotateCw,
 } from 'lucide-react';
 import { Profile, Engine, IWAD, ValidationItem, Settings } from '../../types';
 import { api } from '../../services/api';
@@ -22,20 +22,34 @@ import { Modal } from '../../components/ui/Modal';
 import { useToast } from '../../components/ui/Toast';
 import { ProfileEditor } from './ProfileEditor';
 import { ImportProfileModal } from './ImportProfileModal';
+export interface ProfilesViewProps {
+  selectedProfileId?: string | null;
+  onSelectProfile?: (id: string | null) => void;
+  onNavigateToLibrary?: () => void;
+  onNavigateToSettings?: (tab?: string) => void;
+  onScanRequested?: () => void;
+}
 
-export const ProfilesView: React.FC = () => {
+export const ProfilesView: React.FC<ProfilesViewProps> = ({
+  selectedProfileId: propSelectedProfileId,
+  onSelectProfile,
+  onNavigateToLibrary,
+  onNavigateToSettings,
+  onScanRequested,
+}) => {
   const toast = useToast();
 
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [engines, setEngines] = useState<Engine[]>([]);
   const [iwads, setIwads] = useState<IWAD[]>([]);
-  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(
+    propSelectedProfileId ?? null
+  );
   const [settings, setSettings] = useState<Settings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  // Search & Filter state
+  const [isAutoDetecting, setIsAutoDetecting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-
   // Modals state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importModalFormat, setImportModalFormat] = useState<'yaml' | 'zdl'>('yaml');
@@ -63,9 +77,12 @@ export const ProfilesView: React.FC = () => {
       setEngines(engs || []);
       setIwads(iws || []);
       if (stgs) setSettings(stgs);
-      // Auto-select first profile if none selected
       if (profs && profs.length > 0) {
-        setSelectedProfileId((prev) => (prev && profs.some((p) => p.id === prev) ? prev : profs[0].id));
+        setSelectedProfileId((prev) => {
+          const next = propSelectedProfileId || (prev && profs.some((p) => p.id === prev) ? prev : profs[0].id);
+          onSelectProfile?.(next);
+          return next;
+        });
       }
     } catch (err: unknown) {
       console.error('Failed to load profiles data:', err);
@@ -78,7 +95,36 @@ export const ProfilesView: React.FC = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+  useEffect(() => {
+    if (propSelectedProfileId !== undefined && propSelectedProfileId !== selectedProfileId) {
+      setSelectedProfileId(propSelectedProfileId);
+    }
+  }, [propSelectedProfileId, selectedProfileId]);
 
+  const handleSelectPreset = (id: string) => {
+    setSelectedProfileId(id);
+    onSelectProfile?.(id);
+  };
+
+  const handleAutoDetect = async () => {
+    setIsAutoDetecting(true);
+    try {
+      if (onScanRequested) {
+        onScanRequested();
+      } else {
+        await api.startScan();
+      }
+      toast.info('Auto-Detection Started', 'Scanning system paths for Doom engines and IWADs...');
+      setTimeout(() => {
+        loadData();
+        setIsAutoDetecting(false);
+      }, 2500);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Scan failed';
+      toast.error('Scan Error', msg);
+      setIsAutoDetecting(false);
+    }
+  };
   // Filtered profile list
   const filteredProfiles = useMemo(() => {
     return profiles.filter((p) => {
@@ -230,19 +276,19 @@ export const ProfilesView: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen w-full bg-doom-bg overflow-hidden text-doom-text select-none">
+    <div className="flex h-full w-full bg-[#0c0e10] overflow-hidden text-zinc-100 select-none">
       {/* Left Sidebar: Profile Selector & Management */}
-      <div className="w-80 md:w-88 xl:w-96 flex flex-col border-r border-doom-border bg-doom-surface/80 shrink-0">
+      <div className="w-80 md:w-88 xl:w-96 flex flex-col border-r border-white/[0.07] bg-[#14171a] shrink-0">
         {/* Sidebar Header */}
-        <div className="p-4 border-b border-doom-border flex flex-col gap-3">
+        <div className="p-4 border-b border-white/[0.07] flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Flame className="w-5 h-5 text-doom-red fill-doom-red animate-pulse" />
-              <h2 className="text-base font-extrabold tracking-wider uppercase text-doom-text">
-                Profiles
+              <Flame className="w-5 h-5 text-red-500 fill-red-500" />
+              <h2 className="text-base font-bold tracking-tight uppercase text-white">
+                Presets
               </h2>
             </div>
-            <span className="text-xs font-mono px-2 py-0.5 rounded bg-doom-card text-doom-muted border border-doom-border">
+            <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-white/[0.05] text-zinc-400 border border-white/[0.08]">
               {profiles.length} total
             </span>
           </div>
@@ -254,8 +300,9 @@ export const ProfilesView: React.FC = () => {
               size="sm"
               onClick={handleOpenCreateModal}
               leftIcon={<Plus className="w-4 h-4" />}
+              className="font-bold tracking-wide"
             >
-              New Profile
+              + New Setup
             </Button>
             <div className="grid grid-cols-2 gap-2">
               <Button
@@ -265,7 +312,7 @@ export const ProfilesView: React.FC = () => {
                   setImportModalFormat('yaml');
                   setIsImportModalOpen(true);
                 }}
-                leftIcon={<FileUp className="w-3.5 h-3.5 text-doom-muted" />}
+                leftIcon={<FileUp className="w-3.5 h-3.5 text-zinc-400" />}
               >
                 Import YAML
               </Button>
@@ -276,12 +323,13 @@ export const ProfilesView: React.FC = () => {
                   setImportModalFormat('zdl');
                   setIsImportModalOpen(true);
                 }}
-                leftIcon={<FileUp className="w-3.5 h-3.5 text-doom-muted" />}
+                leftIcon={<FileUp className="w-3.5 h-3.5 text-zinc-400" />}
               >
                 Import .zdl
               </Button>
             </div>
           </div>
+
           {/* Search & Favorites Toggle */}
           <div className="flex items-center gap-2 mt-1">
             <div className="flex-1">
@@ -290,7 +338,7 @@ export const ProfilesView: React.FC = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search profiles..."
-                leftIcon={<Search className="w-3.5 h-3.5" />}
+                leftIcon={<Search className="w-3.5 h-3.5 text-zinc-400" />}
                 className="py-1.5 text-xs"
               />
             </div>
@@ -298,10 +346,10 @@ export const ProfilesView: React.FC = () => {
               type="button"
               onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
               className={clsx(
-                'p-2 rounded border transition-colors flex items-center justify-center shrink-0',
+                'p-2 rounded-lg border transition-colors flex items-center justify-center shrink-0',
                 showFavoritesOnly
-                  ? 'bg-amber-950/70 border-amber-600/70 text-amber-400'
-                  : 'bg-doom-surface border-doom-border text-doom-muted hover:text-doom-text hover:border-doom-border-bright'
+                  ? 'bg-[#2b2011] border-amber-800/40 text-amber-400'
+                  : 'bg-black/30 border-white/[0.08] text-zinc-400 hover:text-white'
               )}
               title={showFavoritesOnly ? 'Show all profiles' : 'Show favorites only'}
             >
@@ -318,12 +366,12 @@ export const ProfilesView: React.FC = () => {
         {/* Profile List */}
         <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
           {isLoading ? (
-            <div className="p-8 text-center text-xs text-doom-muted flex items-center justify-center gap-2">
-              <span className="animate-spin">⚙️</span> Loading profiles...
+            <div className="p-8 text-center text-xs text-zinc-400 flex items-center justify-center gap-2">
+              Loading profiles...
             </div>
           ) : filteredProfiles.length === 0 ? (
-            <div className="p-6 text-center text-xs text-doom-muted border border-dashed border-doom-border rounded-lg bg-doom-card/30 flex flex-col items-center gap-2">
-              <Layers className="w-8 h-8 text-doom-muted" />
+            <div className="p-6 text-center text-xs text-zinc-400 border border-dashed border-white/[0.1] rounded-xl bg-black/20 flex flex-col items-center gap-2">
+              <Layers className="w-8 h-8 text-zinc-500" />
               <span>
                 {searchQuery || showFavoritesOnly
                   ? 'No profiles match your search criteria.'
@@ -333,7 +381,7 @@ export const ProfilesView: React.FC = () => {
                 variant="secondary"
                 size="xs"
                 onClick={handleOpenCreateModal}
-                leftIcon={<Plus className="w-3 h-3 text-doom-red" />}
+                leftIcon={<Plus className="w-3 h-3 text-red-400" />}
                 className="mt-1"
               >
                 Create First Profile
@@ -351,15 +399,15 @@ export const ProfilesView: React.FC = () => {
                 <div
                   key={p.id}
                   onClick={() => {
-                    setSelectedProfileId(p.id);
+                    handleSelectPreset(p.id);
                     setOpenMenuProfileId(null);
                   }}
                   className={clsx(
-                    'group relative rounded-lg border transition-all duration-150 cursor-pointer select-none',
+                    'group relative rounded-xl border transition-colors cursor-pointer select-none',
                     isCompact ? 'p-2.5' : 'p-3',
                     isSelected
-                      ? 'bg-doom-card border-doom-red ring-1 ring-doom-red shadow-lg shadow-red-950/20'
-                      : 'bg-doom-surface hover:bg-doom-card/80 border-doom-border hover:border-doom-border-bright'
+                      ? 'bg-[#1a1e24] border-red-500/80'
+                      : 'bg-[#15181c] hover:bg-[#1a1d22] border-white/[0.08]'
                   )}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -367,7 +415,7 @@ export const ProfilesView: React.FC = () => {
                       <button
                         type="button"
                         onClick={(e) => handleToggleFavorite(e, p.id)}
-                        className="text-zinc-600 hover:text-amber-400 transition-colors shrink-0"
+                        className="text-zinc-500 hover:text-amber-400 transition-colors shrink-0"
                         title={p.isFavorite ? 'Unfavorite' : 'Favorite'}
                       >
                         <Star
@@ -381,91 +429,82 @@ export const ProfilesView: React.FC = () => {
                       </button>
                       <h4
                         className={clsx(
-                          'text-sm font-bold truncate',
-                          isSelected ? 'text-doom-text font-extrabold' : 'text-doom-text'
+                          'text-xs font-bold truncate tracking-tight',
+                          isSelected ? 'text-white' : 'text-zinc-200 group-hover:text-white'
                         )}
                       >
                         {p.name}
                       </h4>
                     </div>
 
-                    {/* Context Action Menu Trigger */}
-                    <div className="relative shrink-0">
+                    {/* Context Action Menu */}
+                    <div className="relative">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           setOpenMenuProfileId(isMenuOpen ? null : p.id);
                         }}
-                        className="p-1 rounded text-doom-muted hover:text-doom-text hover:bg-zinc-800 transition-colors"
-                        title="Profile actions"
+                        className="p-1 text-zinc-500 hover:text-white rounded hover:bg-white/[0.06] transition-colors"
                       >
                         <MoreVertical className="w-3.5 h-3.5" />
                       </button>
 
-                      {/* Dropdown Action Menu */}
                       {isMenuOpen && (
                         <div
+                          className="absolute right-0 top-6 z-40 w-36 rounded-lg bg-[#15181c] border border-white/[0.08] shadow-xl py-1 text-xs"
                           onClick={(e) => e.stopPropagation()}
-                          className="absolute right-0 top-6 z-30 w-44 bg-doom-surface border border-doom-border rounded-md shadow-2xl py-1 flex flex-col text-xs text-doom-text animate-in fade-in zoom-in-95 duration-100"
                         >
                           <button
                             type="button"
                             onClick={(e) => handleQuickDuplicate(e, p)}
-                            className="flex items-center gap-2 px-3 py-2 hover:bg-zinc-800 transition-colors text-left"
+                            className="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-white/[0.06] hover:text-white flex items-center gap-2"
                           >
-                            <Copy className="w-3.5 h-3.5 text-doom-muted" />
-                            Duplicate Profile
+                            <Copy className="w-3.5 h-3.5 text-zinc-400" />
+                            <span>Duplicate</span>
                           </button>
                           <button
                             type="button"
                             onClick={(e) => handleQuickExport(e, p)}
-                            className="flex items-center gap-2 px-3 py-2 hover:bg-zinc-800 transition-colors text-left"
+                            className="w-full px-3 py-1.5 text-left text-zinc-300 hover:bg-white/[0.06] hover:text-white flex items-center gap-2"
                           >
-                            <Download className="w-3.5 h-3.5 text-doom-muted" />
-                            Export YAML
+                            <FileUp className="w-3.5 h-3.5 text-zinc-400" />
+                            <span>Export YAML</span>
                           </button>
-                          <div className="h-px bg-doom-border my-1" />
+                          <div className="my-1 border-t border-white/[0.06]" />
                           <button
                             type="button"
                             onClick={(e) => handleQuickDelete(e, p)}
-                            className="flex items-center gap-2 px-3 py-2 hover:bg-red-950/50 text-red-400 transition-colors text-left"
+                            className="w-full px-3 py-1.5 text-left text-red-400 hover:bg-red-950/40 flex items-center gap-2"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
-                            Delete Profile
+                            <span>Delete</span>
                           </button>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Metadata Chips: Engine, IWAD, Mods */}
-                  <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
-                    {p.engineName ? (
-                      <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-zinc-900 border border-zinc-800 text-cyan-400 flex items-center gap-1 truncate max-w-[120px]">
-                        <Cpu className="w-2.5 h-2.5 shrink-0 text-doom-red" />
-                        <span className="truncate">{p.engineName}</span>
-                      </span>
-                    ) : (
-                      <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-amber-950/40 border border-amber-800 text-amber-400">
-                        No Engine
-                      </span>
-                    )}
+                  {/* Profile Metadata Spec Badges */}
+                  <div className="mt-2 flex flex-col gap-1 text-[11px] font-mono">
+                    <div className="flex items-center gap-1 text-zinc-400 truncate">
+                      <Cpu className="w-3 h-3 text-blue-400 shrink-0" />
+                      <span className="truncate">{p.engineName || 'No Engine Assigned'}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-zinc-400 truncate">
+                      <Disc className="w-3 h-3 text-amber-400 shrink-0" />
+                      <span className="truncate">{p.iwadName || 'No IWAD Assigned'}</span>
+                    </div>
+                  </div>
 
-                    {p.iwadName ? (
-                      <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-zinc-900 border border-zinc-800 text-blue-400 flex items-center gap-1 truncate max-w-[110px]">
-                        <Disc className="w-2.5 h-2.5 shrink-0 text-doom-red" />
-                        <span className="truncate">{p.iwadName}</span>
-                      </span>
-                    ) : (
-                      <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-amber-950/40 border border-amber-800 text-amber-400">
-                        No IWAD
-                      </span>
-                    )}
-
-                    <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-zinc-900 border border-zinc-800 text-doom-muted ml-auto">
-                      {modCount > 0 ? `${activeModCount}/${modCount} mods` : '0 mods'}
+                  {/* Mod count tag */}
+                  <div className="mt-2.5 flex items-center justify-between text-[10px] font-mono text-zinc-500 border-t border-white/[0.04] pt-1.5">
+                    <span>
+                      {activeModCount}/{modCount} mods active
                     </span>
+                    {p.isolateSaves && (
+                      <span className="text-amber-400">ISOLATED SAVES</span>
+                    )}
                   </div>
                 </div>
               );
@@ -474,9 +513,51 @@ export const ProfilesView: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Content Pane: Active Profile Editor */}
-      <div className="flex-1 min-w-0 h-full overflow-hidden">
-        {activeProfile ? (
+      {/* Right Detail Pane: Profile Editor Component */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {engines.length === 0 && iwads.length === 0 && !isLoading ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-xl mx-auto select-none">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center mb-5 shadow-lg shadow-red-950/40 border border-red-500/30">
+              <Flame className="w-8 h-8 text-white" />
+            </div>
+            <h2 className="text-xl font-bold tracking-tight text-white mb-2">
+              Welcome to RNT Launcher - Let's find your Doom games
+            </h2>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-6">
+              Scan your computer to automatically discover installed source ports (GZDoom, PRBoom+, DSDA-Doom, Woof) and base game IWADs (DOOM, DOOM II, Final Doom).
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 w-full justify-center">
+              <Button
+                variant="primary"
+                size="md"
+                onClick={handleAutoDetect}
+                isLoading={isAutoDetecting}
+                leftIcon={<RotateCw className={clsx('w-4 h-4', isAutoDetecting && 'animate-spin')} />}
+                className="font-bold tracking-wide px-6"
+              >
+                {isAutoDetecting ? 'Auto-Detecting Games...' : 'Auto-Detect Installed Games & Ports'}
+              </Button>
+            </div>
+            <div className="mt-5 flex items-center gap-3 text-xs text-zinc-500">
+              <span>Or add manually:</span>
+              <button
+                type="button"
+                onClick={() => onNavigateToSettings?.('engines')}
+                className="text-zinc-300 hover:text-white underline underline-offset-2"
+              >
+                Add Source Port
+              </button>
+              <span>•</span>
+              <button
+                type="button"
+                onClick={() => onNavigateToSettings?.('iwads')}
+                className="text-zinc-300 hover:text-white underline underline-offset-2"
+              >
+                Add Base IWAD
+              </button>
+            </div>
+          </div>
+        ) : activeProfile ? (
           <ProfileEditor
             key={activeProfile.id}
             profile={activeProfile}
@@ -487,149 +568,117 @@ export const ProfilesView: React.FC = () => {
             onProfileDuplicated={handleProfileDuplicated}
           />
         ) : (
-          <div className="flex flex-col items-center justify-center h-full p-8 text-center gap-4 bg-doom-bg">
-            <div className="w-16 h-16 rounded-2xl bg-doom-card border border-doom-border flex items-center justify-center text-doom-muted shadow-2xl">
-              <Layers className="w-8 h-8 text-doom-red" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-doom-text uppercase tracking-wide">
-                No Profile Selected
-              </h3>
-              <p className="text-sm text-doom-muted max-w-md mt-1">
-                Select an existing profile from the sidebar or create a new profile to configure source ports, IWADs, and mod load orders.
-              </p>
-            </div>
-            <div className="flex items-center gap-3 mt-2">
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-zinc-500 gap-3">
+            <Layers className="w-12 h-12 text-zinc-600" />
+            <h3 className="text-base font-semibold text-zinc-300">No Setup Selected</h3>
+            <p className="text-xs max-w-sm">
+              Select a preset configuration from the left list to configure its engine, base IWAD, and mod load order.
+            </p>
+            <div className="flex items-center gap-2.5">
               <Button
                 variant="primary"
-                size="md"
+                size="sm"
                 onClick={handleOpenCreateModal}
                 leftIcon={<Plus className="w-4 h-4" />}
+                className="font-bold tracking-wide"
               >
-                Create New Profile
+                + New Setup
               </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setImportModalFormat('yaml');
-                  setIsImportModalOpen(true);
-                }}
-                leftIcon={<FileUp className="w-4 h-4 text-doom-muted" />}
-              >
-                Import YAML
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setImportModalFormat('zdl');
-                  setIsImportModalOpen(true);
-                }}
-                leftIcon={<FileUp className="w-4 h-4 text-doom-muted" />}
-              >
-                Import .zdl
-              </Button>
+              {onNavigateToLibrary && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={onNavigateToLibrary}
+                >
+                  Browse Mod Collection
+                </Button>
+              )}
             </div>
           </div>
         )}
       </div>
 
-      {/* Modal: Import Profile */}
-      <ImportProfileModal
-        isOpen={isImportModalOpen}
-        initialFormat={importModalFormat}
-        onClose={() => setIsImportModalOpen(false)}
-        onImportSuccess={handleImportSuccess}
-      />
-      {/* Modal: Create Profile */}
+      {/* Create Profile Modal */}
       <Modal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        title={
-          <span className="flex items-center gap-2">
-            <Plus className="w-5 h-5 text-doom-red" />
-            Create New Profile
-          </span>
-        }
-        description="Set up a new playable Doom launch configuration."
+        title="Create Launch Profile"
         size="md"
         footer={
-          <div className="flex items-center justify-end gap-2 w-full">
-            <Button
-              variant="ghost"
-              onClick={() => setIsCreateModalOpen(false)}
-              disabled={isCreating}
-            >
+          <>
+            <Button variant="ghost" onClick={() => setIsCreateModalOpen(false)}>
               Cancel
             </Button>
             <Button
               variant="primary"
               onClick={handleCreateProfileSubmit}
-              disabled={!newProfileName.trim() || isCreating}
               isLoading={isCreating}
-              leftIcon={<Plus className="w-4 h-4" />}
             >
               Create Profile
             </Button>
-          </div>
+          </>
         }
       >
-        <div className="flex flex-col gap-4">
+        <div className="space-y-4">
           <Input
             label="Profile Name *"
-            placeholder="e.g. Brutal Doom 21, Project Brutality, Vanilla Doom"
+            placeholder="e.g. Brutal Doom + Metal Soundtrack"
             value={newProfileName}
             onChange={(e) => setNewProfileName(e.target.value)}
-            autoFocus
           />
 
           <Input
-            label="Description (Optional)"
-            placeholder="Brief summary or gameplay notes..."
+            label="Description / Notes (Optional)"
+            placeholder="e.g. Hardcore gameplay mod with modern graphics renderer"
             value={newProfileDescription}
             onChange={(e) => setNewProfileDescription(e.target.value)}
           />
 
-          {/* Initial Engine Selection */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-doom-muted uppercase tracking-wider">
-              Source Port Engine
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block">
+              Default Source Port
             </label>
             <select
               value={newProfileEngineId}
               onChange={(e) => setNewProfileEngineId(e.target.value)}
-              className="bg-doom-surface border border-doom-border rounded text-sm text-doom-text px-3 py-2 focus:outline-none focus:ring-1 focus:ring-doom-red"
+              className="w-full bg-black/40 border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-doom-red font-medium"
             >
-              <option value="">-- Select Source Port --</option>
-              {engines.map((eng) => (
-                <option key={eng.id} value={eng.id}>
-                  {eng.name} ({eng.family})
+              <option value="">-- Select Engine --</option>
+              {engines.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name} ({e.family})
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Initial IWAD Selection */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-doom-muted uppercase tracking-wider">
-              Base Game IWAD
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block">
+              Default Base Game IWAD
             </label>
             <select
               value={newProfileIwadId}
               onChange={(e) => setNewProfileIwadId(e.target.value)}
-              className="bg-doom-surface border border-doom-border rounded text-sm text-doom-text px-3 py-2 focus:outline-none focus:ring-1 focus:ring-doom-red"
+              className="w-full bg-black/40 border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-doom-red font-medium"
             >
-              <option value="">-- Select Game IWAD --</option>
-              {iwads.map((iwad) => (
-                <option key={iwad.id} value={iwad.id}>
-                  {iwad.name} ({iwad.type.toUpperCase()})
+              <option value="">-- Select IWAD --</option>
+              {iwads.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name} ({w.type.toUpperCase()})
                 </option>
               ))}
             </select>
           </div>
         </div>
       </Modal>
+
+      {/* Import Modal */}
+      <ImportProfileModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        initialFormat={importModalFormat}
+        onImportSuccess={handleImportSuccess}
+      />
     </div>
   );
 };

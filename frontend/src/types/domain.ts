@@ -251,6 +251,9 @@ export interface ScanResult {
 export type UiDensity = 'compact' | 'comfortable'
 
 export type DefaultNavView =
+  | 'play'
+  | 'mods'
+  | 'settings'
   | 'dashboard'
   | 'profiles'
   | 'library'
@@ -258,8 +261,6 @@ export type DefaultNavView =
   | 'engines'
   | 'history'
   | 'diagnostics'
-  | 'settings'
-
 export interface Settings {
   modDirectories: string[]
   mod_directories?: string[]

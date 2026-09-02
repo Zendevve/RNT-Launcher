@@ -7,6 +7,7 @@ import {
   Trash2,
   CheckCircle2,
 } from 'lucide-react';
+import { motion } from 'motion/react';
 import { Mod, ModFormat, UiDensity } from '../../types';
 import { formatBytes } from '../../utils/formatters';
 import { cn } from '../../utils/cn';
@@ -26,20 +27,19 @@ interface ModCardProps {
 const getFormatBadgeColor = (format: ModFormat): string => {
   switch (format.toLowerCase()) {
     case 'pk3':
-      return 'bg-emerald-950/60 text-emerald-400 border-emerald-800/50';
-    case 'wad':
-    case 'pwad':
-      return 'bg-sky-950/60 text-sky-400 border-sky-800/50';
-    case 'pk7':
     case 'ipk3':
-      return 'bg-amber-950/60 text-amber-400 border-amber-800/50';
+      return 'bg-[#231830] text-[#d8b4fe] border-purple-800/30';
+    case 'wad':
     case 'zip':
-      return 'bg-purple-950/60 text-purple-400 border-purple-800/50';
+      return 'bg-[#132232] text-[#93c5fd] border-blue-800/30';
+    case 'pk7':
+    case '7z':
+      return 'bg-[#122419] text-[#86efac] border-emerald-800/30';
     case 'deh':
     case 'bex':
-      return 'bg-rose-950/60 text-rose-400 border-rose-800/50';
+      return 'bg-[#2b1416] text-[#fca5a5] border-red-800/30';
     default:
-      return 'bg-zinc-800 text-zinc-300 border-zinc-700';
+      return 'bg-white/[0.04] text-zinc-300 border-white/[0.08]';
   }
 };
 
@@ -60,9 +60,8 @@ export const ModCard: React.FC<ModCardProps> = ({
 
   const handleFavorite = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isFavLoading) return;
+    setIsFavLoading(true);
     try {
-      setIsFavLoading(true);
       await onToggleFavorite(mod.id);
     } finally {
       setIsFavLoading(false);
@@ -72,9 +71,9 @@ export const ModCard: React.FC<ModCardProps> = ({
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isDeleting) return;
+    setIsDeleting(true);
     if (window.confirm(`Delete "${mod.name}" from mod library?`)) {
       try {
-        setIsDeleting(true);
         await onDelete(mod.id);
       } finally {
         setIsDeleting(false);
@@ -85,11 +84,13 @@ export const ModCard: React.FC<ModCardProps> = ({
   const fileName = mod.path ? mod.path.split(/[\/\\]/).pop() || mod.name : mod.name;
 
   return (
-    <div
+    <motion.div
+      whileTap={{ scale: 0.985 }}
+      transition={{ duration: 0.1, ease: [0.16, 1, 0.3, 1] }}
       onClick={() => onInspect(mod)}
       className={cn(
-        'group relative flex flex-col justify-between rounded-lg border border-doom-border bg-doom-surface/80 transition-all duration-200 hover:border-doom-border-bright hover:bg-doom-surface hover:shadow-lg hover:shadow-black/50 cursor-pointer',
-        isCompact ? 'p-3' : 'p-4'
+        'group relative flex flex-col justify-between rounded-xl border border-white/[0.08] bg-[#15181c] transition-colors duration-150 hover:border-white/[0.18] hover:bg-[#1a1e24] cursor-pointer select-none',
+        isCompact ? 'p-3.5' : 'p-4.5'
       )}
     >
       {/* Top Header: Format, Category & Favorite Toggle */}
@@ -99,7 +100,7 @@ export const ModCard: React.FC<ModCardProps> = ({
             {/* Format Badge */}
             <span
               className={cn(
-                'inline-flex items-center rounded border px-1.5 py-0.2 font-mono text-[9px] font-bold uppercase tracking-wider',
+                'inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-[9.5px] font-bold uppercase tracking-wider',
                 getFormatBadgeColor(mod.format)
               )}
             >
@@ -107,14 +108,14 @@ export const ModCard: React.FC<ModCardProps> = ({
             </span>
 
             {/* Category Badge */}
-            <span className="inline-flex items-center rounded bg-doom-card px-1.5 py-0.2 font-mono text-[9px] font-semibold uppercase tracking-wider text-doom-muted border border-doom-border/60">
+            <span className="inline-flex items-center rounded-full bg-white/[0.04] px-2 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider text-zinc-400 border border-white/[0.06]">
               {mod.category || 'Other'}
             </span>
 
             {/* Profile Usage Badge */}
             {usageCount !== undefined && usageCount > 0 && (
               <span
-                className="inline-flex items-center rounded bg-doom-cyan/15 border border-doom-cyan/30 px-1.5 py-0.2 font-mono text-[9px] font-medium text-doom-cyan"
+                className="inline-flex items-center rounded-full bg-[#132232] border border-blue-800/30 px-2 py-0.5 text-[9.5px] font-medium text-[#93c5fd]"
                 title={`Active in ${usageCount} profile${usageCount === 1 ? '' : 's'}`}
               >
                 {usageCount} {usageCount === 1 ? 'profile' : 'profiles'}
@@ -128,35 +129,35 @@ export const ModCard: React.FC<ModCardProps> = ({
             title={mod.isFavorite ? 'Remove favorite' : 'Add favorite'}
             onClick={handleFavorite}
             disabled={isFavLoading}
-            className="rounded p-1 text-doom-muted transition-colors hover:bg-doom-card hover:text-doom-amber disabled:opacity-50"
+            className="rounded-md p-1 text-zinc-400 transition-colors hover:bg-white/[0.06] hover:text-amber-400 disabled:opacity-50"
           >
             <Star
               className={cn(
                 'h-3.5 w-3.5 transition-colors',
-                mod.isFavorite ? 'fill-doom-amber text-doom-amber' : ''
+                mod.isFavorite ? 'fill-amber-400 text-amber-400' : ''
               )}
             />
           </button>
         </div>
 
         {/* Mod Name & Filename */}
-        <div className={cn(isCompact ? 'mt-2' : 'mt-3')}>
-          <h3 className="line-clamp-1 font-mono text-xs font-bold text-doom-text group-hover:text-white" title={mod.name}>
+        <div className={cn(isCompact ? 'mt-2.5' : 'mt-3.5')}>
+          <h3 className="line-clamp-1 text-xs font-bold text-zinc-100 group-hover:text-white tracking-tight" title={mod.name}>
             {mod.name}
           </h3>
           {showFilePaths ? (
-            <p className="mt-0.5 truncate font-mono text-[10px] text-doom-muted" title={mod.path}>
+            <p className="mt-0.5 truncate font-mono text-[10px] text-zinc-400 tracking-tight" title={mod.path}>
               {mod.path}
             </p>
           ) : fileName !== mod.name ? (
-            <p className="mt-0.5 truncate font-mono text-[10px] text-doom-muted/70" title={mod.path}>
+            <p className="mt-0.5 truncate font-mono text-[10px] text-zinc-500 tracking-tight" title={mod.path}>
               {fileName}
             </p>
           ) : null}
         </div>
 
         {/* Metadata stats: Size & Lumps */}
-        <div className={cn('flex items-center gap-2 text-[10px] font-mono text-doom-muted', isCompact ? 'mt-1.5' : 'mt-2.5')}>
+        <div className={cn('flex items-center gap-2 text-[10px] font-mono text-zinc-400', isCompact ? 'mt-2' : 'mt-3')}>
           <span>{formatBytes(mod.size)}</span>
           <span>•</span>
           <span>{mod.lumpCount ?? 0} lumps</span>
@@ -168,14 +169,14 @@ export const ModCard: React.FC<ModCardProps> = ({
             {mod.structures.slice(0, 3).map((struct) => (
               <span
                 key={struct}
-                className="inline-flex items-center gap-1 rounded bg-doom-card/90 px-1 py-0.2 text-[8.5px] font-mono text-doom-cyan border border-doom-cyan/20"
+                className="inline-flex items-center gap-1 rounded-full bg-white/[0.04] px-2 py-0.5 text-[8.5px] font-mono text-blue-400 border border-blue-800/30"
               >
-                <CheckCircle2 className="h-2 w-2 text-doom-cyan" />
+                <CheckCircle2 className="h-2 w-2 text-blue-400" />
                 {struct}
               </span>
             ))}
             {mod.structures.length > 3 && (
-              <span className="inline-flex items-center rounded bg-doom-card px-1 py-0.2 text-[8.5px] font-mono text-doom-muted">
+              <span className="inline-flex items-center rounded-full bg-white/[0.04] px-1.5 py-0.5 text-[8.5px] font-mono text-zinc-400 border border-white/[0.06]">
                 +{mod.structures.length - 3}
               </span>
             )}
@@ -184,7 +185,7 @@ export const ModCard: React.FC<ModCardProps> = ({
       </div>
 
       {/* Action Footer */}
-      <div className={cn('pt-2 border-t border-doom-border/60 flex items-center justify-between gap-1.5', isCompact ? 'mt-2.5' : 'mt-3.5')}>
+      <div className={cn('pt-2.5 border-t border-white/[0.06] flex items-center justify-between gap-1.5', isCompact ? 'mt-2.5' : 'mt-3.5')}>
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -193,23 +194,23 @@ export const ModCard: React.FC<ModCardProps> = ({
               e.stopPropagation();
               onInspect(mod);
             }}
-            className="inline-flex items-center gap-1 rounded bg-doom-card px-2 py-0.5 text-[11px] font-mono text-doom-text transition-colors hover:bg-doom-border hover:text-white"
+            className="inline-flex items-center gap-1 rounded-md bg-white/[0.04] px-2 py-1 text-[11px] font-medium text-zinc-300 transition-colors hover:bg-white/[0.08] hover:text-white border border-white/[0.06]"
           >
-            <Eye className="h-3 w-3 text-doom-cyan" />
+            <Eye className="h-3 w-3 text-blue-400" />
             <span>Inspect</span>
           </button>
 
           <button
             type="button"
-            title="Add to Profile"
+            title="Add to Active Setup"
             onClick={(e) => {
               e.stopPropagation();
               onAddToProfile(mod);
             }}
-            className="inline-flex items-center gap-1 rounded bg-doom-card px-1.5 py-0.5 text-[11px] font-mono text-doom-text transition-colors hover:bg-doom-border hover:text-white"
+            className="inline-flex items-center gap-1 rounded-md bg-emerald-950/30 hover:bg-emerald-900/40 px-2 py-1 text-[11px] font-medium text-emerald-300 transition-colors hover:text-emerald-200 border border-emerald-800/40 active:scale-[0.98]"
           >
-            <Plus className="h-3 w-3 text-doom-green" />
-            <span>Profile</span>
+            <Plus className="h-3 w-3 text-emerald-400" />
+            <span>+ Add Setup</span>
           </button>
         </div>
 
@@ -221,7 +222,7 @@ export const ModCard: React.FC<ModCardProps> = ({
               e.stopPropagation();
               onOpenFolder(mod.path);
             }}
-            className="rounded p-1 text-doom-muted transition-colors hover:bg-doom-card hover:text-doom-text"
+            className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-white/[0.06] hover:text-white"
           >
             <FolderOpen className="h-3.5 w-3.5" />
           </button>
@@ -231,12 +232,12 @@ export const ModCard: React.FC<ModCardProps> = ({
             title="Delete Mod"
             onClick={handleDelete}
             disabled={isDeleting}
-            className="rounded p-1 text-doom-muted transition-colors hover:bg-doom-red/20 hover:text-doom-red-bright disabled:opacity-50"
+            className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-red-950/40 hover:text-red-300 disabled:opacity-50"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };

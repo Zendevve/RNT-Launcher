@@ -11,9 +11,11 @@ import {
   Square,
   FileCode,
 } from 'lucide-react';
+import { motion } from 'motion/react';
 import { ProfileMod } from '../../types';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { springSnappy } from '../../lib/springs';
 
 export interface LoadOrderItemProps {
   mod: ProfileMod;
@@ -56,105 +58,85 @@ export const LoadOrderItem: React.FC<LoadOrderItemProps> = ({
   const isLast = index === totalCount - 1;
 
   return (
-    <div
+    <motion.div
+      layout
+      transition={springSnappy}
       draggable
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'ArrowUp' && (e.altKey || e.ctrlKey)) {
-          e.preventDefault();
-          onMoveUp(index);
-        } else if (e.key === 'ArrowDown' && (e.altKey || e.ctrlKey)) {
-          e.preventDefault();
-          onMoveDown(index);
-        } else if (e.key === ' ' && e.target === e.currentTarget) {
-          e.preventDefault();
-          onToggle(mod.modId, !mod.enabled);
-        } else if (e.key === 'Delete' || e.key === 'Backspace') {
-          if (e.target === e.currentTarget) {
-            e.preventDefault();
-            onRemove(mod.modId);
-          }
-        }
-      }}
-      onDragStart={(e) => onDragStart(e, index)}
-      onDragOver={(e) => onDragOver(e, index)}
-      onDragLeave={onDragLeave}
-      onDrop={(e) => onDrop(e, index)}
+      onDragStart={(e) => onDragStart(e as unknown as React.DragEvent, index)}
+      onDragOver={(e) => onDragOver(e as unknown as React.DragEvent, index)}
+      onDragLeave={onDragLeave as unknown as () => void}
+      onDrop={(e) => onDrop(e as unknown as React.DragEvent, index)}
       onDragEnd={onDragEnd}
       className={clsx(
-        'group relative flex items-center gap-3 px-3.5 py-2.5 rounded-md border transition-all duration-150 focus:outline-none focus:ring-1 focus:ring-red-500/60',
-        mod.enabled
-          ? 'bg-doom-surface border-doom-border hover:border-doom-border-bright text-doom-text'
-          : 'bg-zinc-900/50 border-zinc-800/80 text-zinc-500 opacity-60 hover:opacity-80',
-        isDragging && 'opacity-30 border-dashed border-red-500 scale-[0.99]',
-        isDragOver && 'border-t-2 border-t-doom-red bg-red-950/20 shadow-md',
-        'hover:shadow-sm'
+        'group relative flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border transition-colors select-none',
+        isDragging && 'opacity-30 border-red-500 scale-[0.98]',
+        isDragOver && 'border-blue-400 bg-[#132232]',
+        !isDragging && !isDragOver && mod.enabled
+          ? 'bg-[#15181c] border-white/[0.08] hover:border-white/[0.18] hover:bg-[#1a1e24]'
+          : !isDragging && !isDragOver && !mod.enabled
+          ? 'bg-black/30 border-white/[0.04] opacity-55 hover:opacity-85'
+          : ''
       )}
     >
-      {/* Drag Grip Handle */}
-      <div
-        className="cursor-grab active:cursor-grabbing text-doom-muted group-hover:text-doom-text p-0.5 rounded hover:bg-zinc-800 transition-colors"
-        title="Drag to reorder mod"
-      >
-        <GripVertical className="w-4 h-4" />
-      </div>
+      {/* Left side: Grip, Order Number, Checkbox, Mod Name */}
+      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+        {/* Drag handle */}
+        <div
+          className="cursor-grab active:cursor-grabbing text-zinc-500 hover:text-zinc-300 p-0.5"
+          title="Drag to reorder"
+        >
+          <GripVertical className="w-4 h-4" />
+        </div>
 
-      {/* Order Position Badge */}
-      <div className="flex items-center justify-center w-6 h-6 rounded bg-doom-card text-[11px] font-mono font-bold text-doom-muted shrink-0 border border-doom-border/60">
-        {index + 1}
-      </div>
+        {/* Index / Load Order position */}
+        <span className="font-mono text-xs font-semibold text-zinc-400 w-5 text-center shrink-0">
+          {index + 1}
+        </span>
 
-      {/* Enabled/Disabled Checkbox */}
-      <button
-        type="button"
-        onClick={() => onToggle(mod.modId, !mod.enabled)}
-        className={clsx(
-          'p-0.5 rounded focus:outline-none focus:ring-1 focus:ring-doom-red transition-colors shrink-0',
-          mod.enabled
-            ? 'text-emerald-400 hover:text-emerald-300'
-            : 'text-zinc-500 hover:text-zinc-400'
-        )}
-        title={mod.enabled ? 'Click to disable mod' : 'Click to enable mod'}
-      >
-        {mod.enabled ? (
-          <CheckSquare className="w-5 h-5" />
-        ) : (
-          <Square className="w-5 h-5" />
-        )}
-      </button>
+        {/* Checkbox */}
+        <button
+          type="button"
+          onClick={() => onToggle(mod.modId, !mod.enabled)}
+          className="text-zinc-400 hover:text-white transition-colors shrink-0 focus:outline-none"
+          title={mod.enabled ? 'Disable mod' : 'Enable mod'}
+        >
+          {mod.enabled ? (
+            <CheckSquare className="w-4 h-4 text-emerald-400" />
+          ) : (
+            <Square className="w-4 h-4 text-zinc-600" />
+          )}
+        </button>
 
-      {/* Mod Info (Icon, Name, Path) */}
-      <div className="flex-1 min-w-0 flex items-center gap-2">
-        <FileCode className={clsx('w-4 h-4 shrink-0', mod.enabled ? 'text-doom-muted' : 'text-zinc-600')} />
-        <div className="min-w-0 flex-1">
+        {/* Format Icon / Badge */}
+        <FileCode className="w-3.5 h-3.5 text-zinc-400 shrink-0 hidden sm:block" />
+
+        {/* Mod details */}
+        <div className="flex flex-col min-w-0">
           <div className="flex items-center gap-2">
             <span
               className={clsx(
-                'text-sm font-semibold truncate',
-                mod.enabled ? 'text-doom-text' : 'text-zinc-400 line-through'
+                'text-xs font-bold truncate tracking-tight',
+                mod.enabled ? 'text-zinc-100 group-hover:text-white' : 'text-zinc-500 line-through'
               )}
               title={mod.modName}
             >
               {mod.modName}
             </span>
-            <Badge variant={mod.modFormat || 'wad'} size="xs">
-              {mod.modFormat || 'MOD'}
-            </Badge>
-            {!mod.enabled && (
-              <Badge variant="muted" size="xs">
-                DISABLED
+            {mod.modFormat && (
+              <Badge variant={mod.modFormat} size="xs" mono>
+                {mod.modFormat.toUpperCase()}
               </Badge>
             )}
           </div>
           {mod.modPath && (
-            <p className="text-[11px] font-mono text-doom-muted truncate mt-0.5" title={mod.modPath}>
+            <span className="text-[10px] font-mono text-zinc-400 truncate -mt-0.5" title={mod.modPath}>
               {mod.modPath}
-            </p>
+            </span>
           )}
         </div>
       </div>
 
-      {/* Action Buttons: Move controls & Remove */}
+      {/* Right side: Reorder Actions and Remove */}
       <div className="flex items-center gap-1 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
         {/* Move to Top */}
         <Button
@@ -163,7 +145,7 @@ export const LoadOrderItem: React.FC<LoadOrderItemProps> = ({
           disabled={isFirst}
           onClick={() => onMoveToTop(index)}
           title="Move to top"
-          className="h-7 w-7 text-doom-muted hover:text-doom-text hover:bg-zinc-800 disabled:opacity-20"
+          className="p-1 h-7 w-7 text-zinc-400 hover:text-white rounded-md"
         >
           <ChevronsUp className="w-3.5 h-3.5" />
         </Button>
@@ -175,7 +157,7 @@ export const LoadOrderItem: React.FC<LoadOrderItemProps> = ({
           disabled={isFirst}
           onClick={() => onMoveUp(index)}
           title="Move up"
-          className="h-7 w-7 text-doom-muted hover:text-doom-text hover:bg-zinc-800 disabled:opacity-20"
+          className="p-1 h-7 w-7 text-zinc-400 hover:text-white rounded-md"
         >
           <ChevronUp className="w-3.5 h-3.5" />
         </Button>
@@ -187,7 +169,7 @@ export const LoadOrderItem: React.FC<LoadOrderItemProps> = ({
           disabled={isLast}
           onClick={() => onMoveDown(index)}
           title="Move down"
-          className="h-7 w-7 text-doom-muted hover:text-doom-text hover:bg-zinc-800 disabled:opacity-20"
+          className="p-1 h-7 w-7 text-zinc-400 hover:text-white rounded-md"
         >
           <ChevronDown className="w-3.5 h-3.5" />
         </Button>
@@ -199,25 +181,22 @@ export const LoadOrderItem: React.FC<LoadOrderItemProps> = ({
           disabled={isLast}
           onClick={() => onMoveToBottom(index)}
           title="Move to bottom"
-          className="h-7 w-7 text-doom-muted hover:text-doom-text hover:bg-zinc-800 disabled:opacity-20"
+          className="p-1 h-7 w-7 text-zinc-400 hover:text-white rounded-md"
         >
           <ChevronsDown className="w-3.5 h-3.5" />
         </Button>
 
-        {/* Separator */}
-        <div className="w-px h-4 bg-doom-border mx-0.5" />
-
-        {/* Remove Mod */}
+        {/* Remove */}
         <Button
           variant="ghost"
           size="icon"
           onClick={() => onRemove(mod.modId)}
-          title="Remove mod from profile"
-          className="h-7 w-7 text-doom-muted hover:text-red-400 hover:bg-red-950/40"
+          title="Remove from profile"
+          className="p-1 h-7 w-7 text-zinc-400 hover:text-red-400 hover:bg-red-950/40 rounded-md"
         >
           <Trash2 className="w-3.5 h-3.5" />
         </Button>
       </div>
-    </div>
+    </motion.div>
   );
 };

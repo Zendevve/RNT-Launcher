@@ -13,7 +13,6 @@ import {
   XCircle,
   Filter,
   X,
-  FileCode,
   Globe,
 } from 'lucide-react';
 import { Mod, Profile, Settings } from '../../types';
@@ -23,6 +22,7 @@ import { ModTableRow } from './ModTableRow';
 import { ModInspectorDrawer } from './ModInspectorDrawer';
 import { AddModModal } from './AddModModal';
 import { IdgamesSearchModal } from './IdgamesSearchModal';
+
 interface LibraryViewProps {
   onNavigateToDashboard?: () => void;
 }
@@ -39,6 +39,7 @@ const FILTER_CHIPS: { id: FilterChip; label: string }[] = [
   { id: 'unused', label: 'Unused in Profiles' },
   { id: 'in-use', label: 'In Use' },
 ];
+
 const CATEGORY_TABS: { label: string; value: string }[] = [
   { label: 'All', value: 'all' },
   { label: 'Favorites', value: 'favorites' },
@@ -56,46 +57,38 @@ const CATEGORY_TABS: { label: string; value: string }[] = [
 
 const FORMAT_OPTIONS: { label: string; value: string }[] = [
   { label: 'All Formats', value: 'all' },
-  { label: 'PK3', value: 'pk3' },
-  { label: 'WAD / PWAD', value: 'wad' },
-  { label: 'PK7 / IPK3', value: 'pk7' },
-  { label: 'ZIP', value: 'zip' },
-  { label: 'DEH / BEX', value: 'deh' },
+  { label: 'PK3 Archives', value: 'pk3' },
+  { label: 'WAD Files', value: 'wad' },
+  { label: 'IPK3 Archives', value: 'ipk3' },
+  { label: 'ZIP Archives', value: 'zip' },
+  { label: 'PK7 / 7z Archives', value: 'pk7' },
+  { label: 'DEH / BEX Patches', value: 'deh' },
 ];
 
 export const LibraryView: React.FC<LibraryViewProps> = () => {
   const [mods, setMods] = useState<Mod[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [usageCounts, setUsageCounts] = useState<Record<string, number>>({});
   const [settings, setSettings] = useState<Settings | null>(null);
-  // Filters & State
+
+  // Filter, search & view states
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedFormat, setSelectedFormat] = useState('all');
   const [activeFilterChip, setActiveFilterChip] = useState<FilterChip>('all');
-  const [usageCounts, setUsageCounts] = useState<Record<string, number>>({});
   const [sortOption, setSortOption] = useState<SortField>('name-asc');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
-  // Modals & Drawers
-  const [inspectingMod, setInspectingMod] = useState<Mod | null>(null);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const availableFormatOptions = useMemo(() => {
-    const visible = settings?.formatVisibility || ['.wad', '.pk3', '.pk7', '.ipk3', '.zip', '.deh', '.bex'];
-    return FORMAT_OPTIONS.filter((opt) => {
-      if (opt.value === 'all') return true;
-      return visible.some((v) => {
-        const cleanV = v.replace('.', '').toLowerCase();
-        const cleanOpt = opt.value.toLowerCase();
-        return cleanV === cleanOpt || cleanOpt.includes(cleanV) || cleanV.includes(cleanOpt);
-      });
-    });
-  }, [settings?.formatVisibility]);
-  const [isIdgamesModalOpen, setIsIdgamesModalOpen] = useState(false);
-  const [modForProfileAdd, setModForProfileAdd] = useState<Mod | null>(null);
 
-  // Global Drag & Drop State
+  // Drawer & Modals state
+  const [inspectingMod, setInspectingMod] = useState<Mod | null>(null);
+  const [modForProfileAdd, setModForProfileAdd] = useState<Mod | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isIdgamesModalOpen, setIsIdgamesModalOpen] = useState(false);
+
+  // Drag-and-drop state
   const [isWindowDragging, setIsWindowDragging] = useState(false);
 
-  // Notification Toast
+  // Inline notifications toast
   const [notification, setNotification] = useState<{
     type: 'success' | 'error' | 'info';
     message: string;
@@ -108,29 +101,32 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
     }, 4000);
   };
 
-  const loadData = useCallback(async () => {
+  // Initial data loading
+  const loadLibraryData = useCallback(async () => {
     try {
-      const [fetchedMods, fetchedProfiles, fetchedUsage, fetchedSettings] = await Promise.all([
-        api.listMods(),
-        api.listProfiles(),
-        api.getModUsageCounts ? api.getModUsageCounts().catch(() => ({})) : Promise.resolve({}),
-        api.getSettings().catch(() => null),
-      ]);
+      const [fetchedMods, fetchedProfiles, fetchedUsage, fetchedSettings] =
+        await Promise.all([
+          api.listMods(),
+          api.listProfiles(),
+          api.getModUsageCounts().catch(() => ({})),
+          api.getSettings().catch(() => null),
+        ]);
+
       setMods(fetchedMods || []);
       setProfiles(fetchedProfiles || []);
       setUsageCounts(fetchedUsage || {});
-      if (fetchedSettings) setSettings(fetchedSettings);
+      setSettings(fetchedSettings);
     } catch (err) {
-      console.error('Failed to load library:', err);
-      showNotification('error', 'Failed to load mods from library');
+      console.error('Failed to load library data:', err);
+      showNotification('error', 'Could not load mod library from backend.');
     }
   }, []);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    loadLibraryData();
+  }, [loadLibraryData]);
 
-  // Actions
+  // Favorite toggle handler
   const handleToggleFavorite = async (modId: string) => {
     try {
       const isFav = await api.toggleModFavorite(modId);
@@ -141,10 +137,11 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
         setInspectingMod((prev) => (prev ? { ...prev, isFavorite: isFav } : null));
       }
     } catch (err) {
-      console.error('Failed to toggle mod favorite:', err);
+      console.error('Failed to toggle favorite:', err);
     }
   };
 
+  // Delete mod handler
   const handleDeleteMod = async (modId: string) => {
     try {
       await api.deleteMod(modId);
@@ -152,78 +149,67 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
       if (inspectingMod && inspectingMod.id === modId) {
         setInspectingMod(null);
       }
-      const updatedUsage = api.getModUsageCounts ? await api.getModUsageCounts().catch(() => ({})) : {};
-      setUsageCounts(updatedUsage || {});
-      showNotification('success', 'Mod removed from library');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Delete failed';
-      showNotification('error', `Failed to delete mod: ${msg}`);
+      showNotification('info', 'Mod removed from library.');
+    } catch (err) {
+      console.error('Failed to delete mod:', err);
+      showNotification('error', 'Failed to delete mod.');
     }
   };
 
+  // Open directory in native file explorer
   const handleOpenFolder = async (path: string) => {
     try {
       await api.openPathInExplorer(path);
     } catch (err) {
-      console.error('Failed to open folder in explorer:', err);
+      console.error('Failed to open folder:', err);
+      showNotification('error', 'Could not open folder in file explorer.');
     }
   };
 
+  // Quick Directory Scan
+  const handleQuickScan = async () => {
+    showNotification('info', 'Scanning configured directories for Doom mods...');
+    try {
+      const res = await api.startScan();
+      showNotification(
+        'success',
+        `Scan complete: discovered ${res.discoveredMods || 0} mods, ${res.discoveredIWADs || 0} IWADs.`
+      );
+      loadLibraryData();
+    } catch (err) {
+      console.error('Scan error:', err);
+      showNotification('error', 'Directory scan encountered an error.');
+    }
+  };
+
+  // Add mod to profile from overlay
   const handleAddModToProfile = async (profileId: string) => {
     if (!modForProfileAdd) return;
     try {
       await api.addModToProfile(profileId, modForProfileAdd.id);
-      const targetProfile = profiles.find((p) => p.id === profileId);
       showNotification(
         'success',
-        `Added "${modForProfileAdd.name}" to profile "${targetProfile?.name || 'Selected'}"`
+        `Added "${modForProfileAdd.name}" to profile!`
       );
       setModForProfileAdd(null);
-      const [updatedProfiles, updatedUsage] = await Promise.all([
-        api.listProfiles(),
-        api.getModUsageCounts ? api.getModUsageCounts().catch(() => ({})) : Promise.resolve({}),
-      ]);
-      setProfiles(updatedProfiles);
-      setUsageCounts(updatedUsage || {});
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error adding mod';
-      showNotification('error', `Could not add mod to profile: ${msg}`);
+      loadLibraryData();
+    } catch (err) {
+      console.error('Failed to add mod to profile:', err);
+      showNotification('error', 'Could not add mod to profile.');
     }
   };
 
-  const handleModImported = async (newMod: Mod) => {
-    setMods((prev) => [newMod, ...prev.filter((m) => m.id !== newMod.id)]);
-    const updatedUsage = api.getModUsageCounts ? await api.getModUsageCounts().catch(() => ({})) : {};
-    setUsageCounts(updatedUsage || {});
-    showNotification('success', `Imported "${newMod.name}" into mod library`);
-  };
-  const handleQuickScan = async () => {
-    try {
-      showNotification('info', 'Scanning registered mod directories...');
-      const res = await api.startScan();
-      showNotification(
-        'success',
-        `Scan complete: ${res.discoveredMods} mods discovered`
-      );
-      await loadData();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Scan failed';
-      showNotification('error', `Scan error: ${msg}`);
-    }
-  };
-
-  // Drag & Drop handlers over the library view
+  // Drag and Drop File Handlers
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
-      setIsWindowDragging(true);
-    }
+    setIsWindowDragging(true);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
     setIsWindowDragging(false);
   };
 
@@ -237,118 +223,134 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
     e.stopPropagation();
     setIsWindowDragging(false);
 
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const files = Array.from(e.dataTransfer.files);
-      let importCount = 0;
-      for (const file of files) {
-        let filePath = file.name;
-        if ('path' in file && typeof file.path === 'string') {
-          filePath = file.path;
-        }
-        if (filePath) {
-          try {
-            const imported = await api.importModFile(filePath);
-            setMods((prev) => [imported, ...prev.filter((m) => m.id !== imported.id)]);
-            importCount++;
-          } catch (err) {
-            console.error('Failed to import dropped file:', filePath, err);
-          }
-        }
+    if (!e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
+
+    const files = Array.from(e.dataTransfer.files);
+    let importedCount = 0;
+
+    for (const file of files) {
+      const filePath = (file as unknown as { path?: string }).path || file.name;
+      try {
+        await api.importModFile(filePath);
+        importedCount++;
+      } catch (err) {
+        console.error(`Failed to import dropped file ${file.name}:`, err);
       }
-      if (importCount > 0) {
-        showNotification('success', `Successfully imported ${importCount} mod file(s)`);
-      }
+    }
+
+    if (importedCount > 0) {
+      showNotification(
+        'success',
+        `Successfully imported ${importedCount} mod${importedCount === 1 ? '' : 's'}!`
+      );
+      loadLibraryData();
+    } else {
+      showNotification('error', 'Could not import dropped files as Doom packages.');
     }
   };
 
-  // Filter & Sort Logic
+  // Filter format options according to settings
+  const availableFormatOptions = useMemo(() => {
+    if (!settings || !settings.formatVisibility) return FORMAT_OPTIONS;
+    const vis = settings.formatVisibility;
+    return FORMAT_OPTIONS.filter(
+      (opt) => opt.value === 'all' || vis.includes(opt.value)
+    );
+  }, [settings]);
+
+  // Handle manual file addition from modal
+  const handleModImported = (newMod: Mod) => {
+    setMods((prev) => [newMod, ...prev]);
+    showNotification('success', `Imported "${newMod.name}" to library!`);
+  };
+
+  // Filtered & Sorted Mods Calculation
   const filteredAndSortedMods = useMemo(() => {
-    let result = [...mods];
-
-    // 1. Search Query
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      result = result.filter(
-        (m) =>
-          m.name.toLowerCase().includes(q) ||
-          m.path.toLowerCase().includes(q) ||
-          m.category?.toLowerCase().includes(q) ||
-          m.format?.toLowerCase().includes(q) ||
-          (m.structures && m.structures.some((s) => s.toLowerCase().includes(q)))
-      );
-    }
-
-    // 2. Category Tab
-    if (selectedCategory === 'favorites') {
-      result = result.filter((m) => m.isFavorite);
-    } else if (selectedCategory !== 'all') {
-      result = result.filter(
-        (m) => m.category?.toLowerCase() === selectedCategory.toLowerCase()
-      );
-    }
-
-    // 3. Format Dropdown
-    if (selectedFormat !== 'all') {
-      if (selectedFormat === 'wad') {
-        result = result.filter((m) => m.format === 'wad' || m.format === 'pwad');
-      } else if (selectedFormat === 'pk7') {
-        result = result.filter((m) => m.format === 'pk7' || m.format === 'ipk3');
-      } else if (selectedFormat === 'deh') {
-        result = result.filter((m) => m.format === 'deh' || m.format === 'bex');
-      } else {
-        result = result.filter(
-          (m) => m.format.toLowerCase() === selectedFormat.toLowerCase()
+    const result = mods.filter((mod) => {
+      // 1. Text Search query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchesName = mod.name.toLowerCase().includes(q);
+        const matchesPath = mod.path.toLowerCase().includes(q);
+        const matchesFormat = mod.format.toLowerCase().includes(q);
+        const matchesCategory = (mod.category || '').toLowerCase().includes(q);
+        const matchesStructure = (mod.structures || []).some((s) =>
+          s.toLowerCase().includes(q)
         );
-      }
-    }
 
-    // 4. Quick Filter Chips
-    if (activeFilterChip !== 'all') {
-      result = result.filter((m) => {
-        const count = usageCounts[m.id] || 0;
+        if (
+          !matchesName &&
+          !matchesPath &&
+          !matchesFormat &&
+          !matchesCategory &&
+          !matchesStructure
+        ) {
+          return false;
+        }
+      }
+
+      // 2. Category Tabs
+      if (selectedCategory !== 'all') {
+        if (selectedCategory === 'favorites') {
+          if (!mod.isFavorite) return false;
+        } else {
+          if (
+            (mod.category || 'other').toLowerCase() !==
+            selectedCategory.toLowerCase()
+          ) {
+            return false;
+          }
+        }
+      }
+
+      // 3. Format dropdown
+      if (selectedFormat !== 'all') {
+        if (selectedFormat === 'pk7') {
+          if (mod.format.toLowerCase() !== 'pk7' && mod.format.toLowerCase() !== '7z') return false;
+        } else if (selectedFormat === 'deh') {
+          if (mod.format.toLowerCase() !== 'deh' && mod.format.toLowerCase() !== 'bex') return false;
+        } else if (selectedFormat === 'wad') {
+          if (mod.format.toLowerCase() !== 'wad' && mod.format.toLowerCase() !== 'pwad') return false;
+        } else {
+          if (mod.format.toLowerCase() !== selectedFormat.toLowerCase()) return false;
+        }
+      }
+
+      // 4. Quick Filter Tag Chips
+      if (activeFilterChip !== 'all') {
         switch (activeFilterChip) {
           case 'has-maps':
-            return (
-              Boolean(m.lumpCount !== undefined && m.lumpCount > 0) ||
-              Boolean((m as { maps?: string[] }).maps && (m as { maps?: string[] }).maps!.length > 0) ||
-              m.category === 'Maps' ||
-              m.category === 'Megawads' ||
-              Boolean(
-                m.structures &&
-                  m.structures.some((s) => {
-                    const upper = s.toUpperCase().trim();
-                    return /^MAP\d+/i.test(upper) || /^E\d+M\d+/i.test(upper) || upper === 'MAPS';
-                  })
-              )
-            );
+            if (!mod.structures?.includes('MAPINFO')) return false;
+            break;
           case 'zscript':
-            return (
-              m.category === 'Gameplay' ||
-              Boolean(m.structures && m.structures.some((s) => s.toUpperCase().includes('ZSCRIPT')))
-            );
+            if (!mod.structures?.includes('ZSCRIPT')) return false;
+            break;
           case 'dehack':
-            return (
-              m.format?.toLowerCase() === 'deh' ||
-              m.format?.toLowerCase() === 'bex' ||
-              Boolean(m.structures && m.structures.some((s) => s.toUpperCase().includes('DEHACKED')))
-            );
+            if (
+              !mod.structures?.includes('DEHACKED') &&
+              mod.format.toLowerCase() !== 'deh' &&
+              mod.format.toLowerCase() !== 'bex'
+            )
+              return false;
+            break;
           case 'unused':
-            return count === 0;
+            if ((usageCounts[mod.id] || 0) > 0) return false;
+            break;
           case 'in-use':
-            return count > 0;
-          default:
-            return true;
+            if ((usageCounts[mod.id] || 0) === 0) return false;
+            break;
         }
-      });
-    }
+      }
 
-    // 5. Sorting
+      return true;
+    });
+
     result.sort((a, b) => {
       switch (sortOption) {
         case 'name-asc':
-          return (a.name || '').localeCompare(b.name || '');
+          return a.name.localeCompare(b.name);
         case 'name-desc':
-          return (b.name || '').localeCompare(a.name || '');
+          return b.name.localeCompare(a.name);
         case 'size-desc':
           return (b.size || 0) - (a.size || 0);
         case 'size-asc':
@@ -371,16 +373,16 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      className="relative flex flex-1 flex-col overflow-hidden bg-doom-bg text-doom-text"
+      className="relative flex flex-1 flex-col overflow-hidden bg-[#0c0e10] text-zinc-100 select-none h-full"
     >
       {/* Visual Drag & Drop Full-View Overlay */}
       {isWindowDragging && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-doom-bg/90 border-4 border-dashed border-doom-red backdrop-blur-xs">
-          <UploadCloud className="h-16 w-16 text-doom-red animate-bounce" />
-          <h2 className="mt-4 font-mono text-xl font-black uppercase tracking-widest text-white">
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#0c0e10]/95 border-2 border-dashed border-red-500">
+          <UploadCloud className="h-16 w-16 text-red-500 animate-bounce" />
+          <h2 className="mt-4 font-bold text-xl uppercase tracking-wider text-white">
             Drop Doom Mod Files to Import
           </h2>
-          <p className="mt-1 font-mono text-xs text-doom-muted">
+          <p className="mt-1 text-xs text-zinc-400 font-mono">
             Files will be parsed, verified, and added to your persistent library.
           </p>
         </div>
@@ -389,101 +391,51 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
       {/* Notification Toast */}
       {notification && (
         <div
-          className={`fixed bottom-6 right-8 z-50 flex items-center gap-3 rounded-md border px-4 py-3 text-sm shadow-xl transition-all duration-300 ${
+          className={`fixed bottom-6 right-8 z-50 flex items-center gap-3 rounded-xl border px-4 py-3 text-sm transition-all duration-150 ${
             notification.type === 'success'
-              ? 'border-doom-green/40 bg-doom-surface text-doom-green-bright shadow-doom-green/10'
+              ? 'border-emerald-800/40 bg-[#122419] text-emerald-200'
               : notification.type === 'error'
-              ? 'border-doom-red/40 bg-doom-surface text-doom-red-bright shadow-doom-red/10'
-              : 'border-doom-cyan/40 bg-doom-surface text-doom-cyan shadow-doom-cyan/10'
+              ? 'border-red-800/40 bg-[#2b1416] text-red-200'
+              : 'border-blue-800/40 bg-[#132232] text-blue-200'
           }`}
         >
-          {notification.type === 'success' && <CheckCircle2 className="h-4 w-4 shrink-0" />}
-          {notification.type === 'error' && <XCircle className="h-4 w-4 shrink-0" />}
+          {notification.type === 'success' && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />}
+          {notification.type === 'error' && <XCircle className="h-4 w-4 shrink-0 text-red-400" />}
           <span className="font-mono text-xs">{notification.message}</span>
         </div>
       )}
 
-      {/* Top Header & Action Bar */}
-      <div className="border-b border-doom-border/80 bg-doom-surface/50 px-8 py-5">
-        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-          <div>
-            <div className="flex items-center gap-2">
-              <Layers className="h-5 w-5 text-doom-red" />
-              <h1 className="font-mono text-xl font-black uppercase tracking-wider text-doom-text">
-                MOD LIBRARY
-              </h1>
-            </div>
-            <p className="mt-0.5 font-mono text-xs text-doom-muted">
-              Showing {filteredAndSortedMods.length} of {mods.length} mods
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={handleQuickScan}
-              className="inline-flex items-center gap-2 rounded border border-doom-border bg-doom-card px-3.5 py-2 font-mono text-xs text-doom-text transition-colors hover:border-doom-border-bright hover:bg-doom-surface"
-            >
-              <FolderSearch className="h-3.5 w-3.5 text-doom-cyan" />
-              <span>Scan Folders</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsIdgamesModalOpen(true)}
-              className="inline-flex items-center gap-2 rounded border border-doom-border bg-doom-card px-3.5 py-2 font-mono text-xs text-doom-text transition-colors hover:border-doom-border-bright hover:bg-doom-surface"
-            >
-              <Globe className="h-3.5 w-3.5 text-doom-amber" />
-              <span>/idgames</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsAddModalOpen(true)}
-              className="inline-flex items-center gap-2 rounded bg-doom-red px-4 py-2 font-mono text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-doom-red/20 transition-colors hover:bg-doom-red-bright"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add Mod</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Filter Controls Row */}
-        <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          {/* Instant Search Bar */}
+      {/* Single Unified Desktop Toolbar */}
+      <div className="border-b border-white/[0.07] bg-[#14171a] px-8 py-3.5 space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          {/* Search Input with count pill */}
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-doom-muted" />
+            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by name, path, lumps, structure..."
-              className="w-full rounded border border-doom-border bg-doom-card/80 pl-9 pr-8 py-2 font-mono text-xs text-doom-text placeholder-doom-muted/60 focus:border-doom-red focus:outline-hidden"
+              placeholder="Filter by name, file, lump structure..."
+              className="w-full rounded-md border border-white/[0.08] bg-black/40 pl-8 pr-16 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-doom-red focus:outline-hidden font-mono"
             />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-2.5 text-doom-muted hover:text-white"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
+            <span className="absolute right-2.5 top-2 text-[10px] font-mono text-zinc-500">
+              {filteredAndSortedMods.length}/{mods.length}
+            </span>
           </div>
 
-          {/* Right Controls: Format Filter, Sort Selector, View Mode Toggle */}
-          <div className="flex flex-wrap items-center gap-2.5">
+          {/* Action and Filter Controls */}
+          <div className="flex flex-wrap items-center gap-2">
             {/* Format Filter */}
-            <div className="flex items-center gap-1.5 rounded border border-doom-border bg-doom-card px-2.5 py-1.5 text-xs font-mono">
-              <Filter className="h-3.5 w-3.5 text-doom-muted" />
+            <div className="flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-black/40 px-2.5 py-1 text-xs font-mono">
+              <Filter className="h-3 w-3 text-zinc-400" />
               <select
                 value={selectedFormat}
                 onChange={(e) => setSelectedFormat(e.target.value)}
                 aria-label="Filter by file format"
-                className="bg-transparent text-doom-text focus:outline-hidden cursor-pointer"
+                className="bg-transparent text-zinc-200 focus:outline-hidden cursor-pointer"
               >
                 {availableFormatOptions.map((f) => (
-                  <option key={f.value} value={f.value} className="bg-doom-surface text-doom-text">
+                  <option key={f.value} value={f.value} className="bg-[#141619] text-zinc-100">
                     {f.label}
                   </option>
                 ))}
@@ -491,33 +443,33 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
             </div>
 
             {/* Sort Selector */}
-            <div className="flex items-center gap-1.5 rounded border border-doom-border bg-doom-card px-2.5 py-1.5 text-xs font-mono">
-              <ArrowUpDown className="h-3.5 w-3.5 text-doom-muted" />
+            <div className="flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-black/40 px-2.5 py-1 text-xs font-mono">
+              <ArrowUpDown className="h-3 w-3 text-zinc-400" />
               <select
                 value={sortOption}
                 onChange={(e) => setSortOption(e.target.value as SortField)}
                 aria-label="Sort library mods"
-                className="bg-transparent text-doom-text focus:outline-hidden cursor-pointer"
+                className="bg-transparent text-zinc-200 focus:outline-hidden cursor-pointer"
               >
-                <option value="name-asc" className="bg-doom-surface text-doom-text">Name (A-Z)</option>
-                <option value="name-desc" className="bg-doom-surface text-doom-text">Name (Z-A)</option>
-                <option value="size-desc" className="bg-doom-surface text-doom-text">Size (Largest)</option>
-                <option value="size-asc" className="bg-doom-surface text-doom-text">Size (Smallest)</option>
-                <option value="lumps-desc" className="bg-doom-surface text-doom-text">Lumps (Most)</option>
-                <option value="date-desc" className="bg-doom-surface text-doom-text">Recently Added</option>
+                <option value="name-asc" className="bg-[#141619] text-zinc-100">Name (A-Z)</option>
+                <option value="name-desc" className="bg-[#141619] text-zinc-100">Name (Z-A)</option>
+                <option value="size-desc" className="bg-[#141619] text-zinc-100">Size (Largest)</option>
+                <option value="size-asc" className="bg-[#141619] text-zinc-100">Size (Smallest)</option>
+                <option value="lumps-desc" className="bg-[#141619] text-zinc-100">Lumps (Most)</option>
+                <option value="date-desc" className="bg-[#141619] text-zinc-100">Recently Added</option>
               </select>
             </div>
 
             {/* View Mode Toggle */}
-            <div className="flex items-center rounded border border-doom-border bg-doom-card p-0.5">
+            <div className="flex items-center rounded-md border border-white/[0.08] bg-black/40 p-0.5">
               <button
                 type="button"
                 title="Grid Cards View"
                 onClick={() => setViewMode('grid')}
-                className={`rounded p-1.5 transition-colors ${
+                className={`rounded p-1 transition-colors ${
                   viewMode === 'grid'
-                    ? 'bg-doom-surface text-white shadow-xs'
-                    : 'text-doom-muted hover:text-doom-text'
+                    ? 'bg-white/[0.12] text-white'
+                    : 'text-zinc-400 hover:text-white'
                 }`}
               >
                 <LayoutGrid className="h-3.5 w-3.5" />
@@ -526,115 +478,116 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
                 type="button"
                 title="Table List View"
                 onClick={() => setViewMode('table')}
-                className={`rounded p-1.5 transition-colors ${
+                className={`rounded p-1 transition-colors ${
                   viewMode === 'table'
-                    ? 'bg-doom-surface text-white shadow-xs'
-                    : 'text-doom-muted hover:text-doom-text'
+                    ? 'bg-white/[0.12] text-white'
+                    : 'text-zinc-400 hover:text-white'
                 }`}
               >
                 <ListIcon className="h-3.5 w-3.5" />
               </button>
             </div>
+
+            <div className="h-4 w-px bg-white/[0.08] mx-1 hidden sm:block" />
+
+            {/* Action Buttons */}
+            <button
+              type="button"
+              onClick={handleQuickScan}
+              className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-[#15181c] px-2.5 py-1 text-xs font-medium text-zinc-300 hover:bg-[#1f2228] hover:text-white transition-colors"
+            >
+              <FolderSearch className="h-3.5 w-3.5 text-blue-400" />
+              <span>Scan</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsIdgamesModalOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-[#15181c] px-2.5 py-1 text-xs font-medium text-zinc-300 hover:bg-[#1f2228] hover:text-white transition-colors"
+            >
+              <Globe className="h-3.5 w-3.5 text-amber-400" />
+              <span>/idgames</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsAddModalOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-[#dc2626] hover:bg-[#c02020] px-3 py-1 text-xs font-bold uppercase tracking-wider text-white border border-red-500/30 transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add Mod</span>
+            </button>
           </div>
         </div>
 
-        {/* Category Pills Bar */}
-        <div className="mt-3 flex items-center gap-1.5 overflow-x-auto pb-1">
-          {CATEGORY_TABS.map((tab) => {
-            const isActive = selectedCategory === tab.value;
-            return (
-              <button
-                key={tab.value}
-                type="button"
-                onClick={() => setSelectedCategory(tab.value)}
-                className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded px-3 py-1 font-mono text-xs font-medium transition-colors ${
-                  isActive
-                    ? 'bg-doom-red text-white'
-                    : 'bg-doom-card/60 text-doom-muted hover:bg-doom-card hover:text-doom-text'
-                }`}
-              >
-                {tab.value === 'favorites' && (
-                  <Star className={`h-3 w-3 ${isActive ? 'fill-white' : 'fill-doom-amber text-doom-amber'}`} />
-                )}
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        {/* Category Pills & Filter Chips */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-white/[0.04]">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+            {CATEGORY_TABS.map((tab) => {
+              const isActive = selectedCategory === tab.value;
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => setSelectedCategory(tab.value)}
+                  className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 font-mono text-[11px] font-medium transition-colors ${
+                    isActive
+                      ? 'bg-[#2b1416] text-[#fca5a5] border border-red-800/40 font-semibold'
+                      : 'bg-white/[0.04] text-zinc-400 hover:bg-white/[0.08] hover:text-white border border-white/[0.06]'
+                  }`}
+                >
+                  {tab.value === 'favorites' && (
+                    <Star className={`h-3 w-3 ${isActive ? 'fill-red-400 text-red-400' : 'fill-amber-400 text-amber-400'}`} />
+                  )}
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
 
-        {/* Quick Filter Chips / Tag Pills */}
-        <div className="mt-2.5 flex items-center gap-1.5 overflow-x-auto pb-1">
-          <span className="font-mono text-[10px] uppercase tracking-wider text-doom-muted shrink-0 mr-1">
-            Filter:
-          </span>
-          {FILTER_CHIPS.map((chip) => {
-            const isActive = activeFilterChip === chip.id;
-            return (
-              <button
-                key={chip.id}
-                type="button"
-                onClick={() => setActiveFilterChip(chip.id)}
-                className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 font-mono text-[11px] font-medium transition-colors ${
-                  isActive
-                    ? 'bg-doom-cyan/20 text-doom-cyan border border-doom-cyan/50 shadow-xs'
-                    : 'bg-doom-card/60 text-doom-muted border border-doom-border/60 hover:bg-doom-card hover:text-doom-text'
-                }`}
-              >
-                <span>{chip.label}</span>
-              </button>
-            );
-          })}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+            {FILTER_CHIPS.map((chip) => {
+              const isActive = activeFilterChip === chip.id;
+              return (
+                <button
+                  key={chip.id}
+                  type="button"
+                  onClick={() => setActiveFilterChip(chip.id)}
+                  className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 font-mono text-[10px] font-medium transition-colors ${
+                    isActive
+                      ? 'bg-[#132232] text-[#93c5fd] border border-blue-800/40'
+                      : 'bg-black/20 text-zinc-500 border border-white/[0.04] hover:text-zinc-300'
+                  }`}
+                >
+                  <span>{chip.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
         {filteredAndSortedMods.length === 0 ? (
-          <div className="flex h-64 flex-col items-center justify-center rounded-lg border border-dashed border-doom-border bg-doom-surface/30 p-8 text-center">
-            <FileCode className="h-10 w-10 text-doom-muted/50 mb-3" />
-            <h3 className="font-mono text-sm font-bold uppercase text-doom-text">
-              No Mods Found
-            </h3>
-            <p className="mt-1 max-w-sm font-mono text-xs text-doom-muted">
-              {searchQuery || selectedCategory !== 'all' || selectedFormat !== 'all'
-                ? 'Try adjusting your search query, category, or format filters.'
-                : 'Your library is empty. Import files or scan your Doom directories.'}
+          <div className="flex min-h-[360px] flex-col items-center justify-center rounded-xl border border-dashed border-white/[0.1] bg-white/[0.02] p-8 text-center">
+            <Layers className="h-12 w-12 text-zinc-600 mb-3" />
+            <h3 className="text-base font-semibold text-white">No Mods Found</h3>
+            <p className="mt-1 text-xs text-zinc-400 max-w-sm">
+              {searchQuery || selectedCategory !== 'all' || activeFilterChip !== 'all'
+                ? 'Try adjusting your search terms or clearing active filters.'
+                : 'Drag and drop WAD, PK3, or DEH files here, or use Scan Folders to populate your library.'}
             </p>
-            <div className="mt-4 flex gap-3">
-              {(searchQuery || selectedCategory !== 'all' || selectedFormat !== 'all' || activeFilterChip !== 'all') && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchQuery('');
-                    setSelectedCategory('all');
-                    setSelectedFormat('all');
-                    setActiveFilterChip('all');
-                  }}
-                  className="rounded border border-doom-border bg-doom-card px-3.5 py-1.5 font-mono text-xs text-doom-text hover:bg-doom-surface"
-                >
-                  Reset Filters
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setIsAddModalOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded bg-doom-red px-3.5 py-1.5 font-mono text-xs font-bold uppercase text-white hover:bg-doom-red-bright"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Add Mod</span>
-              </button>
-            </div>
           </div>
         ) : viewMode === 'grid' ? (
-          /* Grid Cards View */
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
             {filteredAndSortedMods.map((mod) => (
               <ModCard
                 key={mod.id}
                 mod={mod}
-                usageCount={usageCounts[mod.id] || 0}
-                showFilePaths={settings?.showFilePaths ?? false}
-                density={settings?.uiDensity ?? 'compact'}
+                usageCount={usageCounts[mod.id]}
+                showFilePaths={settings?.showFilePaths}
+                density={settings?.uiDensity}
                 onInspect={(m) => setInspectingMod(m)}
                 onToggleFavorite={handleToggleFavorite}
                 onAddToProfile={(m) => setModForProfileAdd(m)}
@@ -644,20 +597,18 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
             ))}
           </div>
         ) : (
-          /* Table List View */
-          <div className="overflow-hidden rounded-lg border border-doom-border bg-doom-surface/60">
+          <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#15181c]">
             <div className="overflow-x-auto">
               <table className="w-full text-left font-mono text-xs">
                 <thead>
-                  <tr className="border-b border-doom-border bg-doom-card/80 text-[11px] uppercase tracking-wider text-doom-muted">
-                    <th className="w-10 px-3 py-2.5 text-center">Fav</th>
-                    <th className="px-4 py-2.5">Name &amp; File</th>
-                    <th className="px-4 py-2.5">Category</th>
-                    <th className="px-4 py-2.5">Format</th>
-                    <th className="px-4 py-2.5">Usage</th>
+                  <tr className="border-b border-white/[0.07] bg-white/[0.02] text-[10.5px] uppercase tracking-wider text-zinc-400">
+                    <th className="w-8 px-3 py-2.5 text-center">Fav</th>
+                    <th className="px-4 py-2.5">{'Name & File'}</th>
+                    <th className="hidden sm:table-cell px-4 py-2.5">Category</th>
+                    <th className="hidden md:table-cell px-4 py-2.5">Structures</th>
                     <th className="px-4 py-2.5">Size</th>
-                    <th className="px-4 py-2.5">Structure &amp; Lumps</th>
-                    <th className="px-4 py-2.5">Added</th>
+                    <th className="hidden lg:table-cell px-4 py-2.5">Usage</th>
+                    <th className="hidden xl:table-cell px-4 py-2.5">Added</th>
                     <th className="px-4 py-2.5 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -666,9 +617,9 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
                     <ModTableRow
                       key={mod.id}
                       mod={mod}
-                      usageCount={usageCounts[mod.id] || 0}
-                      showFilePaths={settings?.showFilePaths ?? false}
-                      density={settings?.uiDensity ?? 'compact'}
+                      usageCount={usageCounts[mod.id]}
+                      showFilePaths={settings?.showFilePaths}
+                      density={settings?.uiDensity}
                       onInspect={(m) => setInspectingMod(m)}
                       onToggleFavorite={handleToggleFavorite}
                       onAddToProfile={(m) => setModForProfileAdd(m)}
@@ -713,23 +664,24 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
           showNotification('success', `Imported "${newMod.name}" from /idgames!`);
         }}
       />
+
       {/* Add to Profile Selection Modal */}
       {modForProfileAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-lg border border-doom-border bg-doom-surface p-5 text-doom-text shadow-2xl">
-            <div className="flex items-center justify-between border-b border-doom-border/70 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl border border-white/[0.08] bg-[#15181c] p-5 text-zinc-100 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/[0.07] pb-3">
               <div>
-                <h3 className="font-mono text-sm font-bold uppercase tracking-wider text-white">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-white">
                   Add Mod to Profile
                 </h3>
-                <p className="mt-0.5 truncate font-mono text-xs text-doom-cyan" title={modForProfileAdd.name}>
+                <p className="mt-0.5 truncate font-mono text-xs text-blue-400" title={modForProfileAdd.name}>
                   {modForProfileAdd.name}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setModForProfileAdd(null)}
-                className="rounded p-1 text-doom-muted hover:text-white"
+                className="rounded p-1 text-zinc-400 hover:text-white"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -737,7 +689,7 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
 
             <div className="mt-4 max-h-64 overflow-y-auto space-y-2">
               {profiles.length === 0 ? (
-                <div className="p-4 text-center font-mono text-xs text-doom-muted">
+                <div className="p-4 text-center font-mono text-xs text-zinc-500">
                   No launch profiles exist yet. Create a profile first.
                 </div>
               ) : (
@@ -750,22 +702,22 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
                       key={prof.id}
                       type="button"
                       onClick={() => handleAddModToProfile(prof.id)}
-                      className="w-full flex items-center justify-between rounded-lg border border-doom-border bg-doom-card/70 p-3 text-left transition-colors hover:border-doom-border-bright hover:bg-doom-card"
+                      className="w-full flex items-center justify-between rounded-lg border border-white/[0.08] bg-black/30 p-3 text-left transition-colors hover:border-white/[0.18] hover:bg-black/50"
                     >
                       <div>
-                        <div className="font-mono text-xs font-semibold text-doom-text">
+                        <div className="font-mono text-xs font-semibold text-white">
                           {prof.name}
                         </div>
-                        <div className="mt-0.5 font-mono text-[10px] text-doom-muted">
+                        <div className="mt-0.5 font-mono text-[10px] text-zinc-400">
                           {prof.engineName} • {prof.iwadName}
                         </div>
                       </div>
                       {alreadyInProfile ? (
-                        <span className="rounded bg-doom-cyan/20 px-2 py-0.5 font-mono text-[10px] text-doom-cyan border border-doom-cyan/30">
+                        <span className="rounded-full bg-[#132232] px-2.5 py-0.5 font-mono text-[10px] text-[#93c5fd] border border-blue-800/30">
                           In Profile
                         </span>
                       ) : (
-                        <span className="rounded bg-doom-green/20 px-2 py-0.5 font-mono text-[10px] font-bold text-doom-green-bright border border-doom-green/30">
+                        <span className="rounded-full bg-[#122419] px-2.5 py-0.5 font-mono text-[10px] font-bold text-[#86efac] border border-emerald-800/30">
                           + Add
                         </span>
                       )}
@@ -775,11 +727,11 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
               )}
             </div>
 
-            <div className="mt-4 pt-3 border-t border-doom-border/70 flex justify-end">
+            <div className="mt-4 pt-3 border-t border-white/[0.07] flex justify-end">
               <button
                 type="button"
                 onClick={() => setModForProfileAdd(null)}
-                className="rounded px-4 py-1.5 font-mono text-xs text-doom-muted hover:text-white"
+                className="rounded px-4 py-1.5 font-mono text-xs text-zinc-400 hover:text-white"
               >
                 Cancel
               </button>

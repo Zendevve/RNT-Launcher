@@ -1,7 +1,10 @@
 import React, { useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import { X } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Button } from './Button';
+import { modalVariants, scrimVariants } from '../../lib/springs';
 
 export interface ModalProps {
   isOpen: boolean;
@@ -40,13 +43,12 @@ export const Modal: React.FC<ModalProps> = ({
     } else {
       document.body.style.overflow = 'unset';
     }
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'unset';
     };
   }, [isOpen, handleKeyDown]);
-
-  if (!isOpen) return null;
 
   const sizeClasses = {
     sm: 'max-w-md',
@@ -57,52 +59,68 @@ export const Modal: React.FC<ModalProps> = ({
     '4xl': 'max-w-5xl',
   }[size];
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
-        onClick={closeOnBackdrop ? onClose : undefined}
-      />
+  const content = (
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+          {/* Backdrop Scrim */}
+          <motion.div
+            variants={scrimVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm"
+            onClick={closeOnBackdrop ? onClose : undefined}
+          />
 
-      {/* Modal Dialog */}
-      <div
-        className={clsx(
-          'relative w-full bg-doom-surface border border-doom-border rounded-lg shadow-2xl overflow-hidden z-10 flex flex-col max-h-[90vh] transition-all transform animate-in zoom-in-95 duration-200',
-          sizeClasses
-        )}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-doom-border bg-doom-card/50">
-          <div>
-            <h2 className="text-lg font-bold text-doom-text tracking-wide uppercase flex items-center gap-2">
-              {title}
-            </h2>
-            {description && (
-              <p className="text-xs text-doom-muted mt-0.5">{description}</p>
+          {/* Modal Dialog */}
+          <motion.div
+            variants={modalVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className={clsx(
+              'relative w-full bg-[#15181c] border border-white/[0.08] rounded-xl overflow-hidden z-10 flex flex-col max-h-[90vh]',
+              sizeClasses
             )}
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            aria-label="Close modal"
-            className="text-doom-muted hover:text-doom-text hover:bg-zinc-800 rounded"
           >
-            <X className="w-4 h-4" />
-          </Button>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.07] bg-white/[0.02]">
+              <div>
+                <h2 className="text-base font-bold text-white tracking-[-0.015em] uppercase flex items-center gap-2">
+                  {title}
+                </h2>
+                {description && (
+                  <p className="text-xs text-zinc-400 mt-0.5 tracking-tight">{description}</p>
+                )}
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onClose}
+                aria-label="Close modal"
+                className="text-zinc-400 hover:text-white rounded-md hover:bg-white/[0.08]"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6 text-sm text-zinc-300 leading-relaxed">
+              {children}
+            </div>
+
+            {/* Footer */}
+            {footer && (
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/[0.07] bg-black/20">
+                {footer}
+              </div>
+            )}
+          </motion.div>
         </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">{children}</div>
-
-        {/* Footer */}
-        {footer && (
-          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-doom-border bg-doom-card/30">
-            {footer}
-          </div>
-        )}
-      </div>
-    </div>
+      )}
+    </AnimatePresence>
   );
+
+  return typeof document !== 'undefined' ? createPortal(content, document.body) : content;
 };

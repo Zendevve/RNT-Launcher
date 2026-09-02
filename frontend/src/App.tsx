@@ -9,16 +9,10 @@ import {
   Modal,
   Input,
   Badge,
-  OnboardingWizard,
 } from './components';
-import { DashboardView } from './features/dashboard';
 import { LibraryView } from './features/library';
 import { ProfilesView } from './features/profiles';
-import { EnginesView } from './features/engines';
-import { IWADsView } from './features/iwads';
-import { HistoryView } from './features/history';
 import { SettingsView } from './features/settings';
-import { DiagnosticsView } from './features/diagnostics';
 import { api } from './services/api';
 import { Mod, Profile, Engine, IWAD, ScanResult, LaunchRecord, ScanProgress, UiDensity, Settings } from './types';
 import {
@@ -38,11 +32,10 @@ function AppContent() {
     else if (type === 'warning') toast.warning(message);
     else toast.info(message);
   };
-  const [activeView, setActiveView] = useState<NavViewId>('dashboard');
+  const [activeView, setActiveView] = useState<NavViewId>('play');
   const [density, setDensity] = useState<UiDensity>('compact');
   const [appSettings, setAppSettings] = useState<Settings | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [hasDismissedOnboarding, setHasDismissedOnboarding] = useState(false);
   const [counts, setCounts] = useState<{
     mods: number;
     profiles: number;
@@ -89,7 +82,13 @@ function AppContent() {
           setDensity(s.uiDensity);
         }
         if (s.defaultView) {
-          setActiveView(s.defaultView as NavViewId);
+          const mapped =
+            s.defaultView === 'dashboard' || s.defaultView === 'profiles'
+              ? 'play'
+              : s.defaultView === 'library'
+              ? 'mods'
+              : (s.defaultView as NavViewId);
+          setActiveView(mapped);
         }
       })
       .catch(() => {
@@ -295,41 +294,18 @@ function AppContent() {
     };
   }, [globalSearchQuery, allMods, allProfiles, allEngines, allIwads]);
 
-  const viewTitles: Record<NavViewId, { title: string; subtitle: string }> = {
-    dashboard: {
-      title: 'Dashboard',
-      subtitle: 'Fast launcher and recent activity',
-    },
-    library: {
-      title: 'Mod Library',
-      subtitle: 'Browse, inspect, and organize your Doom collection',
-    },
-    profiles: {
-      title: 'Profiles',
-      subtitle: 'Configure load orders, engines, IWADs, and custom parameters',
-    },
-    engines: {
-      title: 'Source Ports',
-      subtitle: 'Manage Doom executables and detected engine families',
-    },
-    iwads: {
-      title: 'IWADs',
-      subtitle: 'Base game data files and lump information',
-    },
-    history: {
-      title: 'Launch History',
-      subtitle: 'Past game sessions, duration, and telemetry',
-    },
-    diagnostics: {
-      title: 'System Diagnostics & Health',
-      subtitle: 'Database integrity, missing file detection, and profile repair',
-    },
-    settings: {
-      title: 'Settings',
-      subtitle: 'Content scan directories and application preferences',
-    },
+  const viewTitles: Record<NavViewId, string> = {
+    play: 'Play',
+    mods: 'Mods',
+    settings: 'Settings & Assets',
+    dashboard: 'Play',
+    library: 'Mods',
+    profiles: 'Play',
+    engines: 'Settings & Assets',
+    iwads: 'Settings & Assets',
+    history: 'Settings & Assets',
+    diagnostics: 'Settings & Assets',
   };
-
   return (
     <div
       data-density={density}
@@ -347,13 +323,17 @@ function AppContent() {
         density={density}
         onToggleDensity={handleToggleDensity}
         counts={counts}
+        systemStatus={{
+          ready: counts.engines > 0 && counts.iwads > 0,
+          engineName: allEngines[0]?.name,
+          iwadName: allIwads[0]?.name,
+        }}
       />
       {/* Main Content Viewport */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Top Header */}
         <Header
-          title={viewTitles[activeView]?.title || 'RNT Launcher'}
-          subtitle={viewTitles[activeView]?.subtitle}
+          title={viewTitles[activeView] || 'RNT Launcher'}
           onQuickScan={handleStartScan}
           isScanning={isScanning}
           showSearch={true}
@@ -362,6 +342,29 @@ function AppContent() {
           onSearchChange={(q) => {
             setGlobalSearchQuery(q);
             if (q.trim()) setIsSearchModalOpen(true);
+          }}
+          activeProfileName={
+            (allProfiles.find((p) => p.id === selectedProfileId) ||
+              allProfiles.find((p) => p.isFavorite) ||
+              allProfiles[0])?.name
+          }
+          onQuickLaunch={() => {
+            const target =
+              allProfiles.find((p) => p.id === selectedProfileId) ||
+              allProfiles.find((p) => p.isFavorite) ||
+              allProfiles[0];
+            if (target) {
+              toast.info('Launching Profile', `Starting ${target.name}...`);
+              api
+                .launchProfile(target.id)
+                .then(() => refreshData())
+                .catch((err: unknown) => {
+                  const msg = err instanceof Error ? err.message : String(err);
+                  toast.error('Launch Failed', msg);
+                });
+            } else {
+              setActiveView('play');
+            }
           }}
         />
 
@@ -386,49 +389,31 @@ function AppContent() {
 
         {/* Dynamic View Content */}
         <main className="flex-1 overflow-hidden relative">
-          {activeView === 'dashboard' && (
-            <div className="h-full overflow-y-auto">
-              {counts.engines === 0 && counts.iwads === 0 && !hasDismissedOnboarding && (
-                <div className="p-6 pb-0 max-w-7xl mx-auto">
-                  <OnboardingWizard
-                    onComplete={() => {
-                      setHasDismissedOnboarding(true);
-                      refreshData();
-                    }}
-                    onNavigate={(tab) => setActiveView(tab as NavViewId)}
-                    onNotify={(msg, type) => notify(msg, type)}
-                  />
-                </div>
-              )}
-              <DashboardView
-                onNavigateToLibrary={() => setActiveView('library')}
-                onNavigateToProfiles={() => setActiveView('profiles')}
-                onSelectProfile={(profileId) => {
-                  setSelectedProfileId(profileId);
-                  setActiveView('profiles');
-                }}
-                onCreateProfile={() => {
-                  setSelectedProfileId(null);
-                  setActiveView('profiles');
-                }}
-              />
-            </div>
+          {(activeView === 'play' || activeView === 'dashboard' || activeView === 'profiles') && (
+            <ProfilesView
+              selectedProfileId={selectedProfileId}
+              onSelectProfile={setSelectedProfileId}
+              onNavigateToLibrary={() => setActiveView('mods')}
+              onNavigateToSettings={(tab) => {
+                if (tab === 'engines' || tab === 'iwads' || tab === 'history' || tab === 'diagnostics') {
+                  setActiveView(tab as NavViewId);
+                } else {
+                  setActiveView('settings');
+                }
+              }}
+              onScanRequested={handleStartScan}
+            />
           )}
 
-          {activeView === 'library' && <LibraryView />}
-
-          {activeView === 'profiles' && <ProfilesView />}
-
-          {activeView === 'engines' && <EnginesView />}
-
-          {activeView === 'iwads' && <IWADsView />}
-
-          {activeView === 'history' && <HistoryView />}
-
-          {activeView === 'diagnostics' && (
-            <DiagnosticsView onNotify={(msg, type) => notify(msg, type)} />
+          {(activeView === 'mods' || activeView === 'library') && (
+            <LibraryView />
           )}
+
           {activeView === 'settings' && <SettingsView />}
+          {activeView === 'engines' && <SettingsView initialTab="engines" />}
+          {activeView === 'iwads' && <SettingsView initialTab="iwads" />}
+          {activeView === 'history' && <SettingsView initialTab="history" />}
+          {activeView === 'diagnostics' && <SettingsView initialTab="diagnostics" />}
         </main>
       </div>
       {/* Global Search Modal (Ctrl+K) */}
@@ -466,7 +451,7 @@ function AppContent() {
                         key={p.id}
                         onClick={() => {
                           setSelectedProfileId(p.id);
-                          setActiveView('profiles');
+                          setActiveView('play');
                           setIsSearchModalOpen(false);
                         }}
                         className="flex items-center justify-between p-2.5 rounded bg-doom-surface/80 hover:bg-doom-card hover:border-doom-border border border-transparent cursor-pointer transition-colors"
@@ -508,7 +493,7 @@ function AppContent() {
                       <div
                         key={m.id}
                         onClick={() => {
-                          setActiveView('library');
+                          setActiveView('mods');
                           setIsSearchModalOpen(false);
                         }}
                         className="flex items-center justify-between p-2 rounded bg-doom-surface/80 hover:bg-doom-card hover:border-doom-border border border-transparent cursor-pointer"

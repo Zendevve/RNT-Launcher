@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Activity,
   AlertTriangle,
   CheckCircle2,
   Database,
@@ -15,8 +14,9 @@ import {
   ShieldCheck,
   Search,
 } from 'lucide-react';
+import { motion } from 'motion/react';
 import { api } from '../../services/api';
-import { DiagnosticsReport, DiagnosticIssue, LogEntry } from '../../types/domain';
+import { DiagnosticsReport, DiagnosticIssue, LogEntry } from '../../types';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -59,11 +59,11 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onNotify }) =>
     setRepairingId(issue.id);
     try {
       await api.repairDiagnosticIssue(issue.repairAction, issue.targetId || '');
-      onNotify?.(`Repaired: ${issue.title}`, 'success');
+      onNotify?.(issue.title ? `Repaired: ${issue.title}` : 'Repaired issue successfully', 'success');
       await fetchDiagnostics();
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Repair failed:', err);
-      onNotify?.(`Repair failed: ${err instanceof Error ? err.message : String(err)}`, 'error');
+      onNotify?.('Failed to repair diagnostic issue', 'error');
     } finally {
       setRepairingId(null);
     }
@@ -75,7 +75,7 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onNotify }) =>
       await api.repairDiagnosticIssue('prune_all_missing', '');
       onNotify?.('Successfully pruned all missing files and cleaned profiles', 'success');
       await fetchDiagnostics();
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Prune failed:', err);
       onNotify?.('Failed to prune missing resources', 'error');
     } finally {
@@ -93,7 +93,7 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onNotify }) =>
     }
   };
 
-  const filteredIssues = (report?.issues || []).filter((issue) => {
+  const filteredIssues = (report?.issues || []).filter((issue: DiagnosticIssue) => {
     if (activeTab === 'errors') return issue.severity === 'error';
     if (activeTab === 'warnings') return issue.severity === 'warning';
     return true;
@@ -106,252 +106,274 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onNotify }) =>
   );
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto p-6 space-y-6 bg-zinc-950 text-zinc-100">
-      {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-800 pb-5">
-        <div>
-          <div className="flex items-center gap-3">
-            <Activity className="w-6 h-6 text-red-500" />
-            <h1 className="text-2xl font-bold tracking-tight">System Diagnostics & Health</h1>
-          </div>
-          <p className="text-sm text-zinc-400 mt-1">
-            Audit database integrity, detect missing game resources, and repair broken profiles.
-          </p>
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#0c0e10] text-zinc-100 select-none">
+      {/* Streamlined Single Desktop Toolbar */}
+      <div className="border-b border-white/[0.07] bg-[#14171a] px-8 py-3.5 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300">
+            {'System Health & Integrity Audit'}
+          </span>
+          {report?.overallStatus && (
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-[10px] font-mono font-bold uppercase ${
+                report.overallStatus === 'healthy'
+                  ? 'bg-[#122419] text-[#86efac] border border-emerald-800/40'
+                  : report.overallStatus === 'warning'
+                  ? 'bg-[#2b2011] text-[#fde047] border border-amber-800/40'
+                  : 'bg-[#2b1416] text-[#fca5a5] border border-red-800/40'
+              }`}
+            >
+              {report.overallStatus}
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-3">
+
+        <div className="flex items-center gap-2.5">
           <Button
             variant="secondary"
+            size="xs"
             onClick={fetchDiagnostics}
             disabled={isLoading}
-            className="flex items-center gap-2"
+            leftIcon={<RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />}
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-            Re-scan System
+            Re-scan
           </Button>
           {(report?.summary?.totalIssues ?? 0) > 0 && (
             <Button
               variant="danger"
+              size="xs"
               onClick={handlePruneAll}
               disabled={isLoading}
-              className="flex items-center gap-2"
+              leftIcon={<Trash2 className="w-3 h-3" />}
             >
-              <Trash2 className="w-4 h-4" />
               Prune All Missing
             </Button>
           )}
         </div>
       </div>
 
-      {/* Health Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Status Card */}
-        <div className="p-4 rounded-lg bg-zinc-900 border border-zinc-800 flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Overall Status</span>
-            {report?.overallStatus === 'healthy' && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
-            {report?.overallStatus === 'warning' && <AlertTriangle className="w-5 h-5 text-amber-400" />}
-            {report?.overallStatus === 'error' && <XCircle className="w-5 h-5 text-red-400" />}
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-bold capitalize flex items-center gap-2">
-              {report?.overallStatus || 'Checking...'}
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
+        {/* Health Overview Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          {/* Status Card */}
+          <div className="p-4.5 rounded-xl bg-[#15181c] border border-white/[0.08] flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Overall Status</span>
+              {report?.overallStatus === 'healthy' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+              {report?.overallStatus === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-400" />}
+              {report?.overallStatus === 'error' && <XCircle className="w-4 h-4 text-red-400" />}
             </div>
-            <p className="text-xs text-zinc-500 mt-1">
-              Generated: {report?.generatedAt ? new Date(report.generatedAt).toLocaleTimeString() : '—'}
-            </p>
+            <div className="mt-2.5">
+              <div className="text-xl font-bold capitalize flex items-center gap-2 text-white">
+                {report?.overallStatus || 'Checking...'}
+              </div>
+              <p className="text-[10.5px] text-zinc-400 mt-1">
+                Generated: {report?.generatedAt ? new Date(report.generatedAt).toLocaleTimeString() : '-'}
+              </p>
+            </div>
+          </div>
+
+          {/* Database Health Card */}
+          <div className="p-4.5 rounded-xl bg-[#15181c] border border-white/[0.08] flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">SQLite Database</span>
+              <Database className="w-4 h-4 text-blue-400" />
+            </div>
+            <div className="mt-2.5">
+              <div className="text-sm font-semibold text-zinc-200">
+                Integrity: <span className="text-emerald-400 font-mono">{report?.database?.integrityCheck || 'ok'}</span>
+              </div>
+              <div className="text-[10.5px] text-zinc-400 mt-1 flex flex-wrap gap-2 font-mono">
+                <span>Mods: {report?.database?.modCount ?? 0}</span>
+                <span>•</span>
+                <span>IWADs: {report?.database?.iwadCount ?? 0}</span>
+                <span>•</span>
+                <span>Engines: {report?.database?.engineCount ?? 0}</span>
+                <span>•</span>
+                <span>Profiles: {report?.database?.profileCount ?? 0}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Issues Summary Card */}
+          <div className="p-4.5 rounded-xl bg-[#15181c] border border-white/[0.08] flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Identified Issues</span>
+              <ShieldCheck className="w-4 h-4 text-zinc-400" />
+            </div>
+            <div className="mt-2.5 flex items-center gap-4">
+              <div>
+                <span className="text-xl font-bold text-red-400">{report?.summary?.errorCount ?? 0}</span>
+                <span className="text-[10.5px] text-zinc-400 block font-medium">Errors</span>
+              </div>
+              <div className="border-l border-white/[0.08] pl-3.5">
+                <span className="text-xl font-bold text-amber-400">{report?.summary?.warningCount ?? 0}</span>
+                <span className="text-[10.5px] text-zinc-400 block font-medium">Warnings</span>
+              </div>
+              <div className="border-l border-white/[0.08] pl-3.5">
+                <span className="text-xl font-bold text-blue-400">{report?.summary?.infoCount ?? 0}</span>
+                <span className="text-[10.5px] text-zinc-400 block font-medium">Info</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Database Health Card */}
-        <div className="p-4 rounded-lg bg-zinc-900 border border-zinc-800 flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">SQLite Database</span>
-            <Database className="w-5 h-5 text-blue-400" />
-          </div>
-          <div className="mt-3">
-            <div className="text-sm font-semibold text-zinc-200">
-              Integrity: <span className="text-emerald-400">{report?.database?.integrityCheck || 'ok'}</span>
-            </div>
-            <div className="text-xs text-zinc-400 mt-1 flex flex-wrap gap-2">
-              <span>Mods: {report?.database?.modCount ?? 0}</span>
-              <span>•</span>
-              <span>IWADs: {report?.database?.iwadCount ?? 0}</span>
-              <span>•</span>
-              <span>Engines: {report?.database?.engineCount ?? 0}</span>
-              <span>•</span>
-              <span>Profiles: {report?.database?.profileCount ?? 0}</span>
-            </div>
+        {/* Tabs Selection */}
+        <div className="flex items-center justify-between border-b border-white/[0.07] pb-2">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                activeTab === 'all'
+                  ? 'bg-white/[0.1] text-white font-semibold'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
+              }`}
+            >
+              All Issues ({report?.summary?.totalIssues ?? 0})
+            </button>
+            <button
+              onClick={() => setActiveTab('errors')}
+              className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                activeTab === 'errors'
+                  ? 'bg-[#2b1416] text-[#fca5a5] border border-red-800/40 font-semibold'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
+              }`}
+            >
+              Errors ({report?.summary?.errorCount ?? 0})
+            </button>
+            <button
+              onClick={() => setActiveTab('warnings')}
+              className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                activeTab === 'warnings'
+                  ? 'bg-[#2b2011] text-[#fde047] border border-amber-800/40 font-semibold'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
+              }`}
+            >
+              Warnings ({report?.summary?.warningCount ?? 0})
+            </button>
+            <button
+              onClick={() => setActiveTab('logs')}
+              className={`px-3 py-1 text-xs font-medium rounded-full transition-colors flex items-center gap-1.5 ${
+                activeTab === 'logs'
+                  ? 'bg-[#132232] text-[#93c5fd] border border-blue-800/40 font-semibold'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
+              }`}
+            >
+              <Terminal className="w-3.5 h-3.5 text-blue-400" />
+              System Logs ({logs.length})
+            </button>
           </div>
         </div>
 
-        {/* Issues Summary Card */}
-        <div className="p-4 rounded-lg bg-zinc-900 border border-zinc-800 flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Identified Issues</span>
-            <ShieldCheck className="w-5 h-5 text-zinc-400" />
-          </div>
-          <div className="mt-3 flex items-center gap-4">
-            <div>
-              <span className="text-2xl font-bold text-red-400">{report?.summary?.errorCount ?? 0}</span>
-              <span className="text-xs text-zinc-500 block">Errors</span>
+        {/* Tab Content: Issues or Logs */}
+        {activeTab === 'logs' ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-4">
+              <div className="relative flex-1 max-w-md">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-zinc-400" />
+                <Input
+                  placeholder="Filter logs by message or level..."
+                  value={logFilter}
+                  onChange={(e) => setLogFilter(e.target.value)}
+                  className="pl-8 bg-black/40 border-white/[0.08] text-xs py-1.5 font-mono"
+                />
+              </div>
+              <Button variant="ghost" size="xs" onClick={handleClearLogs} className="text-zinc-400 hover:text-white">
+                Clear Logs
+              </Button>
             </div>
-            <div className="border-l border-zinc-800 pl-4">
-              <span className="text-2xl font-bold text-amber-400">{report?.summary?.warningCount ?? 0}</span>
-              <span className="text-xs text-zinc-500 block">Warnings</span>
-            </div>
-            <div className="border-l border-zinc-800 pl-4">
-              <span className="text-2xl font-bold text-blue-400">{report?.summary?.infoCount ?? 0}</span>
-              <span className="text-xs text-zinc-500 block">Info</span>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Tabs Selection */}
-      <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
-        <div className="flex gap-2">
-          <button
-            onClick={() => setActiveTab('all')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-              activeTab === 'all' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            All Issues ({report?.summary?.totalIssues ?? 0})
-          </button>
-          <button
-            onClick={() => setActiveTab('errors')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-              activeTab === 'errors' ? 'bg-red-950/60 text-red-300 border border-red-800/50' : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            Errors ({report?.summary?.errorCount ?? 0})
-          </button>
-          <button
-            onClick={() => setActiveTab('warnings')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-              activeTab === 'warnings' ? 'bg-amber-950/60 text-amber-300 border border-amber-800/50' : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            Warnings ({report?.summary?.warningCount ?? 0})
-          </button>
-          <button
-            onClick={() => setActiveTab('logs')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
-              activeTab === 'logs' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <Terminal className="w-3.5 h-3.5" />
-            System Logs ({logs.length})
-          </button>
-        </div>
-      </div>
+            <div className="bg-[#101214] border border-white/[0.08] rounded-xl p-4 font-mono text-xs overflow-x-auto max-h-[500px] space-y-1.5">
+              {filteredLogs.length === 0 ? (
+                <div className="text-zinc-500 py-6 text-center">No log messages recorded.</div>
+              ) : (
+                filteredLogs.map((log, idx) => {
+                  let badgeColor = 'text-zinc-400';
+                  if (log.level === 'ERROR') badgeColor = 'text-red-400 font-bold';
+                  if (log.level === 'WARN') badgeColor = 'text-amber-400 font-semibold';
+                  if (log.level === 'INFO') badgeColor = 'text-blue-400';
 
-      {/* Tab Content: Issues or Logs */}
-      {activeTab === 'logs' ? (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="relative flex-1 max-w-md">
-              <Search className="w-4 h-4 absolute left-3 top-2.5 text-zinc-500" />
-              <Input
-                placeholder="Filter logs by message or level..."
-                value={logFilter}
-                onChange={(e) => setLogFilter(e.target.value)}
-                className="pl-9 bg-zinc-900 border-zinc-800 text-xs"
-              />
+                  return (
+                    <div key={idx} className="flex items-start gap-3 hover:bg-white/[0.04] p-1 rounded-md">
+                      <span className="text-zinc-500 select-none">
+                        {new Date(log.timestamp).toLocaleTimeString()}
+                      </span>
+                      <span className={`w-14 uppercase ${badgeColor}`}>[{log.level}]</span>
+                      <span className="text-zinc-300 flex-1">{log.message}</span>
+                    </div>
+                  );
+                })
+              )}
             </div>
-            <Button variant="ghost" size="sm" onClick={handleClearLogs} className="text-zinc-400 hover:text-zinc-200">
-              Clear Logs
-            </Button>
           </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 font-mono text-xs overflow-x-auto max-h-[500px] space-y-1.5">
-            {filteredLogs.length === 0 ? (
-              <div className="text-zinc-500 py-6 text-center">No log messages recorded.</div>
+        ) : (
+          <div className="space-y-3">
+            {filteredIssues.length === 0 ? (
+              <div className="p-12 text-center rounded-xl bg-white/[0.02] border border-white/[0.08] flex flex-col items-center justify-center space-y-3">
+                <div className="p-3 bg-[#122419] rounded-full border border-emerald-800/40 text-emerald-400">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+                <h3 className="text-base font-bold text-white">All Systems Operational</h3>
+                <p className="text-xs text-zinc-400 max-w-md leading-relaxed">
+                  No database corruptions, missing game executables, broken IWADs, or orphaned mod references were detected.
+                </p>
+              </div>
             ) : (
-              filteredLogs.map((log, idx) => {
-                let badgeColor = 'text-zinc-400';
-                if (log.level === 'ERROR') badgeColor = 'text-red-400 font-bold';
-                if (log.level === 'WARN') badgeColor = 'text-amber-400 font-semibold';
-                if (log.level === 'INFO') badgeColor = 'text-blue-400';
+              filteredIssues.map((issue: DiagnosticIssue) => {
+                let categoryIcon = <HardDrive className="w-4 h-4" />;
+                if (issue.category === 'engine') categoryIcon = <FileCode2 className="w-4 h-4" />;
+                if (issue.category === 'profile') categoryIcon = <Layers className="w-4 h-4" />;
+                if (issue.category === 'database') categoryIcon = <Database className="w-4 h-4" />;
 
                 return (
-                  <div key={idx} className="flex items-start gap-3 hover:bg-zinc-800/40 p-1 rounded">
-                    <span className="text-zinc-600 select-none">
-                      {new Date(log.timestamp).toLocaleTimeString()}
-                    </span>
-                    <span className={`w-14 uppercase ${badgeColor}`}>[{log.level}]</span>
-                    <span className="text-zinc-300 flex-1">{log.message}</span>
-                  </div>
+                  <motion.div
+                    key={issue.id}
+                    whileTap={{ scale: 0.995 }}
+                    className="p-4 rounded-xl bg-[#15181c] border border-white/[0.08] hover:border-white/[0.18] transition-colors flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                  >
+                    <div className="flex items-start gap-3 flex-1">
+                      <div className="mt-1">
+                        {issue.severity === 'error' && <XCircle className="w-5 h-5 text-red-400" />}
+                        {issue.severity === 'warning' && <AlertTriangle className="w-5 h-5 text-amber-400" />}
+                        {issue.severity === 'info' && <CheckCircle2 className="w-5 h-5 text-blue-400" />}
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-bold text-white tracking-tight">{issue.title}</span>
+                          <Badge variant="secondary" className="capitalize text-[10px] flex items-center gap-1">
+                            {categoryIcon}
+                            {issue.category}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-zinc-300">{issue.description}</p>
+                        {issue.targetPath && (
+                          <p className="text-[11px] font-mono text-zinc-400 break-all">{issue.targetPath}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {issue.canRepair && issue.repairAction && (
+                      <div className="flex-shrink-0">
+                        <Button
+                          variant="secondary"
+                          size="xs"
+                          disabled={repairingId === issue.id || isLoading}
+                          onClick={() => handleRepair(issue)}
+                          className="flex items-center gap-1.5 text-xs"
+                        >
+                          <Wrench className={`w-3.5 h-3.5 ${repairingId === issue.id ? 'animate-spin' : ''}`} />
+                          {issue.repairDescription || 'Repair'}
+                        </Button>
+                      </div>
+                    )}
+                  </motion.div>
                 );
               })
             )}
           </div>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filteredIssues.length === 0 ? (
-            <div className="p-12 text-center rounded-lg bg-zinc-900/50 border border-zinc-800/60 flex flex-col items-center justify-center space-y-3">
-              <div className="p-3 bg-emerald-950/40 rounded-full border border-emerald-800/50 text-emerald-400">
-                <CheckCircle2 className="w-8 h-8" />
-              </div>
-              <h3 className="text-lg font-semibold text-zinc-200">All Systems Operational</h3>
-              <p className="text-sm text-zinc-400 max-w-md">
-                No database corruptions, missing game executables, broken IWADs, or orphaned mod references were detected.
-              </p>
-            </div>
-          ) : (
-            filteredIssues.map((issue) => {
-              let categoryIcon = <HardDrive className="w-4 h-4" />;
-              if (issue.category === 'engine') categoryIcon = <FileCode2 className="w-4 h-4" />;
-              if (issue.category === 'profile') categoryIcon = <Layers className="w-4 h-4" />;
-              if (issue.category === 'database') categoryIcon = <Database className="w-4 h-4" />;
-
-              return (
-                <div
-                  key={issue.id}
-                  className="p-4 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-700 transition-colors flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
-                >
-                  <div className="flex items-start gap-3 flex-1">
-                    <div className="mt-1">
-                      {issue.severity === 'error' && <XCircle className="w-5 h-5 text-red-400" />}
-                      {issue.severity === 'warning' && <AlertTriangle className="w-5 h-5 text-amber-400" />}
-                      {issue.severity === 'info' && <CheckCircle2 className="w-5 h-5 text-blue-400" />}
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-semibold text-zinc-100">{issue.title}</span>
-                        <Badge variant="secondary" className="capitalize text-[10px] flex items-center gap-1">
-                          {categoryIcon}
-                          {issue.category}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-zinc-400">{issue.description}</p>
-                      {issue.targetPath && (
-                        <p className="text-[11px] font-mono text-zinc-500 break-all">{issue.targetPath}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {issue.canRepair && issue.repairAction && (
-                    <div className="flex-shrink-0">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={repairingId === issue.id || isLoading}
-                        onClick={() => handleRepair(issue)}
-                        className="flex items-center gap-1.5 text-xs border-zinc-700 hover:bg-zinc-800"
-                      >
-                        <Wrench className={`w-3.5 h-3.5 ${repairingId === issue.id ? 'animate-spin' : ''}`} />
-                        {issue.repairDescription || 'Repair'}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

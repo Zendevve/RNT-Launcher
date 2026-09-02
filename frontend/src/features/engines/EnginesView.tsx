@@ -11,18 +11,15 @@ import {
   Edit2,
   Trash2,
   RotateCw,
-  Terminal,
   ShieldCheck,
-  ShieldAlert,
 } from 'lucide-react';
+import { motion } from 'motion/react';
 import { Engine, EngineFamily } from '../../types';
 import { api } from '../../services/api';
 import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { useToast } from '../../components/ui/Toast';
 import { EngineModal } from './EngineModal';
-import { formatDate } from '../../utils/formatters';
 
 const FAMILY_TABS: { id: string; label: string; family?: EngineFamily }[] = [
   { id: 'all', label: 'All Engines' },
@@ -32,13 +29,12 @@ const FAMILY_TABS: { id: string; label: string; family?: EngineFamily }[] = [
   { id: 'woof', label: 'Woof!', family: 'woof' },
   { id: 'crispy-doom', label: 'Crispy Doom', family: 'crispy-doom' },
   { id: 'chocolate-doom', label: 'Chocolate Doom', family: 'chocolate-doom' },
-  { id: 'prboom-plus', label: 'PrBoom+', family: 'prboom-plus' },
+  { id: 'prboom-plus', label: 'PRBoom+', family: 'prboom-plus' },
   { id: 'other', label: 'Other', family: 'other' },
 ];
 
 export const EnginesView: React.FC = () => {
   const toast = useToast();
-
   const [engines, setEngines] = useState<Engine[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -127,12 +123,11 @@ export const EnginesView: React.FC = () => {
   // Delete engine
   const handleConfirmDelete = async () => {
     if (!engineToDelete) return;
-
     setIsDeleting(true);
     try {
       await api.deleteEngine(engineToDelete.id);
-      setEngines((prev) => prev.filter((e) => e.id !== engineToDelete.id));
       toast.success('Engine Removed', `"${engineToDelete.name}" was deleted.`);
+      setEngines((prev) => prev.filter((e) => e.id !== engineToDelete.id));
       setEngineToDelete(null);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to delete engine';
@@ -154,7 +149,7 @@ export const EnginesView: React.FC = () => {
         const q = searchQuery.toLowerCase().trim();
         const matchesName = engine.name.toLowerCase().includes(q);
         const matchesFamily = engine.family.toLowerCase().includes(q);
-        const matchesVersion = engine.version.toLowerCase().includes(q);
+        const matchesVersion = engine.version ? engine.version.toLowerCase().includes(q) : false;
         const matchesPath = engine.executable.toLowerCase().includes(q);
         return matchesName || matchesFamily || matchesVersion || matchesPath;
       }
@@ -166,121 +161,99 @@ export const EnginesView: React.FC = () => {
   const getFamilyBadgeColor = (family: EngineFamily) => {
     switch (family) {
       case 'gzdoom':
-        return 'bg-purple-950/60 text-purple-300 border-purple-600/50';
+        return 'bg-[#231830] text-[#d8b4fe] border-purple-800/30';
       case 'zandronum':
-        return 'bg-blue-950/60 text-blue-300 border-blue-600/50';
+        return 'bg-[#132232] text-[#93c5fd] border-blue-800/30';
       case 'dsda-doom':
-        return 'bg-emerald-950/60 text-emerald-300 border-emerald-600/50';
+        return 'bg-[#122419] text-[#86efac] border-emerald-800/30';
       case 'woof':
-        return 'bg-amber-950/60 text-amber-300 border-amber-600/50';
       case 'crispy-doom':
-        return 'bg-orange-950/60 text-orange-300 border-orange-600/50';
       case 'chocolate-doom':
-        return 'bg-yellow-950/60 text-yellow-300 border-yellow-600/50';
+        return 'bg-[#2b2011] text-[#fde047] border-amber-800/30';
       case 'prboom-plus':
-        return 'bg-cyan-950/60 text-cyan-300 border-cyan-600/50';
+        return 'bg-[#132232] text-[#93c5fd] border-blue-800/30';
       default:
-        return 'bg-zinc-800 text-zinc-300 border-zinc-600';
+        return 'bg-white/[0.04] text-zinc-300 border-white/[0.08]';
     }
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-doom-bg text-doom-text">
-      {/* Header Bar */}
-      <div className="border-b border-doom-border bg-doom-surface px-8 py-5">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-doom-red/20 text-doom-red border border-doom-red/40 shadow-inner">
-                <Cpu className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-xl font-black uppercase tracking-wider text-zinc-100">
-                    Source Ports & Engines
-                  </h1>
-                  <span className="rounded-full bg-doom-card px-2.5 py-0.5 text-xs font-mono font-semibold text-doom-muted border border-doom-border">
-                    {engines.length} Registered
-                  </span>
-                </div>
-                <p className="text-xs text-doom-muted mt-0.5">
-                  Manage Doom executables (GZDoom, DSDA-Doom, Woof, Crispy Doom, Chocolate Doom, etc.)
-                </p>
-              </div>
-            </div>
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#0c0e10] text-zinc-100 select-none">
+      {/* Streamlined Single Desktop Toolbar */}
+      <div className="border-b border-white/[0.07] bg-[#14171a] px-8 py-3.5 space-y-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          {/* Search Input */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search source ports by name, family, executable..."
+              className="w-full rounded-md border border-white/[0.08] bg-black/40 pl-8 pr-16 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-doom-red focus:outline-hidden font-mono"
+            />
+            <span className="absolute right-2.5 top-2 text-[10px] font-mono text-zinc-500">
+              {filteredEngines.length}/{engines.length}
+            </span>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-3">
+          {/* Right Action Controls */}
+          <div className="flex items-center gap-2.5">
             <Button
-              variant="outline"
-              size="sm"
+              variant="secondary"
+              size="xs"
               onClick={loadEngines}
               isLoading={isLoading}
-              leftIcon={<RotateCw className="h-3.5 w-3.5" />}
+              leftIcon={<RotateCw className="h-3 w-3" />}
             >
               Refresh
             </Button>
             <Button
               variant="primary"
-              size="md"
+              size="xs"
               onClick={() => {
                 setSelectedEngine(null);
                 setIsModalOpen(true);
               }}
-              leftIcon={<Plus className="h-4 w-4" />}
+              leftIcon={<Plus className="h-3.5 w-3.5" />}
             >
-              Add Source Port
+              Add Engine
             </Button>
           </div>
         </div>
 
-        {/* Filter and Search Bar */}
-        <div className="mt-5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-          {/* Family Filter Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            {FAMILY_TABS.map((tab) => {
-              const count =
-                tab.id === 'all'
-                  ? engines.length
-                  : engines.filter((e) => e.family === tab.family).length;
-              const isActive = activeFamilyTab === tab.id;
+        {/* Family Filter Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 border-t border-white/[0.04] pt-2">
+          {FAMILY_TABS.map((tab) => {
+            const count =
+              tab.id === 'all'
+                ? engines.length
+                : engines.filter((e) => e.family === tab.family).length;
+            const isActive = activeFamilyTab === tab.id;
 
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveFamilyTab(tab.id)}
-                  className={`flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 rounded text-xs font-medium transition-all ${
-                    isActive
-                      ? 'bg-doom-red text-white shadow-md shadow-red-950/40'
-                      : 'bg-doom-card hover:bg-zinc-800 text-zinc-300 border border-doom-border'
-                  }`}
-                >
-                  <span>{tab.label}</span>
-                  {count > 0 && (
-                    <span
-                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-semibold ${
-                        isActive ? 'bg-black/30 text-white' : 'bg-zinc-900 text-doom-muted'
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Search Input */}
-          <div className="w-full md:w-72">
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search engines, versions, paths..."
-              leftIcon={<Search className="h-4 w-4 text-doom-muted" />}
-              className="text-xs"
-            />
-          </div>
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveFamilyTab(tab.id)}
+                className={`flex items-center gap-1.5 whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${
+                  isActive
+                    ? 'bg-[#2b1416] text-[#fca5a5] border border-red-800/40 font-semibold'
+                    : 'bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 border border-white/[0.06]'
+                }`}
+              >
+                <span>{tab.label}</span>
+                {count > 0 && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-semibold ${
+                      isActive ? 'bg-black/30 text-[#fca5a5]' : 'bg-black/40 text-zinc-500'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -288,19 +261,19 @@ export const EnginesView: React.FC = () => {
       <div className="flex-1 overflow-y-auto px-8 py-6">
         {isLoading ? (
           <div className="flex h-64 flex-col items-center justify-center gap-3">
-            <RotateCw className="h-8 w-8 animate-spin text-doom-red" />
-            <span className="text-sm font-medium text-doom-muted">Scanning registered engines...</span>
+            <RotateCw className="h-8 w-8 animate-spin text-red-400" />
+            <span className="text-sm font-medium text-zinc-400">Scanning registered engines...</span>
           </div>
         ) : filteredEngines.length === 0 ? (
           /* Empty State */
-          <div className="flex min-h-[380px] flex-col items-center justify-center rounded-xl border border-dashed border-doom-border bg-doom-surface/40 p-8 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-900 border border-doom-border text-zinc-500 mb-4">
+          <div className="flex min-h-[360px] flex-col items-center justify-center rounded-xl border border-dashed border-white/[0.1] bg-white/[0.02] p-8 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.04] border border-white/[0.08] text-zinc-400 mb-4">
               <Cpu className="h-8 w-8" />
             </div>
             {engines.length === 0 ? (
               <>
-                <h3 className="text-lg font-bold text-zinc-200">No Source Ports Registered</h3>
-                <p className="mt-1 max-w-md text-xs text-doom-muted">
+                <h3 className="text-lg font-bold text-white tracking-tight">No Source Ports Registered</h3>
+                <p className="mt-1 max-w-md text-xs text-zinc-400 leading-relaxed">
                   Register your installed Doom engine executables (such as GZDoom, DSDA-Doom, or Woof) to
                   start creating profiles and launching mods.
                 </p>
@@ -320,8 +293,8 @@ export const EnginesView: React.FC = () => {
               </>
             ) : (
               <>
-                <h3 className="text-base font-semibold text-zinc-200">No matching engines found</h3>
-                <p className="mt-1 text-xs text-doom-muted">
+                <h3 className="text-base font-semibold text-white">No matching engines found</h3>
+                <p className="mt-1 text-xs text-zinc-400">
                   Try clearing your search query or switching to &ldquo;All Engines&rdquo;.
                 </p>
                 <Button
@@ -339,66 +312,59 @@ export const EnginesView: React.FC = () => {
             )}
           </div>
         ) : (
-          /* Engine Cards Grid */
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          /* Grid of Engine Cards */
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {filteredEngines.map((engine) => {
               const status = validationStatuses[engine.id];
-              const isPK3 = engine.family === 'gzdoom' || engine.family === 'zandronum';
 
               return (
-                <div
+                <motion.div
+                  whileTap={{ scale: 0.985 }}
+                  transition={{ duration: 0.1, ease: [0.16, 1, 0.3, 1] }}
                   key={engine.id}
-                  className="group flex flex-col justify-between rounded-lg border border-doom-border bg-doom-card hover:border-doom-border-bright transition-all duration-200 shadow-sm hover:shadow-lg hover:shadow-black/40"
+                  className="group flex flex-col justify-between rounded-xl border border-white/[0.08] bg-[#15181c] transition-colors duration-150 hover:border-white/[0.18] hover:bg-[#1a1e24] select-none"
                 >
                   {/* Card Header */}
                   <div className="p-5 pb-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-base text-zinc-100 truncate group-hover:text-doom-red transition-colors">
+                          <h3 className="font-bold text-base text-white truncate group-hover:text-red-400 transition-colors tracking-tight">
                             {engine.name}
                           </h3>
                         </div>
+
                         <div className="flex items-center gap-2 mt-2 flex-wrap">
                           <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-semibold border ${getFamilyBadgeColor(
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10.5px] font-mono font-bold uppercase border ${getFamilyBadgeColor(
                               engine.family
                             )}`}
                           >
-                            {engine.family.toUpperCase()}
+                            {engine.family}
                           </span>
-                          {engine.version && engine.version !== 'Unknown' && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono bg-zinc-800/80 text-zinc-300 border border-zinc-700">
+                          {engine.version && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10.5px] font-mono bg-white/[0.04] text-zinc-300 border border-white/[0.06]">
                               v{engine.version}
                             </span>
                           )}
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono border ${
-                              isPK3
-                                ? 'bg-purple-950/30 text-purple-300 border-purple-800/40'
-                                : 'bg-zinc-800/50 text-zinc-400 border-zinc-700/50'
-                            }`}
-                          >
-                            {isPK3 ? 'PK3/PK7 Support' : 'WAD Only'}
-                          </span>
                         </div>
                       </div>
 
-                      {/* Quick Actions Dropdown / Buttons */}
+                      {/* Header Action Buttons */}
                       <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => {
                             setSelectedEngine(engine);
                             setIsModalOpen(true);
                           }}
-                          className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
-                          title="Edit Engine"
+                          className="p-1.5 rounded-md hover:bg-white/[0.08] text-zinc-400 hover:text-white transition-colors"
+                          title="Edit Engine Details"
                         >
                           <Edit2 className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => setEngineToDelete(engine)}
-                          className="p-1.5 rounded hover:bg-red-950/60 text-zinc-400 hover:text-red-400 transition-colors"
+                          className="p-1.5 rounded-md hover:bg-red-950/40 text-zinc-400 hover:text-red-300 transition-colors"
                           title="Delete Engine"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -406,19 +372,19 @@ export const EnginesView: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Executable Path Strip */}
-                    <div className="mt-4 p-2.5 rounded bg-doom-surface/90 border border-doom-border text-xs flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <Terminal className="h-3.5 w-3.5 text-doom-muted shrink-0" />
-                        <span className="font-mono text-[11px] text-zinc-300 truncate" title={engine.executable}>
-                          {engine.executable}
-                        </span>
-                      </div>
+                    {/* Executable Path Row */}
+                    <div className="mt-4 p-2.5 rounded-lg bg-black/40 border border-white/[0.06] flex items-center justify-between gap-2">
+                      <span
+                        className="font-mono text-[11px] text-zinc-400 truncate"
+                        title={engine.executable}
+                      >
+                        {engine.executable}
+                      </span>
                       <div className="flex items-center gap-1 shrink-0">
                         <button
                           onClick={() => handleCopyPath(engine)}
-                          className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
-                          title="Copy Full Path"
+                          className="p-1 rounded hover:bg-white/[0.08] text-zinc-400 hover:text-white transition-colors"
+                          title="Copy Full Executable Path"
                         >
                           {copiedId === engine.id ? (
                             <Check className="h-3.5 w-3.5 text-emerald-400" />
@@ -428,67 +394,59 @@ export const EnginesView: React.FC = () => {
                         </button>
                         <button
                           onClick={() => handleOpenFolder(engine)}
-                          className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-doom-amber transition-colors"
-                          title="Open in Explorer"
+                          className="p-1 rounded hover:bg-white/[0.08] text-zinc-400 hover:text-blue-400 transition-colors"
+                          title="Open Containing Folder"
                         >
                           <FolderOpen className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     </div>
 
-                    {/* Inline Test Feedback if triggered */}
+                    {/* Executable Verification Indicator */}
                     {status && (
-                      <div className="mt-2.5 px-2.5 py-1.5 rounded text-xs flex items-center gap-2 border bg-zinc-900/80 border-zinc-800">
+                      <div
+                        className={`mt-3 flex items-center gap-2 p-2 rounded-lg text-xs font-mono border ${
+                          status.testing
+                            ? 'border-white/[0.08] bg-white/[0.02] text-zinc-400'
+                            : status.valid
+                            ? 'border-emerald-800/30 bg-[#122419] text-emerald-200'
+                            : 'border-red-800/30 bg-[#2b1416] text-red-200'
+                        }`}
+                      >
                         {status.testing ? (
-                          <span className="flex items-center gap-1.5 text-doom-muted">
-                            <RotateCw className="h-3.5 w-3.5 animate-spin text-doom-amber" />
-                            Validating executable...
-                          </span>
+                          <RotateCw className="h-3.5 w-3.5 animate-spin text-zinc-400 shrink-0" />
                         ) : status.valid ? (
-                          <span className="flex items-center gap-1.5 text-emerald-400 font-mono text-[11px]">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            Executable verified & runnable
-                          </span>
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
                         ) : (
-                          <span className="flex items-center gap-1.5 text-red-400 font-mono text-[11px] truncate">
-                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                            {status.message}
-                          </span>
+                          <AlertCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
                         )}
+                        <span className="truncate">{status.message || 'Status unknown'}</span>
                       </div>
                     )}
                   </div>
 
-                  {/* Card Footer Actions */}
-                  <div className="px-5 py-3 bg-doom-surface/50 border-t border-doom-border/80 flex items-center justify-between gap-2 text-xs">
-                    <span className="text-[11px] text-doom-muted">
-                      {engine.updatedAt ? `Updated ${formatDate(engine.updatedAt)}` : 'Ready'}
-                    </span>
+                  {/* Card Footer: Validation & Edit Links */}
+                  <div className="px-5 py-3 border-t border-white/[0.06] bg-black/20 flex items-center justify-between text-[11px] text-zinc-400 font-mono">
+                    <button
+                      onClick={() => handleTestEngine(engine)}
+                      disabled={status?.testing}
+                      className="inline-flex items-center gap-1.5 text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-50"
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5 text-zinc-400" />
+                      <span>{status?.testing ? 'Testing...' : 'Verify Binary'}</span>
+                    </button>
 
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        onClick={() => handleTestEngine(engine)}
-                        isLoading={status?.testing}
-                        leftIcon={<ShieldCheck className="h-3.5 w-3.5 text-doom-green" />}
-                      >
-                        Test Executable
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        size="xs"
-                        onClick={() => {
-                          setSelectedEngine(engine);
-                          setIsModalOpen(true);
-                        }}
-                        leftIcon={<Edit2 className="h-3.5 w-3.5" />}
-                      >
-                        Edit
-                      </Button>
-                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedEngine(engine);
+                        setIsModalOpen(true);
+                      }}
+                      className="text-zinc-300 hover:text-white font-medium"
+                    >
+                      Configure →
+                    </button>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
@@ -508,45 +466,32 @@ export const EnginesView: React.FC = () => {
         engine={selectedEngine}
       />
 
-      {/* Delete Confirmation Modal */}
+      {/* Confirm Delete Modal */}
       <Modal
         isOpen={Boolean(engineToDelete)}
         onClose={() => setEngineToDelete(null)}
-        title={
-          <div className="flex items-center gap-2 text-red-400 font-bold uppercase tracking-wider">
-            <ShieldAlert className="h-5 w-5" />
-            <span>Delete Source Port</span>
-          </div>
-        }
+        title="Delete Source Port"
         size="sm"
-      >
-        <div className="space-y-4">
-          <p className="text-xs text-zinc-300">
-            Are you sure you want to delete <strong className="text-white">&ldquo;{engineToDelete?.name}&rdquo;</strong>?
-          </p>
-          <div className="p-3 bg-red-950/30 border border-red-900/50 rounded text-xs text-red-300">
-            Profiles configured to use this engine will show validation warnings until reassigned.
-          </div>
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-doom-border">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setEngineToDelete(null)}
-              disabled={isDeleting}
-            >
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setEngineToDelete(null)}>
               Cancel
             </Button>
             <Button
               variant="danger"
-              size="sm"
-              onClick={handleConfirmDelete}
               isLoading={isDeleting}
-              leftIcon={<Trash2 className="h-4 w-4" />}
+              onClick={handleConfirmDelete}
             >
               Delete Engine
             </Button>
-          </div>
-        </div>
+          </>
+        }
+      >
+        <p className="text-sm text-zinc-300 leading-relaxed">
+          Are you sure you want to remove{' '}
+          <span className="font-semibold text-white">{engineToDelete?.name}</span> from registered
+          engines? Any profiles using this engine will fail pre-flight validation until reassigned.
+        </p>
       </Modal>
     </div>
   );

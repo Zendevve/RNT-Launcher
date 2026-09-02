@@ -26,20 +26,19 @@ interface ModTableRowProps {
 const getFormatBadgeColor = (format: ModFormat): string => {
   switch (format.toLowerCase()) {
     case 'pk3':
-      return 'bg-emerald-950/60 text-emerald-400 border-emerald-800/50';
-    case 'wad':
-    case 'pwad':
-      return 'bg-sky-950/60 text-sky-400 border-sky-800/50';
-    case 'pk7':
     case 'ipk3':
-      return 'bg-amber-950/60 text-amber-400 border-amber-800/50';
+      return 'bg-[#231830] text-[#d8b4fe] border-purple-800/30';
+    case 'wad':
     case 'zip':
-      return 'bg-purple-950/60 text-purple-400 border-purple-800/50';
+      return 'bg-[#132232] text-[#93c5fd] border-blue-800/30';
+    case 'pk7':
+    case '7z':
+      return 'bg-[#122419] text-[#86efac] border-emerald-800/30';
     case 'deh':
     case 'bex':
-      return 'bg-rose-950/60 text-rose-400 border-rose-800/50';
+      return 'bg-[#2b1416] text-[#fca5a5] border-red-800/30';
     default:
-      return 'bg-zinc-800 text-zinc-300 border-zinc-700';
+      return 'bg-white/[0.04] text-zinc-300 border-white/[0.08]';
   }
 };
 
@@ -55,16 +54,15 @@ export const ModTableRow: React.FC<ModTableRowProps> = ({
   onDelete,
 }) => {
   const isCompact = density === 'compact';
-  const cellPadding = isCompact ? 'px-3 py-1.5' : 'px-4 py-3';
+  const cellPadding = isCompact ? 'px-3 py-2' : 'px-4 py-3';
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [isFavLoading, setIsFavLoading] = useState(false);
 
   const handleFavorite = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isFavLoading) return;
+    setIsFavLoading(true);
     try {
-      setIsFavLoading(true);
       await onToggleFavorite(mod.id);
     } finally {
       setIsFavLoading(false);
@@ -74,9 +72,9 @@ export const ModTableRow: React.FC<ModTableRowProps> = ({
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isDeleting) return;
+    setIsDeleting(true);
     if (window.confirm(`Delete "${mod.name}" from mod library?`)) {
       try {
-        setIsDeleting(true);
         await onDelete(mod.id);
       } finally {
         setIsDeleting(false);
@@ -89,136 +87,140 @@ export const ModTableRow: React.FC<ModTableRowProps> = ({
   return (
     <tr
       onClick={() => onInspect(mod)}
-      className="group cursor-pointer border-b border-doom-border/50 transition-colors hover:bg-doom-card/50"
+      className="group border-b border-white/[0.05] transition-colors hover:bg-white/[0.03] cursor-pointer text-xs select-none"
     >
       {/* Favorite Star */}
-      <td className={cn('w-9 text-center', cellPadding)}>
+      <td className={cn('w-8 text-center', cellPadding)}>
         <button
           type="button"
           title={mod.isFavorite ? 'Remove favorite' : 'Add favorite'}
           onClick={handleFavorite}
           disabled={isFavLoading}
-          className="rounded p-0.5 text-doom-muted transition-colors hover:text-doom-amber disabled:opacity-50"
+          className="rounded p-1 text-zinc-500 hover:text-amber-400 transition-colors disabled:opacity-50"
         >
           <Star
             className={cn(
               'h-3.5 w-3.5 transition-colors',
-              mod.isFavorite ? 'fill-doom-amber text-doom-amber' : ''
+              mod.isFavorite ? 'fill-amber-400 text-amber-400' : ''
             )}
           />
         </button>
       </td>
 
-      {/* Mod Name & Filename */}
-      <td className={cn('max-w-[280px]', cellPadding)}>
-        <div className="flex flex-col">
-          <span className="truncate font-mono text-xs font-bold text-doom-text group-hover:text-white" title={mod.name}>
-            {mod.name}
+      {/* Mod Name & Path */}
+      <td className={cellPadding}>
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              'inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-[9.5px] font-bold uppercase tracking-wider shrink-0',
+              getFormatBadgeColor(mod.format)
+            )}
+          >
+            {mod.format.toUpperCase()}
           </span>
-          {showFilePaths ? (
-            <span className="truncate font-mono text-[10px] text-doom-muted" title={mod.path}>
-              {mod.path}
+          <div className="min-w-0">
+            <span className="font-bold text-zinc-100 group-hover:text-white tracking-tight block truncate" title={mod.name}>
+              {mod.name}
             </span>
-          ) : fileName !== mod.name ? (
-            <span className="truncate font-mono text-[10px] text-doom-muted/70" title={mod.path}>
-              {fileName}
-            </span>
-          ) : null}
+            {showFilePaths ? (
+              <span className="font-mono text-[10px] text-zinc-400 block truncate" title={mod.path}>
+                {mod.path}
+              </span>
+            ) : fileName !== mod.name ? (
+              <span className="font-mono text-[10px] text-zinc-500 block truncate" title={mod.path}>
+                {fileName}
+              </span>
+            ) : null}
+          </div>
         </div>
       </td>
 
       {/* Category */}
-      <td className={cellPadding}>
-        <span className="inline-flex items-center rounded bg-doom-card px-1.5 py-0.2 font-mono text-[9px] font-semibold uppercase text-doom-muted border border-doom-border/60">
+      <td className={cn('hidden sm:table-cell', cellPadding)}>
+        <span className="inline-flex items-center rounded-full bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-zinc-400 border border-white/[0.06]">
           {mod.category || 'Other'}
         </span>
       </td>
 
-      {/* Format */}
-      <td className={cellPadding}>
-        <span
-          className={cn(
-            'inline-flex items-center rounded border px-1.5 py-0.2 font-mono text-[9px] font-bold uppercase tracking-wider',
-            getFormatBadgeColor(mod.format)
+      {/* Detected Structures */}
+      <td className={cn('hidden md:table-cell', cellPadding)}>
+        <div className="flex flex-wrap gap-1">
+          {mod.structures && mod.structures.length > 0 ? (
+            mod.structures.slice(0, 2).map((struct) => (
+              <span
+                key={struct}
+                className="inline-flex items-center gap-1 rounded-full bg-white/[0.04] px-2 py-0.5 text-[9px] font-mono text-blue-400 border border-blue-800/30"
+              >
+                <CheckCircle2 className="h-2.5 w-2.5 text-blue-400" />
+                {struct}
+              </span>
+            ))
+          ) : (
+            <span className="text-zinc-600 font-mono text-[10px]">-</span>
           )}
-        >
-          {mod.format.toUpperCase()}
-        </span>
-      </td>
-
-      {/* Profile Usage */}
-      <td className={cellPadding}>
-        {usageCount !== undefined && usageCount > 0 ? (
-          <span
-            className="inline-flex items-center rounded bg-doom-cyan/15 border border-doom-cyan/30 px-1.5 py-0.2 font-mono text-[9px] font-medium text-doom-cyan"
-            title={`Active in ${usageCount} profile${usageCount === 1 ? '' : 's'}`}
-          >
-            {usageCount} {usageCount === 1 ? 'profile' : 'profiles'}
-          </span>
-        ) : (
-          <span className="font-mono text-[10px] text-doom-muted/60">—</span>
-        )}
-      </td>
-
-      {/* Size */}
-      <td className={cn('font-mono text-xs text-doom-muted', cellPadding)}>
-        {formatBytes(mod.size)}
-      </td>
-
-      {/* Lumps & Structures */}
-      <td className={cellPadding}>
-        <div className="flex flex-wrap items-center gap-1 font-mono text-[11px] text-doom-muted">
-          <span>{mod.lumpCount ?? 0} lumps</span>
-          {mod.structures && mod.structures.length > 0 && (
-            <div className="flex items-center gap-1 ml-1">
-              {mod.structures.slice(0, 2).map((s) => (
-                <span
-                  key={s}
-                  className="inline-flex items-center gap-0.5 rounded bg-doom-card px-1 py-0.2 text-[9px] text-doom-cyan border border-doom-cyan/20"
-                >
-                  <CheckCircle2 className="h-2.5 w-2.5 text-doom-cyan" />
-                  {s}
-                </span>
-              ))}
-              {mod.structures.length > 2 && (
-                <span className="text-[9px] text-doom-muted">+{mod.structures.length - 2}</span>
-              )}
-            </div>
+          {mod.structures && mod.structures.length > 2 && (
+            <span className="inline-flex items-center rounded-full bg-white/[0.04] px-1.5 py-0.5 text-[9px] font-mono text-zinc-400 border border-white/[0.06]">
+              +{mod.structures.length - 2}
+            </span>
           )}
         </div>
       </td>
 
-      {/* Modified / Added Date */}
-      <td className={cn('font-mono text-xs text-doom-muted', cellPadding)}>
-        {formatRelativeTime(mod.modifiedAt || mod.createdAt)}
+      {/* Size */}
+      <td className={cn('font-mono text-[11px] text-zinc-400 whitespace-nowrap', cellPadding)}>
+        {formatBytes(mod.size)}
       </td>
 
-      {/* Action Buttons */}
-      <td className={cn('text-right', cellPadding)} onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-end gap-1">
+      {/* Profile Usage */}
+      <td className={cn('hidden lg:table-cell whitespace-nowrap', cellPadding)}>
+        {usageCount !== undefined && usageCount > 0 ? (
+          <span className="inline-flex items-center rounded-full bg-[#132232] border border-blue-800/30 px-2 py-0.5 font-mono text-[10px] text-[#93c5fd]">
+            {usageCount} profile{usageCount === 1 ? '' : 's'}
+          </span>
+        ) : (
+          <span className="font-mono text-[10px] text-zinc-600">-</span>
+        )}
+      </td>
+
+      {/* Date Added */}
+      <td className={cn('hidden xl:table-cell font-mono text-[10px] text-zinc-500 whitespace-nowrap', cellPadding)}>
+        {formatRelativeTime(mod.createdAt)}
+      </td>
+
+      {/* Row Actions */}
+      <td className={cn('text-right whitespace-nowrap', cellPadding)}>
+        <div className="inline-flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             type="button"
             title="Inspect Mod"
-            onClick={() => onInspect(mod)}
-            className="rounded p-1 text-doom-muted transition-colors hover:bg-doom-card hover:text-doom-cyan"
+            onClick={(e) => {
+              e.stopPropagation();
+              onInspect(mod);
+            }}
+            className="rounded-md p-1.5 text-zinc-400 hover:bg-white/[0.08] hover:text-blue-400 transition-colors"
           >
             <Eye className="h-3.5 w-3.5" />
           </button>
 
           <button
             type="button"
-            title="Add to Profile"
-            onClick={() => onAddToProfile(mod)}
-            className="rounded p-1 text-doom-muted transition-colors hover:bg-doom-card hover:text-doom-green"
+            title="Add to Active Setup"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddToProfile(mod);
+            }}
+            className="rounded-md p-1.5 text-zinc-400 hover:bg-emerald-950/40 hover:text-emerald-300 transition-colors active:scale-[0.98]"
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
-
           <button
             type="button"
-            title="Open Folder in Explorer"
-            onClick={() => onOpenFolder(mod.path)}
-            className="rounded p-1 text-doom-muted transition-colors hover:bg-doom-card hover:text-doom-text"
+            title="Show in Folder"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenFolder(mod.path);
+            }}
+            className="rounded-md p-1.5 text-zinc-400 hover:bg-white/[0.08] hover:text-white transition-colors"
           >
             <FolderOpen className="h-3.5 w-3.5" />
           </button>
@@ -228,7 +230,7 @@ export const ModTableRow: React.FC<ModTableRowProps> = ({
             title="Delete Mod"
             onClick={handleDelete}
             disabled={isDeleting}
-            className="rounded p-1 text-doom-muted transition-colors hover:bg-doom-red/20 hover:text-doom-red-bright disabled:opacity-50"
+            className="rounded-md p-1.5 text-zinc-400 hover:bg-red-950/40 hover:text-red-300 transition-colors disabled:opacity-50"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>

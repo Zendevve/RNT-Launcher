@@ -11,6 +11,7 @@ import {
   ShieldAlert,
   ShieldX,
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { ValidationResult, ValidationSeverity } from '../../types';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
@@ -34,23 +35,25 @@ export const ValidationBanner: React.FC<ValidationBannerProps> = ({
     return (
       <div
         className={clsx(
-          'flex items-center justify-between p-3 rounded-lg border border-doom-border bg-doom-card/50 text-doom-muted text-xs',
+          'flex items-center justify-between px-4 py-3 bg-[#15181c] border border-white/[0.08] rounded-xl shadow-sm',
           className
         )}
       >
-        <div className="flex items-center gap-2">
-          <Info className="w-4 h-4 text-doom-muted" />
-          <span>Profile not yet validated.</span>
+        <div className="flex items-center gap-2.5 text-xs text-zinc-400">
+          <ShieldCheck className="w-4 h-4 text-zinc-400" />
+          <span>Profile configuration not validated yet</span>
         </div>
         {onValidate && (
           <Button
             variant="ghost"
             size="xs"
             onClick={onValidate}
-            isLoading={isValidating}
-            leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+            disabled={isValidating}
+            leftIcon={
+              <RefreshCw className={clsx('w-3.5 h-3.5', isValidating && 'animate-spin text-doom-red')} />
+            }
           >
-            Validate Now
+            {isValidating ? 'Validating...' : 'Validate Profile'}
           </Button>
         )}
       </div>
@@ -58,92 +61,84 @@ export const ValidationBanner: React.FC<ValidationBannerProps> = ({
   }
 
   const { status, items = [] } = validation;
-
   const errorCount = items.filter((i) => i.severity === 'error').length;
   const warningCount = items.filter((i) => i.severity === 'warning').length;
 
   const statusConfig = {
     READY: {
-      border: 'border-emerald-700/60 bg-emerald-950/30 text-emerald-300',
-      badgeVariant: 'READY' as const,
-      icon: <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />,
-      title: 'Ready for Launch',
-      summary: 'All required game engine, IWAD, and mod files verified.',
+      border: 'border-emerald-800/30',
+      bg: 'bg-[#122419]',
+      text: 'text-emerald-300',
+      icon: <ShieldCheck className="w-5 h-5 text-emerald-400" />,
+      title: 'Profile Ready for Launch',
+      description: 'All engine, IWAD, and mod dependencies are satisfied.',
     },
     READY_WITH_WARNINGS: {
-      border: 'border-amber-700/60 bg-amber-950/30 text-amber-300',
-      badgeVariant: 'READY_WITH_WARNINGS' as const,
-      icon: <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0" />,
-      title: `Launchable with Warnings (${warningCount})`,
-      summary: `${warningCount} warning(s) detected. Profile will launch, but some options or mods may be skipped.`,
+      border: 'border-amber-800/30',
+      bg: 'bg-[#2b2011]',
+      text: 'text-amber-300',
+      icon: <ShieldAlert className="w-5 h-5 text-amber-400" />,
+      title: `Pre-flight Warnings (${warningCount})`,
+      description: 'Profile will launch, but some configuration warnings were detected.',
     },
     CANNOT_LAUNCH: {
-      border: 'border-red-700/60 bg-red-950/40 text-red-300',
-      badgeVariant: 'CANNOT_LAUNCH' as const,
-      icon: <ShieldX className="w-5 h-5 text-red-400 shrink-0" />,
-      title: `Cannot Launch (${errorCount} Error${errorCount > 1 ? 's' : ''})`,
-      summary: 'Required configuration missing or invalid. Fix the issues below before playing.',
+      border: 'border-red-800/30',
+      bg: 'bg-[#2b1416]',
+      text: 'text-red-300',
+      icon: <ShieldX className="w-5 h-5 text-red-400" />,
+      title: `Cannot Launch: Critical Errors (${errorCount})`,
+      description: 'Required files or compatibility requirements are missing.',
     },
   }[status] || {
-    border: 'border-doom-border bg-doom-card/50 text-doom-text',
-    badgeVariant: 'default' as const,
-    icon: <Info className="w-5 h-5 text-doom-muted shrink-0" />,
-    title: 'Unknown Validation State',
-    summary: 'Status could not be evaluated.',
+    border: 'border-white/[0.08]',
+    bg: 'bg-white/[0.02]',
+    text: 'text-zinc-300',
+    icon: <ShieldCheck className="w-5 h-5 text-zinc-400" />,
+    title: 'Validation Status',
+    description: '',
   };
 
   const getSeverityIcon = (severity: ValidationSeverity) => {
     switch (severity) {
       case 'error':
-        return <AlertOctagon className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />;
+        return <AlertOctagon className="w-4 h-4 text-red-400 shrink-0" />;
       case 'warning':
-        return <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />;
+        return <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />;
       case 'info':
       default:
-        return <Info className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />;
+        return <Info className="w-4 h-4 text-blue-400 shrink-0" />;
     }
   };
 
   return (
     <div
       className={clsx(
-        'rounded-lg border shadow-md overflow-hidden transition-all duration-200',
+        'rounded-xl border overflow-hidden transition-colors',
         statusConfig.border,
+        statusConfig.bg,
         className
       )}
     >
-      {/* Banner Top Row */}
-      <div className="flex items-center justify-between px-4 py-3 gap-3">
+      {/* Header Summary */}
+      <div className="flex items-center justify-between p-4 gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          {statusConfig.icon}
-          <div className="min-w-0">
+          <div className="shrink-0">{statusConfig.icon}</div>
+          <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-2">
-              <h4 className="text-sm font-bold tracking-wide uppercase">
+              <span className={clsx('text-xs font-bold tracking-tight', statusConfig.text)}>
                 {statusConfig.title}
-              </h4>
-              <Badge variant={statusConfig.badgeVariant} size="xs">
-                {status}
+              </span>
+              <Badge variant={status === 'READY' ? 'ready' : status === 'READY_WITH_WARNINGS' ? 'warning-status' : 'error-status'} size="xs" mono>
+                {status.replace(/_/g, ' ')}
               </Badge>
             </div>
-            <p className="text-xs opacity-85 truncate mt-0.5">{statusConfig.summary}</p>
+            <p className="text-[11px] text-zinc-400 mt-0.5 tracking-tight truncate">
+              {statusConfig.description}
+            </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {onValidate && (
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={onValidate}
-              isLoading={isValidating}
-              leftIcon={<RefreshCw className={clsx('w-3.5 h-3.5', isValidating && 'animate-spin')} />}
-              className="text-doom-muted hover:text-doom-text"
-              title="Re-run pre-launch validation"
-            >
-              <span className="hidden sm:inline">Re-validate</span>
-            </Button>
-          )}
-
           {items.length > 0 && (
             <Button
               variant="ghost"
@@ -156,47 +151,68 @@ export const ValidationBanner: React.FC<ValidationBannerProps> = ({
                   <ChevronDown className="w-3.5 h-3.5" />
                 )
               }
-              className="text-xs font-semibold px-2 py-1 bg-black/20 hover:bg-black/40 text-inherit border border-current/20"
+              className="text-zinc-400 hover:text-white"
             >
-              {isExpanded ? 'Hide Details' : `Issues (${items.length})`}
+              {isExpanded ? 'Hide Details' : `View Issues (${items.length})`}
+            </Button>
+          )}
+
+          {onValidate && (
+            <Button
+              variant="secondary"
+              size="xs"
+              onClick={onValidate}
+              disabled={isValidating}
+              leftIcon={
+                <RefreshCw
+                  className={clsx('w-3 h-3', isValidating && 'animate-spin text-doom-red')}
+                />
+              }
+            >
+              {isValidating ? 'Checking...' : 'Recheck'}
             </Button>
           )}
         </div>
       </div>
 
-      {/* Expandable Issue Details */}
-      {isExpanded && items.length > 0 && (
-        <div className="border-t border-current/20 bg-black/40 px-4 py-3 flex flex-col gap-2 animate-in slide-in-from-top-2 duration-150">
-          <div className="text-[11px] uppercase tracking-wider font-mono text-doom-muted font-bold mb-1">
-            Validation Findings ({items.length})
-          </div>
-
-          <div className="flex flex-col gap-1.5 max-h-60 overflow-y-auto pr-1">
-            {items.map((item, idx) => (
-              <div
-                key={`${item.code}-${idx}`}
-                className="flex items-start gap-2.5 p-2 rounded bg-doom-surface/80 border border-doom-border/60 text-xs text-doom-text shadow-sm"
-              >
-                {getSeverityIcon(item.severity)}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {item.target && (
-                      <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded bg-doom-card text-doom-text border border-doom-border">
-                        {item.target}
-                      </span>
-                    )}
-                    <span className="font-mono text-[10px] text-doom-muted">{item.code}</span>
-                    <Badge variant={item.severity} size="xs">
-                      {item.severity}
-                    </Badge>
+      {/* Expandable Issues List */}
+      <AnimatePresence>
+        {isExpanded && items.length > 0 && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1, transition: { duration: 0.2, ease: 'easeOut' } }}
+            exit={{ height: 0, opacity: 0, transition: { duration: 0.15, ease: 'easeIn' } }}
+            className="border-t border-white/[0.08] bg-black/30 overflow-hidden"
+          >
+            <div className="p-4 space-y-2 max-h-60 overflow-y-auto">
+              {items.map((item, idx) => (
+                <div
+                  key={idx}
+                  className={clsx(
+                    'flex items-start gap-2.5 p-2.5 rounded-lg border text-xs leading-relaxed',
+                    item.severity === 'error' && 'bg-[#2b1416] border-red-800/40 text-red-200',
+                    item.severity === 'warning' && 'bg-[#2b2011] border-amber-800/40 text-amber-200',
+                    item.severity === 'info' && 'bg-[#132232] border-blue-800/40 text-blue-200'
+                  )}
+                >
+                  <div className="mt-0.5">{getSeverityIcon(item.severity)}</div>
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold tracking-tight">{item.code}</span>
+                      {item.target && (
+                        <span className="font-mono text-[10px] text-zinc-400 bg-black/40 px-1.5 py-0.2 rounded border border-white/[0.06]">
+                          {item.target}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-zinc-300 mt-0.5 tracking-tight">{item.message}</p>
                   </div>
-                  <p className="mt-1 text-xs text-doom-text opacity-95">{item.message}</p>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

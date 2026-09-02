@@ -60,85 +60,81 @@ const getVariantClasses = (variant: BadgeVariant): string => {
     case 'ready':
     case 'green':
     case 'success':
-      return 'bg-emerald-950/70 text-emerald-300 border-emerald-700/60 shadow-emerald-950/30';
+      return 'bg-[#122419] text-[#86efac] border border-emerald-800/30';
     case 'READY_WITH_WARNINGS':
     case 'warning':
     case 'warning-status':
     case 'amber':
-      return 'bg-amber-950/70 text-amber-300 border-amber-700/60 shadow-amber-950/30';
+      return 'bg-[#2b2011] text-[#fde047] border border-amber-800/30';
     case 'CANNOT_LAUNCH':
     case 'error':
     case 'error-status':
     case 'danger':
     case 'red':
-      return 'bg-red-950/70 text-red-300 border-red-700/60 shadow-red-950/30';
+      return 'bg-[#2b1416] text-[#fca5a5] border border-red-800/30';
     case 'primary':
-      return 'bg-doom-red/20 text-red-300 border-doom-red/50 shadow-sm shadow-red-950/40';
+      return 'bg-[#2b1416] text-[#fca5a5] border border-red-700/40';
     case 'INFO':
     case 'info':
     case 'info-status':
     case 'cyan':
-      return 'bg-cyan-950/70 text-cyan-300 border-cyan-700/60 shadow-cyan-950/30';
     case 'blue':
-      return 'bg-blue-950/70 text-blue-300 border-blue-700/60 shadow-blue-950/30';
+      return 'bg-[#132232] text-[#93c5fd] border border-blue-800/30';
 
     // Formats
     case 'wad':
     case 'iwad':
     case 'pwad':
-      return 'bg-amber-950/70 text-amber-300 border-amber-600/60 font-semibold';
+      return 'bg-[#132232] text-[#93c5fd] border border-blue-800/30 font-semibold';
     case 'pk3':
     case 'ipk3':
-      return 'bg-cyan-950/70 text-cyan-300 border-cyan-600/60 font-semibold';
+      return 'bg-[#231830] text-[#d8b4fe] border border-purple-800/30 font-semibold';
     case 'zip':
-      return 'bg-blue-950/70 text-blue-300 border-blue-600/60 font-semibold';
+      return 'bg-[#132232] text-[#93c5fd] border border-blue-800/30 font-semibold';
     case 'pk7':
     case '7z':
-      return 'bg-purple-950/70 text-purple-300 border-purple-600/60 font-semibold';
+      return 'bg-[#122419] text-[#86efac] border border-emerald-800/30 font-semibold';
     case 'deh':
     case 'bex':
-      return 'bg-orange-950/70 text-orange-300 border-orange-600/60 font-semibold';
+      return 'bg-[#2b1416] text-[#fca5a5] border border-red-800/30 font-semibold';
 
     // Engine families
     case 'gzdoom':
-      return 'bg-purple-950/60 text-purple-300 border-purple-700/60';
+      return 'bg-[#231830] text-[#d8b4fe] border border-purple-800/30';
     case 'zandronum':
-      return 'bg-orange-950/60 text-orange-300 border-orange-700/60';
+      return 'bg-[#132232] text-[#93c5fd] border border-blue-800/30';
     case 'prboom':
-      return 'bg-green-950/60 text-green-300 border-green-700/60';
     case 'dsda':
-      return 'bg-emerald-950/60 text-emerald-300 border-emerald-700/60';
+      return 'bg-[#122419] text-[#86efac] border border-emerald-800/30';
     case 'crispy':
-      return 'bg-yellow-950/60 text-yellow-300 border-yellow-700/60';
     case 'chocolate':
-      return 'bg-amber-950/60 text-amber-300 border-amber-700/60';
+      return 'bg-[#2b2011] text-[#fde047] border border-amber-800/30';
     case 'eternity':
-      return 'bg-cyan-950/60 text-cyan-300 border-cyan-700/60';
+      return 'bg-[#132232] text-[#93c5fd] border border-blue-800/30';
 
     // Categories
     case 'gameplay':
-      return 'bg-rose-950/70 text-rose-300 border-rose-700/50';
+      return 'bg-[#231830] text-[#d8b4fe] border border-purple-800/30';
     case 'maps':
-      return 'bg-emerald-950/70 text-emerald-300 border-emerald-700/50';
+      return 'bg-[#122419] text-[#86efac] border border-emerald-800/30';
     case 'weapons':
-      return 'bg-amber-950/70 text-amber-300 border-amber-700/50';
+      return 'bg-[#2b2011] text-[#fde047] border border-amber-800/30';
     case 'monsters':
-      return 'bg-red-950/70 text-red-300 border-red-700/50';
+      return 'bg-[#2b1416] text-[#fca5a5] border border-red-800/30';
     case 'textures':
-      return 'bg-teal-950/70 text-teal-300 border-teal-700/50';
     case 'sound':
-      return 'bg-blue-950/70 text-blue-300 border-blue-700/50';
+      return 'bg-[#132232] text-[#93c5fd] border border-blue-800/30';
     case 'total-conversion':
-      return 'bg-fuchsia-950/70 text-fuchsia-300 border-fuchsia-700/50';
+      return 'bg-[#231830] text-[#d8b4fe] border border-purple-800/30';
 
     case 'secondary':
-      return 'bg-doom-surface text-doom-muted border-doom-border';
+      return 'bg-white/[0.04] text-zinc-400 border border-white/[0.08]';
     case 'outline':
-      return 'bg-transparent text-doom-text border-doom-border hover:border-doom-border-bright';
+      return 'bg-transparent text-zinc-300 border border-white/[0.08] hover:border-white/[0.16]';
     case 'muted':
-      return 'bg-zinc-800/80 text-zinc-400 border-zinc-700/40';
+      return 'bg-white/[0.03] text-zinc-500 border border-white/[0.06]';
     default:
-      return 'bg-doom-card text-doom-text border-doom-border';
+      return 'bg-white/[0.04] text-zinc-300 border border-white/[0.08]';
   }
 };
 
@@ -156,7 +152,11 @@ const getDotColor = (variant: BadgeVariant): string => {
     case 'warning-status':
     case 'amber':
     case 'weapons':
+    case 'crispy':
     case 'chocolate':
+    case 'wad':
+    case 'iwad':
+    case 'pwad':
       return 'bg-amber-400';
     case 'CANNOT_LAUNCH':
     case 'error':
@@ -165,52 +165,37 @@ const getDotColor = (variant: BadgeVariant): string => {
     case 'red':
     case 'primary':
     case 'monsters':
-      return 'bg-doom-red-bright';
+    case 'deh':
+    case 'bex':
+      return 'bg-red-400';
     case 'INFO':
     case 'info':
     case 'info-status':
     case 'cyan':
-    case 'pk3':
-    case 'eternity':
-      return 'bg-cyan-400';
-    case 'wad':
-      return 'bg-amber-400';
-    case 'zip':
     case 'blue':
-      return 'bg-blue-400';
-    case 'pk7':
+    case 'pk3':
+    case 'ipk3':
+    case 'zip':
+    case 'eternity':
+    case 'sound':
+    case 'textures':
+      return 'bg-cyan-400';
     case 'gzdoom':
+    case 'pk7':
+    case '7z':
+    case 'gameplay':
+    case 'total-conversion':
       return 'bg-purple-400';
     default:
-      return 'bg-doom-muted';
+      return 'bg-zinc-400';
   }
 };
 
 const sizeStyles: Record<BadgeSize, string> = {
-  xs: 'text-[10px] px-1.5 py-0.5 gap-1',
-  sm: 'text-xs px-2 py-0.5 gap-1.5',
-  md: 'text-sm px-2.5 py-1 gap-2',
+  xs: 'text-[10px] px-2 py-0.5 tracking-wider',
+  sm: 'text-[11px] px-2.5 py-0.5 tracking-wider',
+  md: 'text-xs px-3 py-1 tracking-wider',
 };
-
-export function getBadgeVariantForFormat(format: string): BadgeVariant {
-  const normalized = format.toLowerCase().replace(/^\./, '');
-  if (['wad', 'iwad', 'pwad'].includes(normalized)) return 'wad';
-  if (['pk3', 'ipk3'].includes(normalized)) return 'pk3';
-  if (['zip'].includes(normalized)) return 'zip';
-  if (['pk7', '7z'].includes(normalized)) return 'pk7';
-  if (['deh'].includes(normalized)) return 'deh';
-  if (['bex'].includes(normalized)) return 'bex';
-  return 'default';
-}
-
-export function getBadgeVariantForStatus(status: string): BadgeVariant {
-  const normalized = status.toUpperCase();
-  if (normalized === 'READY') return 'ready';
-  if (normalized === 'READY_WITH_WARNINGS' || normalized === 'WARNING') return 'warning-status';
-  if (normalized === 'CANNOT_LAUNCH' || normalized === 'ERROR') return 'error-status';
-  if (normalized === 'INFO') return 'info-status';
-  return 'default';
-}
 
 export const Badge: React.FC<BadgeProps> = ({
   className,
@@ -223,33 +208,34 @@ export const Badge: React.FC<BadgeProps> = ({
   children,
   ...props
 }) => {
+  const variantClass = getVariantClasses(variant);
+  const dotColor = getDotColor(variant);
+
   return (
     <span
       className={cn(
-        'inline-flex items-center justify-center font-medium border rounded select-none uppercase tracking-wide',
-        mono && 'font-mono text-[11px] tracking-tight',
-        getVariantClasses(variant),
+        'inline-flex items-center gap-1.5 rounded-full font-medium transition-colors select-none',
+        mono && 'font-mono uppercase',
         sizeStyles[size],
+        variantClass,
         className
       )}
       {...props}
     >
       {dot && (
-        <span className="relative flex h-1.5 w-1.5 items-center justify-center">
+        <span className="relative flex h-1.5 w-1.5 shrink-0">
           {dotPulse && (
             <span
               className={cn(
-                'absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping',
-                getDotColor(variant)
+                'animate-ping absolute inline-flex h-full w-full rounded-full opacity-75',
+                dotColor
               )}
             />
           )}
-          <span
-            className={cn('relative inline-flex rounded-full h-1.5 w-1.5', getDotColor(variant))}
-          />
+          <span className={cn('relative inline-flex rounded-full h-1.5 w-1.5', dotColor)} />
         </span>
       )}
-      {icon && <span className="inline-flex items-center flex-shrink-0">{icon}</span>}
+      {icon && <span className="inline-flex shrink-0">{icon}</span>}
       {children}
     </span>
   );

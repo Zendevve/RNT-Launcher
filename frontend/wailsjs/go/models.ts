@@ -490,6 +490,11 @@ export namespace domain {
 	    confirmLaunch: boolean;
 	    autoScanOnStartup: boolean;
 	    closeOnLaunch: boolean;
+	    uiDensity: string;
+	    showFilePaths: boolean;
+	    showRecentLaunches: number;
+	    formatVisibility: string[];
+	    defaultView: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Settings(source);
@@ -505,6 +510,11 @@ export namespace domain {
 	        this.confirmLaunch = source["confirmLaunch"];
 	        this.autoScanOnStartup = source["autoScanOnStartup"];
 	        this.closeOnLaunch = source["closeOnLaunch"];
+	        this.uiDensity = source["uiDensity"];
+	        this.showFilePaths = source["showFilePaths"];
+	        this.showRecentLaunches = source["showRecentLaunches"];
+	        this.formatVisibility = source["formatVisibility"];
+	        this.defaultView = source["defaultView"];
 	    }
 	}
 	export class ValidationItem {

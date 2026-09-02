@@ -16,13 +16,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full flex flex-col gap-1.5">
         {label && (
-          <label htmlFor={inputId} className="text-xs font-medium text-doom-muted uppercase tracking-wider">
+          <label htmlFor={inputId} className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
             {label}
           </label>
         )}
         <div className="relative flex items-center">
           {leftIcon && (
-            <div className="absolute left-3 flex items-center pointer-events-none text-doom-muted">
+            <div className="absolute left-3 flex items-center pointer-events-none text-zinc-400">
               {leftIcon}
             </div>
           )}
@@ -31,24 +31,26 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             disabled={disabled}
             className={clsx(
-              'w-full bg-doom-surface border rounded text-sm text-doom-text placeholder-zinc-500 py-2 transition-all duration-150',
-              'focus:outline-none focus:ring-1 focus:ring-doom-red focus:border-doom-red',
+              'w-full bg-[#0e1012]/80 border rounded-lg text-xs sm:text-sm text-zinc-100 placeholder-zinc-500 py-2 transition-all duration-150 shadow-inner',
+              'focus:outline-none focus:ring-1 focus:ring-doom-red focus:border-doom-red/80',
               'disabled:opacity-50 disabled:cursor-not-allowed',
               leftIcon ? 'pl-9' : 'pl-3',
               rightIcon ? 'pr-9' : 'pr-3',
-              error ? 'border-red-500 focus:ring-red-500' : 'border-doom-border hover:border-doom-border-bright',
+              error
+                ? 'border-red-500/80 focus:ring-red-500 bg-red-950/20'
+                : 'border-white/[0.08] hover:border-white/[0.15]',
               className
             )}
             {...props}
           />
           {rightIcon && (
-            <div className="absolute right-3 flex items-center text-doom-muted">
+            <div className="absolute right-3 flex items-center text-zinc-400">
               {rightIcon}
             </div>
           )}
         </div>
-        {error && <span className="text-xs text-red-400 font-medium">{error}</span>}
-        {!error && helperText && <span className="text-xs text-doom-muted">{helperText}</span>}
+        {error && <span className="text-[11px] text-red-400 font-medium tracking-tight">{error}</span>}
+        {!error && helperText && <span className="text-[11px] text-zinc-500 tracking-tight">{helperText}</span>}
       </div>
     );
   }
