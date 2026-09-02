@@ -1,9 +1,14 @@
 import { FULL_VERSION } from '../../version';
 import React from 'react';
 import {
-  Play,
+  LayoutDashboard,
   Library,
-  Sliders,
+  Crosshair,
+  Cpu,
+  Disc,
+  Clock,
+  Activity,
+  Settings,
   ChevronLeft,
   ChevronRight,
   Flame,
@@ -14,25 +19,29 @@ import { cn } from '../../utils/cn';
 import { UiDensity } from '../../types';
 
 export type NavViewId =
-  | 'play'
-  | 'mods'
-  | 'settings'
   | 'dashboard'
-  | 'library'
   | 'profiles'
+  | 'library'
   | 'engines'
   | 'iwads'
   | 'history'
-  | 'diagnostics';
+  | 'diagnostics'
+  | 'settings'
+  | 'play'
+  | 'mods';
 
-export interface NavHubConfig {
+export interface NavItemConfig {
   id: NavViewId;
   label: string;
-  sublabel: string;
   icon: React.ReactNode;
   badge?: string | number;
   badgeVariant?: 'default' | 'warning';
-  isMatchingView: (view: NavViewId) => boolean;
+  matchViews?: NavViewId[];
+}
+
+export interface NavSection {
+  title?: string;
+  items: NavItemConfig[];
 }
 
 export interface SidebarProps {
@@ -72,41 +81,78 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const isCompact = density === 'compact';
   const isReady = systemStatus?.ready !== false;
 
-  const navHubs: NavHubConfig[] = [
+  const sections: NavSection[] = [
     {
-      id: 'play',
-      label: 'Play',
-      sublabel: 'Launchpad',
-      icon: <Play className="w-4 h-4 fill-current" />,
-      badge: counts.profiles && counts.profiles > 0 ? counts.profiles : undefined,
-      isMatchingView: (v) => v === 'play' || v === 'dashboard' || v === 'profiles',
+      title: 'Main',
+      items: [
+        {
+          id: 'dashboard',
+          label: 'Dashboard',
+          icon: <LayoutDashboard className="w-4 h-4" />,
+          matchViews: ['dashboard'],
+        },
+        {
+          id: 'profiles',
+          label: 'Profiles',
+          icon: <Crosshair className="w-4 h-4" />,
+          badge: counts.profiles && counts.profiles > 0 ? counts.profiles : undefined,
+          matchViews: ['profiles', 'play'],
+        },
+        {
+          id: 'library',
+          label: 'Mod Library',
+          icon: <Library className="w-4 h-4" />,
+          badge: counts.mods && counts.mods > 0 ? counts.mods : undefined,
+          matchViews: ['library', 'mods'],
+        },
+      ],
     },
     {
-      id: 'mods',
-      label: 'Mods',
-      sublabel: 'The Collection',
-      icon: <Library className="w-4 h-4" />,
-      badge: counts.mods && counts.mods > 0 ? counts.mods : undefined,
-      isMatchingView: (v) => v === 'mods' || v === 'library',
+      title: 'Assets',
+      items: [
+        {
+          id: 'engines',
+          label: 'Source Ports',
+          icon: <Cpu className="w-4 h-4" />,
+          badge: counts.engines && counts.engines > 0 ? counts.engines : undefined,
+          matchViews: ['engines'],
+        },
+        {
+          id: 'iwads',
+          label: 'Base IWADs',
+          icon: <Disc className="w-4 h-4" />,
+          badge: counts.iwads && counts.iwads > 0 ? counts.iwads : undefined,
+          matchViews: ['iwads'],
+        },
+      ],
     },
     {
-      id: 'settings',
-      label: 'Settings & Assets',
-      sublabel: 'The Engine Room',
-      icon: <Sliders className="w-4 h-4" />,
-      badge:
-        !isReady
-          ? 'Setup'
-          : counts.warnings && counts.warnings > 0
-          ? counts.warnings
-          : undefined,
-      badgeVariant: !isReady || (counts.warnings && counts.warnings > 0) ? 'warning' : 'default',
-      isMatchingView: (v) =>
-        v === 'settings' ||
-        v === 'engines' ||
-        v === 'iwads' ||
-        v === 'history' ||
-        v === 'diagnostics',
+      title: 'System',
+      items: [
+        {
+          id: 'history',
+          label: 'Launch History',
+          icon: <Clock className="w-4 h-4" />,
+          badge: counts.history && counts.history > 0 ? counts.history : undefined,
+          matchViews: ['history'],
+        },
+        {
+          id: 'diagnostics',
+          label: 'Diagnostics',
+          icon: <Activity className="w-4 h-4" />,
+          badge: counts.warnings && counts.warnings > 0 ? counts.warnings : undefined,
+          badgeVariant: 'warning',
+          matchViews: ['diagnostics'],
+        },
+        {
+          id: 'settings',
+          label: 'Settings',
+          icon: <Settings className="w-4 h-4" />,
+          badge: !isReady ? 'Setup' : undefined,
+          badgeVariant: 'warning',
+          matchViews: ['settings'],
+        },
+      ],
     },
   ];
 
@@ -155,76 +201,83 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
-        {/* 3 Clean Navigation Hub Items */}
-        <nav className={cn('space-y-1', isCompact ? 'p-1.5' : 'p-2')}>
-          {navHubs.map((item) => {
-            const isActive = item.isMatchingView(activeView);
-            const hasBadge = item.badge !== undefined && item.badge !== null && item.badge !== 0;
+        {/* Navigation Sections */}
+        <nav className={cn('flex-1 overflow-y-auto space-y-3', isCompact ? 'p-1.5' : 'p-2')}>
+          {sections.map((section, sIdx) => (
+            <div key={section.title || sIdx} className="space-y-0.5">
+              {!collapsed && section.title && (
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 px-2.5 pt-1.5 pb-1">
+                  {section.title}
+                </div>
+              )}
 
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onViewChange(item.id)}
-                title={collapsed ? `${item.label} (${item.sublabel})` : undefined}
-                className={cn(
-                  'w-full flex items-center rounded-md font-medium relative text-left transition-colors duration-150',
-                  isCompact ? 'px-2.5 py-1.5 text-xs' : 'px-3 py-2 text-xs',
-                  collapsed ? 'justify-center px-0 py-2' : 'justify-between',
-                  isActive
-                    ? 'bg-[#1c2026] text-zinc-100'
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]'
-                )}
-              >
-                {/* Active Indicator Accent Bar */}
-                {isActive && (
-                  <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-[#dc2626] rounded-r" />
-                )}
+              {section.items.map((item) => {
+                const isActive = item.matchViews
+                  ? item.matchViews.includes(activeView)
+                  : activeView === item.id;
+                const hasBadge = item.badge !== undefined && item.badge !== null && item.badge !== 0;
 
-                <div className="flex items-center gap-2.5 min-w-0 truncate">
-                  <span
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onViewChange(item.id)}
+                    title={collapsed ? item.label : undefined}
                     className={cn(
-                      'flex-shrink-0 transition-colors duration-150',
-                      isActive ? 'text-[#ef4444]' : 'text-zinc-400'
+                      'w-full flex items-center rounded-md font-medium relative text-left transition-colors duration-100',
+                      isCompact ? 'px-2.5 py-1.5 text-xs' : 'px-3 py-2 text-xs',
+                      collapsed ? 'justify-center px-0 py-2' : 'justify-between',
+                      isActive
+                        ? 'bg-[#1c2026] text-zinc-100 border border-[#2c323d] shadow-xs'
+                        : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] border border-transparent'
                     )}
                   >
-                    {item.icon}
-                  </span>
+                    {/* Active Left Accent Bar */}
+                    {isActive && (
+                      <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-[#dc2626] rounded-r" />
+                    )}
 
-                  {!collapsed && (
-                    <div className="flex flex-col min-w-0 leading-tight">
+                    <div className="flex items-center gap-2.5 min-w-0 truncate">
                       <span
                         className={cn(
-                          'truncate tracking-tight',
-                          isActive ? 'text-zinc-100 font-medium' : 'text-zinc-300'
+                          'flex-shrink-0 transition-colors duration-100',
+                          isActive ? 'text-[#ef4444]' : 'text-zinc-400 group-hover:text-zinc-200'
                         )}
                       >
-                        {item.label}
+                        {item.icon}
                       </span>
-                      <span className="truncate text-[10px] text-zinc-500 font-normal">
-                        {item.sublabel}
-                      </span>
-                    </div>
-                  )}
-                </div>
 
-                {!collapsed && hasBadge && (
-                  <span
-                    className={cn(
-                      'font-mono text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 font-medium leading-none',
-                      item.badgeVariant === 'warning'
-                        ? 'bg-[#2b2011] text-[#fbbf24] border border-amber-500/20'
-                        : isActive
-                        ? 'bg-white/[0.08] text-zinc-200 border border-white/[0.08]'
-                        : 'bg-white/[0.04] text-zinc-400 border border-white/[0.06]'
+                      {!collapsed && (
+                        <span
+                          className={cn(
+                            'truncate tracking-tight',
+                            isActive ? 'text-zinc-100 font-medium' : 'text-zinc-300'
+                          )}
+                        >
+                          {item.label}
+                        </span>
+                      )}
+                    </div>
+
+                    {!collapsed && hasBadge && (
+                      <span
+                        className={cn(
+                          'font-mono text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 font-medium leading-none',
+                          item.badgeVariant === 'warning'
+                            ? 'bg-[#2b2011] text-[#fbbf24] border border-amber-500/20'
+                            : isActive
+                            ? 'bg-white/[0.08] text-zinc-200 border border-white/[0.08]'
+                            : 'bg-white/[0.04] text-zinc-400 border border-white/[0.06]'
+                        )}
+                      >
+                        {item.badge}
+                      </span>
                     )}
-                  >
-                    {item.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </nav>
       </div>
 

@@ -10,8 +10,13 @@ import {
   Input,
   Badge,
 } from './components';
+import { DashboardView } from './features/dashboard';
 import { LibraryView } from './features/library';
 import { ProfilesView } from './features/profiles';
+import { EnginesView } from './features/engines';
+import { IWADsView } from './features/iwads';
+import { HistoryView } from './features/history';
+import { DiagnosticsView } from './features/diagnostics';
 import { SettingsView } from './features/settings';
 import { api } from './services/api';
 import { Mod, Profile, Engine, IWAD, ScanResult, LaunchRecord, ScanProgress, UiDensity, Settings } from './types';
@@ -32,7 +37,7 @@ function AppContent() {
     else if (type === 'warning') toast.warning(message);
     else toast.info(message);
   };
-  const [activeView, setActiveView] = useState<NavViewId>('play');
+  const [activeView, setActiveView] = useState<NavViewId>('dashboard');
   const [density, setDensity] = useState<UiDensity>('compact');
   const [appSettings, setAppSettings] = useState<Settings | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -82,13 +87,7 @@ function AppContent() {
           setDensity(s.uiDensity);
         }
         if (s.defaultView) {
-          const mapped =
-            s.defaultView === 'dashboard' || s.defaultView === 'profiles'
-              ? 'play'
-              : s.defaultView === 'library'
-              ? 'mods'
-              : (s.defaultView as NavViewId);
-          setActiveView(mapped);
+          setActiveView(s.defaultView as NavViewId);
         }
       })
       .catch(() => {
@@ -295,16 +294,16 @@ function AppContent() {
   }, [globalSearchQuery, allMods, allProfiles, allEngines, allIwads]);
 
   const viewTitles: Record<NavViewId, string> = {
-    play: 'Play',
-    mods: 'Mods',
-    settings: 'Settings & Assets',
-    dashboard: 'Play',
-    library: 'Mods',
-    profiles: 'Play',
-    engines: 'Settings & Assets',
-    iwads: 'Settings & Assets',
-    history: 'Settings & Assets',
-    diagnostics: 'Settings & Assets',
+    dashboard: 'Dashboard',
+    profiles: 'Profiles',
+    library: 'Mod Library',
+    engines: 'Source Ports',
+    iwads: 'Base IWADs',
+    history: 'Launch History',
+    diagnostics: 'Diagnostics & Health',
+    settings: 'Settings',
+    play: 'Profiles',
+    mods: 'Mod Library',
   };
   return (
     <div
@@ -363,7 +362,7 @@ function AppContent() {
                   toast.error('Launch Failed', msg);
                 });
             } else {
-              setActiveView('play');
+              setActiveView('profiles');
             }
           }}
         />
@@ -389,11 +388,26 @@ function AppContent() {
 
         {/* Dynamic View Content */}
         <main className="flex-1 overflow-hidden relative bg-[#0c0e12]">
-          {(activeView === 'play' || activeView === 'dashboard' || activeView === 'profiles') && (
+          {activeView === 'dashboard' && (
+            <DashboardView
+              onNavigateToLibrary={() => setActiveView('library')}
+              onNavigateToProfiles={() => setActiveView('profiles')}
+              onSelectProfile={(profileId) => {
+                setSelectedProfileId(profileId);
+                setActiveView('profiles');
+              }}
+              onCreateProfile={() => {
+                setSelectedProfileId(null);
+                setActiveView('profiles');
+              }}
+            />
+          )}
+
+          {(activeView === 'profiles' || activeView === 'play') && (
             <ProfilesView
               selectedProfileId={selectedProfileId}
               onSelectProfile={setSelectedProfileId}
-              onNavigateToLibrary={() => setActiveView('mods')}
+              onNavigateToLibrary={() => setActiveView('library')}
               onNavigateToSettings={(tab) => {
                 if (tab === 'engines' || tab === 'iwads' || tab === 'history' || tab === 'diagnostics') {
                   setActiveView(tab as NavViewId);
@@ -405,18 +419,19 @@ function AppContent() {
             />
           )}
 
-          {(activeView === 'mods' || activeView === 'library') && (
-            <LibraryView onNavigateToDashboard={() => setActiveView('play')} />
+          {(activeView === 'library' || activeView === 'mods') && (
+            <LibraryView onNavigateToDashboard={() => setActiveView('dashboard')} />
           )}
 
+          {activeView === 'engines' && <EnginesView />}
+          {activeView === 'iwads' && <IWADsView />}
+          {activeView === 'history' && <HistoryView />}
+          {activeView === 'diagnostics' && (
+            <DiagnosticsView onNotify={(msg, type) => notify(msg, type)} />
+          )}
           {activeView === 'settings' && <SettingsView />}
-          {activeView === 'engines' && <SettingsView initialTab="engines" />}
-          {activeView === 'iwads' && <SettingsView initialTab="iwads" />}
-          {activeView === 'history' && <SettingsView initialTab="history" />}
-          {activeView === 'diagnostics' && <SettingsView initialTab="diagnostics" />}
         </main>
       </div>
-      {/* Global Search Modal (Ctrl+K) */}
       {isSearchModalOpen && (
         <Modal
           isOpen={isSearchModalOpen}
@@ -451,7 +466,7 @@ function AppContent() {
                         key={p.id}
                         onClick={() => {
                           setSelectedProfileId(p.id);
-                          setActiveView('play');
+                          setActiveView('profiles');
                           setIsSearchModalOpen(false);
                         }}
                         className="flex items-center justify-between p-2.5 rounded bg-[#14171a] hover:bg-[#1c2026] hover:border-[#22262d] border border-white/[0.04] cursor-pointer transition-colors"
@@ -493,7 +508,7 @@ function AppContent() {
                       <div
                         key={m.id}
                         onClick={() => {
-                          setActiveView('mods');
+                          setActiveView('library');
                           setIsSearchModalOpen(false);
                         }}
                         className="flex items-center justify-between p-2 rounded bg-[#14171a] hover:bg-[#1c2026] hover:border-[#22262d] border border-white/[0.04] cursor-pointer transition-colors"
