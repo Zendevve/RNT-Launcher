@@ -167,12 +167,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             collapsed ? 'justify-center px-2' : 'justify-between px-3'
           )}
         >
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-7 h-7 rounded bg-[#dc2626] flex items-center justify-center flex-shrink-0">
-              <Flame className="w-4 h-4 text-white fill-white/20" />
-            </div>
+          {!collapsed ? (
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              <div className="w-7 h-7 rounded bg-[#dc2626] flex items-center justify-center flex-shrink-0">
+                <Flame className="w-4 h-4 text-white fill-white/20" />
+              </div>
 
-            {!collapsed && (
               <div className="flex flex-col min-w-0">
                 <span className="font-semibold text-xs text-zinc-100 tracking-tight leading-tight truncate">
                   RNT Launcher
@@ -181,8 +181,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   DOOM MOD MANAGER
                 </span>
               </div>
-            )}
-          </div>
+            </div>
+          ) : null}
 
           {onToggleCollapse && (
             <button
@@ -191,7 +191,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               className="text-zinc-400 hover:text-zinc-200 p-1 rounded hover:bg-white/[0.04] transition-colors"
             >
-              {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+              {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-3.5 h-3.5" />}
             </button>
           )}
         </div>
