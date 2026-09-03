@@ -192,7 +192,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     <div
       className={cn(
         'flex-1 overflow-y-auto bg-[#0c0e12] text-zinc-100 select-none',
-        isCompact ? 'p-5 space-y-6' : 'p-6 md:p-8 space-y-8'
+        isCompact ? 'p-5 pb-10 space-y-6' : 'p-6 md:p-8 pb-12 space-y-8'
       )}
     >
       {/* Action Notification Toast */}

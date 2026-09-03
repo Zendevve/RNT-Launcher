@@ -1,4 +1,3 @@
-import { FULL_VERSION } from '../../version';
 import React from 'react';
 import {
   LayoutDashboard,
@@ -12,12 +11,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Flame,
-  Minimize2,
-  Maximize2,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { UiDensity } from '../../types';
-
 export type NavViewId =
   | 'dashboard'
   | 'profiles'
@@ -73,7 +69,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   collapsed = false,
   onToggleCollapse,
   density = 'compact',
-  onToggleDensity,
   counts = {},
   systemStatus,
   className,
@@ -189,14 +184,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             )}
           </div>
 
-          {!collapsed && onToggleCollapse && (
+          {onToggleCollapse && (
             <button
               type="button"
               onClick={onToggleCollapse}
-              aria-label="Collapse sidebar"
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               className="text-zinc-400 hover:text-zinc-200 p-1 rounded hover:bg-white/[0.04] transition-colors"
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
+              {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
             </button>
           )}
         </div>
@@ -281,118 +276,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
       </div>
 
-      {/* Footer Section: Density Switcher, Readiness Status, Version */}
-      <div
-        className={cn(
-          'border-t border-[#22262d] flex flex-col gap-1.5 flex-shrink-0',
-          isCompact ? 'p-1.5' : 'p-2'
-        )}
-      >
-        {/* Density Toggle & Collapse Row */}
-        <div className="flex items-center justify-between gap-1">
-          {onToggleDensity && (
-            <button
-              type="button"
-              onClick={onToggleDensity}
-              title={isCompact ? 'Switch to Comfortable Density' : 'Switch to Compact Density'}
-              className={cn(
-                'flex items-center gap-2 text-zinc-400 hover:text-zinc-200 rounded hover:bg-white/[0.04] transition-colors text-[11px]',
-                collapsed ? 'w-full justify-center p-1.5' : 'w-full px-2 py-1'
-              )}
-            >
-              {isCompact ? (
-                <Maximize2 className="w-3.5 h-3.5 text-zinc-400 flex-shrink-0" />
-              ) : (
-                <Minimize2 className="w-3.5 h-3.5 text-zinc-400 flex-shrink-0" />
-              )}
-              {!collapsed && (
-                <span className="flex-1 text-left truncate">
-                  Density: <span className="text-zinc-300 font-mono capitalize">{density}</span>
-                </span>
-              )}
-            </button>
-          )}
-
-          {collapsed && onToggleCollapse && (
-            <button
-              type="button"
-              onClick={onToggleCollapse}
-              aria-label="Expand sidebar"
-              className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-zinc-200 rounded hover:bg-white/[0.04] transition-colors"
-            >
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-
-        {/* System Readiness Status Card */}
-        {!collapsed ? (
-          <div className="px-2.5 py-2 bg-[#14171a] border border-[#22262d] rounded flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span className="relative flex h-2 w-2">
-                  <span
-                    className={cn(
-                      'absolute inline-flex h-full w-full rounded-full opacity-75',
-                      isReady ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      'relative inline-flex rounded-full h-2 w-2',
-                      isReady ? 'bg-emerald-500' : 'bg-amber-500'
-                    )}
-                  />
-                </span>
-                <span
-                  className={cn(
-                    'text-[10px] font-semibold tracking-wider uppercase',
-                    isReady ? 'text-emerald-400' : 'text-amber-400'
-                  )}
-                >
-                  {isReady ? 'Ready' : 'Setup Needed'}
-                </span>
-              </div>
-              <span className="font-mono text-[9px] text-zinc-500">v{FULL_VERSION}</span>
-            </div>
-
-            {(systemStatus?.engineName || systemStatus?.iwadName) && (
-              <div className="flex flex-col gap-0.5 text-[9.5px] font-mono text-zinc-400 truncate pt-1 border-t border-[#22262d]">
-                {systemStatus?.engineName && (
-                  <div className="truncate">
-                    Port: <span className="text-zinc-200">{systemStatus.engineName}</span>
-                  </div>
-                )}
-                {systemStatus?.iwadName && (
-                  <div className="truncate">
-                    IWAD: <span className="text-zinc-200">{systemStatus.iwadName}</span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div
-            className="flex flex-col items-center py-1.5 cursor-default"
-            title={`${isReady ? 'Ready' : 'Setup Needed'} (v${FULL_VERSION})`}
-          >
-            <span className="relative flex h-2.5 w-2.5">
-              <span
-                className={cn(
-                  'absolute inline-flex h-full w-full rounded-full opacity-75',
-                  isReady ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'
-                )}
-              />
-              <span
-                className={cn(
-                  'relative inline-flex rounded-full h-2.5 w-2.5',
-                  isReady ? 'bg-emerald-500' : 'bg-amber-500'
-                )}
-              />
-            </span>
-          </div>
-        )}
-      </div>
     </aside>
   );
 };
