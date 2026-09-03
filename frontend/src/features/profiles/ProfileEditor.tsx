@@ -19,6 +19,7 @@ import {
   FileUp,
   Search,
   LayoutGrid,
+  MoreHorizontal,
 } from 'lucide-react';
 import {
   Profile,
@@ -86,7 +87,22 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   // Sub-Tab state: 'mods' | 'parameters' | 'all-presets' | 'details'
   const [activeTab, setActiveTab] = useState<'mods' | 'parameters' | 'all-presets' | 'details'>('mods');
   const [presetSearchFilter, setPresetSearchFilter] = useState('');
+  const [isActionsOpen, setIsActionsOpen] = useState(false);
+  const actionsMenuRef = React.useRef<HTMLDivElement | null>(null);
 
+  useEffect(() => {
+    const handleOutside = (e: MouseEvent) => {
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target as Node)) {
+        setIsActionsOpen(false);
+      }
+    };
+    if (isActionsOpen) {
+      document.addEventListener('mousedown', handleOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+    };
+  }, [isActionsOpen]);
   // Modals state
   const [isSelectModsOpen, setIsSelectModsOpen] = useState(false);
   const [isDmFlagsOpen, setIsDmFlagsOpen] = useState(false);
@@ -466,20 +482,20 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden bg-[#0c0e12] select-none text-zinc-100">
-      {/* 1. Sleek Compact Stage Header with Integrated Preset Switcher */}
-      <div className="px-6 py-2.5 bg-[#12151a] border-b border-[#22262d] flex items-center justify-between gap-4 shrink-0 flex-wrap">
-        {/* Left: Preset Switcher Dropdown + Favorite + New + Import */}
+      {/* 1. Streamlined Single Control Deck (44px) */}
+      <div className="px-5 py-2 bg-[#0e0e11] border-b border-[#2d2d34] flex items-center justify-between gap-3 shrink-0 flex-wrap">
+        {/* Left cluster: Preset Picker + Favorite + Inline Port + Inline IWAD + Status */}
         <div className="flex items-center gap-2 min-w-0 flex-wrap">
-          <div className="flex items-center gap-1.5 bg-[#161a22] border border-[#2c323e] rounded-md px-2.5 py-1 text-xs">
-            <span className="text-zinc-500 font-medium text-[11px]">Preset:</span>
+          <div className="flex items-center gap-1.5 bg-[#141418] border border-[#2d2d34] rounded-[8px] px-2.5 py-1 text-xs">
+            <span className="text-[#71717a] font-medium text-[11px]">Preset:</span>
             <select
               value={profile.id}
               onChange={(e) => onSelectProfile(e.target.value)}
               aria-label="Select active preset"
-              className="bg-transparent text-zinc-100 font-semibold cursor-pointer focus:outline-none max-w-[180px] sm:max-w-[220px] truncate"
+              className="bg-transparent text-[#f4f4f5] font-medium cursor-pointer focus:outline-none max-w-[180px] sm:max-w-[220px] truncate"
             >
               {profiles.map((p) => (
-                <option key={p.id} value={p.id} className="bg-[#14171c] text-zinc-100">
+                <option key={p.id} value={p.id} className="bg-[#141418] text-[#f4f4f5]">
                   {p.isFavorite ? '★ ' : ''}{p.name}
                 </option>
               ))}
@@ -489,17 +505,71 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
           <button
             type="button"
             onClick={handleFavoriteToggle}
-            className="p-1.5 rounded text-zinc-500 hover:text-amber-400 hover:bg-white/[0.04] transition-colors shrink-0"
+            className="p-1 rounded-[6px] text-[#71717a] hover:text-amber-400 hover:bg-white/[0.04] transition-colors shrink-0"
             title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
           >
-            <Star className={clsx('w-4 h-4', isFavorite ? 'fill-amber-400 text-amber-400' : 'text-zinc-500')} />
+            <Star className={clsx('w-3.5 h-3.5', isFavorite ? 'fill-amber-400 text-amber-400' : 'text-[#71717a]')} />
           </button>
 
+          <div className="h-4 w-px bg-[#2d2d34] mx-0.5" />
+
+          <div className="flex items-center gap-1.5 bg-[#141418] border border-[#2d2d34] px-2.5 py-1 rounded-[8px] text-xs">
+            <Cpu className="w-3.5 h-3.5 text-[#71717a] shrink-0" />
+            <span className="text-[#71717a] font-medium text-[11px]">Port:</span>
+            <select
+              value={engineId}
+              onChange={(e) => handleEngineSelect(e.target.value)}
+              aria-label="Select Source Port"
+              className="bg-transparent text-[#f4f4f5] text-xs font-medium cursor-pointer focus:outline-none max-w-[130px] truncate"
+            >
+              <option value="">-- Port --</option>
+              {engines.map((eng) => (
+                <option key={eng.id} value={eng.id} className="bg-[#141418] text-[#f4f4f5]">
+                  {eng.name} {eng.version ? `v${eng.version}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-1.5 bg-[#141418] border border-[#2d2d34] px-2.5 py-1 rounded-[8px] text-xs">
+            <Disc className="w-3.5 h-3.5 text-[#71717a] shrink-0" />
+            <span className="text-[#71717a] font-medium text-[11px]">IWAD:</span>
+            <select
+              value={iwadId}
+              onChange={(e) => handleIWADSelect(e.target.value)}
+              aria-label="Select Base IWAD"
+              className="bg-transparent text-[#f4f4f5] text-xs font-medium cursor-pointer focus:outline-none max-w-[130px] truncate"
+            >
+              <option value="">-- IWAD --</option>
+              {iwads.map((iwad) => (
+                <option key={iwad.id} value={iwad.id} className="bg-[#141418] text-[#f4f4f5]">
+                  {iwad.name} ({iwad.type.toUpperCase()})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {renderReadinessStatus()}
+
+          {hasUnsavedChanges && (
+            <button
+              type="button"
+              onClick={() => handleSave()}
+              disabled={isSaving}
+              className="text-[11px] text-[#5e7ce2] hover:underline font-medium px-2 py-0.5 rounded bg-[rgba(94,124,226,0.1)] border border-[#5e7ce2]/30 transition-colors"
+            >
+              Save
+            </button>
+          )}
+        </div>
+
+        {/* Right cluster: + New, Import, Overflow Menu [⋯] */}
+        <div className="flex items-center gap-1.5 shrink-0">
           {onCreateProfileClick && (
             <button
               type="button"
               onClick={onCreateProfileClick}
-              className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded bg-[#181f26] hover:bg-[#202732] border border-[#22262d] text-zinc-200 transition-colors"
+              className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-[8px] bg-[#141418] hover:bg-[#1a1a20] border border-[#2d2d34] text-[#f4f4f5] transition-colors"
               title="Create a new setup"
             >
               <Plus className="w-3.5 h-3.5 text-[#5e7ce2]" />
@@ -511,7 +581,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
             <button
               type="button"
               onClick={onImportClick}
-              className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded bg-[#181f26] hover:bg-[#202732] border border-[#22262d] text-zinc-400 hover:text-zinc-200 transition-colors"
+              className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-[8px] bg-[#141418] hover:bg-[#1a1a20] border border-[#2d2d34] text-[#a1a1aa] hover:text-[#f4f4f5] transition-colors"
               title="Import YAML or .zdl preset"
             >
               <FileUp className="w-3.5 h-3.5" />
@@ -519,139 +589,110 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
             </button>
           )}
 
-          {renderReadinessStatus()}
-
-          {hasUnsavedChanges && (
-            <button
-              type="button"
-              onClick={() => handleSave()}
-              disabled={isSaving}
-              className="text-[11px] text-amber-400 hover:text-amber-300 font-medium px-2 py-0.5 rounded bg-amber-950/40 border border-amber-800/40 transition-colors"
-            >
-              Save
-            </button>
-          )}
-        </div>
-
-        {/* Center: Inline Port and IWAD Selectors */}
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="flex items-center gap-1.5 bg-[#161a22] border border-[#22262d] px-2.5 py-1 rounded text-xs">
-            <Cpu className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-            <span className="text-zinc-500 font-medium text-[11px]">Port:</span>
-            <select
-              value={engineId}
-              onChange={(e) => handleEngineSelect(e.target.value)}
-              aria-label="Select Source Port"
-              className="bg-transparent text-zinc-200 text-xs font-medium cursor-pointer focus:outline-none max-w-[140px] truncate"
-            >
-              <option value="">-- Port --</option>
-              {engines.map((eng) => (
-                <option key={eng.id} value={eng.id} className="bg-[#14171c] text-zinc-100">
-                  {eng.name} {eng.version ? `v${eng.version}` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-1.5 bg-[#161a22] border border-[#22262d] px-2.5 py-1 rounded text-xs">
-            <Disc className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-            <span className="text-zinc-500 font-medium text-[11px]">IWAD:</span>
-            <select
-              value={iwadId}
-              onChange={(e) => handleIWADSelect(e.target.value)}
-              aria-label="Select Base IWAD"
-              className="bg-transparent text-zinc-200 text-xs font-medium cursor-pointer focus:outline-none max-w-[140px] truncate"
-            >
-              <option value="">-- IWAD --</option>
-              {iwads.map((iwad) => (
-                <option key={iwad.id} value={iwad.id} className="bg-[#14171c] text-zinc-100">
-                  {iwad.name} ({iwad.type.toUpperCase()})
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Right: Authoritative Crimson Launch CTA & Action Icons */}
-        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Launch Play Action */}
           <button
             type="button"
             onClick={handleLaunch}
             disabled={isLaunching || validation?.status === 'CANNOT_LAUNCH'}
             className={clsx(
-              'h-8 px-5 font-bold text-xs tracking-wider uppercase rounded-md transition-colors flex items-center gap-2 text-white select-none',
+              'h-7 px-3.5 font-[600] text-xs uppercase tracking-wider rounded-[8px] transition-colors flex items-center gap-1.5 text-[#09090b] select-none',
               validation?.status === 'CANNOT_LAUNCH'
-                ? 'bg-[#101010] text-[#71717a] cursor-not-allowed border border-[#2d2d34]'
-                : 'bg-[#5e7ce2] hover:bg-[#4d6bd4] active:bg-[#435ec0] text-[#09090b] font-[600] shadow-sm'
+                ? 'bg-[#141418] text-[#71717a] cursor-not-allowed border border-[#2d2d34]'
+                : 'bg-[#5e7ce2] hover:bg-[#4d6bd4] active:bg-[#435ec0] shadow-sm'
             )}
           >
             {isLaunching ? (
               <>
-                <RotateCw className="w-3.5 h-3.5 animate-spin text-white" />
+                <RotateCw className="w-3 h-3 animate-spin text-current" />
                 <span>Starting...</span>
               </>
             ) : (
               <>
-                <Play className="w-3.5 h-3.5 fill-current text-white" />
-                <span>PLAY</span>
+                <Play className="w-3 h-3 fill-current" />
+                <span>Play</span>
               </>
             )}
           </button>
 
-          <button
-            type="button"
-            onClick={runValidation}
-            title="Validate configuration"
-            className="p-1.5 h-8 w-8 text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] rounded flex items-center justify-center transition-colors"
-          >
-            <RotateCw className={clsx('w-3.5 h-3.5', isValidating && 'animate-spin')} />
-          </button>
-
-          <button
-            type="button"
-            onClick={handleExportYAML}
-            title="Export YAML"
-            className="p-1.5 h-8 w-8 text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] rounded flex items-center justify-center transition-colors"
-          >
-            <Download className="w-3.5 h-3.5" />
-          </button>
-
-          <button
-            type="button"
-            onClick={handleDuplicate}
-            title="Duplicate preset"
-            className="p-1.5 h-8 w-8 text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] rounded flex items-center justify-center transition-colors"
-          >
-            <Copy className="w-3.5 h-3.5" />
-          </button>
-
-          <button
-            type="button"
-            onClick={handleDelete}
-            title="Delete preset"
-            className="p-1.5 h-8 w-8 text-zinc-500 hover:text-red-400 hover:bg-red-950/30 rounded flex items-center justify-center transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          {/* Overflow Menu for secondary actions (Validate, Export, Duplicate, Delete) */}
+          <div className="relative" ref={actionsMenuRef}>
+            <button
+              type="button"
+              onClick={() => setIsActionsOpen(!isActionsOpen)}
+              className="p-1.5 rounded-[8px] bg-[#141418] hover:bg-[#1a1a20] border border-[#2d2d34] text-[#a1a1aa] hover:text-[#f4f4f5] transition-colors"
+              title="Preset actions"
+            >
+              <MoreHorizontal className="w-3.5 h-3.5" />
+            </button>
+            {isActionsOpen && (
+              <div className="absolute right-0 top-full mt-1 w-44 rounded-[8px] bg-[#101010] border border-[#2d2d34] shadow-xl py-1 z-30 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsActionsOpen(false);
+                    runValidation();
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.05)] flex items-center gap-2"
+                >
+                  <RotateCw className={clsx('w-3.5 h-3.5 text-[#71717a]', isValidating && 'animate-spin')} />
+                  <span>Validate Setup</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsActionsOpen(false);
+                    handleExportYAML();
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.05)] flex items-center gap-2"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#71717a]" />
+                  <span>Export YAML</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsActionsOpen(false);
+                    handleDuplicate();
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.05)] flex items-center gap-2"
+                >
+                  <Copy className="w-3.5 h-3.5 text-[#71717a]" />
+                  <span>Duplicate Preset</span>
+                </button>
+                <div className="my-1 border-t border-[#2d2d34]" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsActionsOpen(false);
+                    handleDelete();
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-red-400 hover:bg-red-950/30 flex items-center gap-2"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Preset</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* 2. Sub-Tab Navigation Bar */}
-      <div className="h-10 px-6 bg-[#101317] border-b border-[#22262d] flex items-center justify-between gap-3 shrink-0">
+      {/* 2. Sub-Tab Navigation Bar with Inline Mod Count & Path Hint (36px) */}
+      <div className="h-9 px-5 bg-[#09090b] border-b border-[#2d2d34] flex items-center justify-between gap-3 shrink-0">
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => setActiveTab('mods')}
             className={clsx(
-              'px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5',
+              'px-2.5 py-1 text-xs font-medium rounded-[6px] transition-colors flex items-center gap-1.5',
               activeTab === 'mods'
-                ? 'bg-[#1c2026] text-zinc-100 border border-[#2c323d]'
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]'
+                ? 'bg-[rgba(244,244,245,0.08)] text-[#f4f4f5]'
+                : 'text-[#71717a] hover:text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.03)]'
             )}
           >
-            <Layers className="w-3.5 h-3.5 text-zinc-400" />
+            <Layers className="w-3.5 h-3.5 text-[#71717a]" />
             <span>Mod Load Order</span>
-            <span className="ml-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/40 text-zinc-400">
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[rgba(244,244,245,0.05)] text-[#a1a1aa]">
               {mods.length}
             </span>
           </button>
@@ -660,16 +701,16 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
             type="button"
             onClick={() => setActiveTab('parameters')}
             className={clsx(
-              'px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5',
+              'px-2.5 py-1 text-xs font-medium rounded-[6px] transition-colors flex items-center gap-1.5',
               activeTab === 'parameters'
-                ? 'bg-[#1c2026] text-zinc-100 border border-[#2c323d]'
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]'
+                ? 'bg-[rgba(244,244,245,0.08)] text-[#f4f4f5]'
+                : 'text-[#71717a] hover:text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.03)]'
             )}
           >
-            <Sliders className="w-3.5 h-3.5 text-zinc-400" />
+            <Sliders className="w-3.5 h-3.5 text-[#71717a]" />
             <span>Launch Parameters</span>
             {hasConfiguredOptions && (
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[#5e7ce2]" />
             )}
           </button>
 
@@ -677,15 +718,15 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
             type="button"
             onClick={() => setActiveTab('all-presets')}
             className={clsx(
-              'px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5',
+              'px-2.5 py-1 text-xs font-medium rounded-[6px] transition-colors flex items-center gap-1.5',
               activeTab === 'all-presets'
-                ? 'bg-[#1c2026] text-zinc-100 border border-[#2c323d]'
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]'
+                ? 'bg-[rgba(244,244,245,0.08)] text-[#f4f4f5]'
+                : 'text-[#71717a] hover:text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.03)]'
             )}
           >
-            <LayoutGrid className="w-3.5 h-3.5 text-zinc-400" />
+            <LayoutGrid className="w-3.5 h-3.5 text-[#71717a]" />
             <span>All Presets</span>
-            <span className="ml-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/40 text-zinc-400">
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[rgba(244,244,245,0.05)] text-[#a1a1aa]">
               {profiles.length}
             </span>
           </button>
@@ -694,29 +735,22 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
             type="button"
             onClick={() => setActiveTab('details')}
             className={clsx(
-              'px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5',
+              'px-2.5 py-1 text-xs font-medium rounded-[6px] transition-colors flex items-center gap-1.5',
               activeTab === 'details'
-                ? 'bg-[#1c2026] text-zinc-100 border border-[#2c323d]'
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]'
+                ? 'bg-[rgba(244,244,245,0.08)] text-[#f4f4f5]'
+                : 'text-[#71717a] hover:text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.03)]'
             )}
           >
-            <FileText className="w-3.5 h-3.5 text-zinc-400" />
+            <FileText className="w-3.5 h-3.5 text-[#71717a]" />
             <span>Details & Notes</span>
           </button>
         </div>
 
-        {/* Port & IWAD Path preview on the right */}
-        <div className="hidden xl:flex items-center gap-3 text-[11px] font-mono text-zinc-500">
-          {selectedEngineObj && (
-            <span className="truncate max-w-xs" title={selectedEngineObj.executable}>
-              {selectedEngineObj.name}: {selectedEngineObj.executable}
-            </span>
-          )}
-          {selectedIWADObj && (
-            <span className="truncate max-w-xs" title={selectedIWADObj.path}>
-              • {selectedIWADObj.name}
-            </span>
-          )}
+        {/* Subtle Path hint on right */}
+        <div className="hidden xl:flex items-center gap-2 text-[11px] font-mono text-[#71717a] truncate max-w-sm">
+          {selectedEngineObj && <span className="truncate">{selectedEngineObj.name}</span>}
+          {selectedEngineObj && selectedIWADObj && <span>•</span>}
+          {selectedIWADObj && <span className="truncate">{selectedIWADObj.name}</span>}
         </div>
       </div>
 
