@@ -19,6 +19,7 @@ import {
   FileUp,
   Search,
   LayoutGrid,
+  Flame,
 } from 'lucide-react';
 import {
   Profile,
@@ -36,7 +37,6 @@ import { LoadOrderList } from './LoadOrderList';
 import { ValidationBanner } from './ValidationBanner';
 import { SelectModsModal } from './SelectModsModal';
 import { DmFlagsModal } from './DmFlagsModal';
-import { RecentProfileCard } from '../dashboard/RecentProfileCard';
 
 export interface ProfileEditorProps {
   profile: Profile;
@@ -927,10 +927,10 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
           </div>
         )}
 
-        {/* TAB 3: ALL PRESETS GALLERY OVERVIEW */}
+        {/* TAB 3: ALL PRESETS GALLERY OVERVIEW — Industrial Leaderboard */}
         {activeTab === 'all-presets' && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 w-full">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
               <div className="relative flex items-center max-w-sm w-full">
                 <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 pointer-events-none" />
                 <input
@@ -959,29 +959,122 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
                 No presets found matching &quot;{presetSearchFilter}&quot;
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredAllProfiles.map((p) => (
-                  <RecentProfileCard
-                    key={p.id}
-                    profile={p}
-                    onLaunch={async (id) => {
-                      onSelectProfile(id);
-                      try {
-                        await api.launchProfile(id);
-                      } catch (err) {
-                        console.error('Launch failed', err);
-                      }
-                    }}
-                    onToggleFavorite={async (id) => {
-                      await api.toggleProfileFavorite(id);
-                      onProfileChange({ ...p, isFavorite: !p.isFavorite });
-                    }}
-                    onSelectProfile={(id) => {
-                      onSelectProfile(id);
-                      setActiveTab('mods');
-                    }}
-                  />
-                ))}
+              <div className="flex flex-col gap-2 w-full">
+                {filteredAllProfiles.map((p, idx) => {
+                  const activeModCount = p.mods?.filter((m) => m.enabled).length ?? 0;
+                  const hasEngineAndIwad = Boolean((p.engineName || p.engine_name) && (p.iwadName || p.iwad_name));
+                  const rank = String(idx + 1).padStart(2, '0');
+                  const hasMods = (p.mods?.length ?? 0) > 0;
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={() => {
+                        onSelectProfile(p.id);
+                        setActiveTab('mods');
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          onSelectProfile(p.id);
+                          setActiveTab('mods');
+                        }
+                      }}
+                      className="group relative flex h-[56px] w-full items-center gap-3 overflow-hidden border border-[#22262d] bg-[#14171c] px-3 transition-colors hover:bg-[#181c22] cursor-pointer select-none text-left"
+                    >
+                      {/* Ghost watermark */}
+                      {hasMods ? (
+                        <Flame className="pointer-events-none absolute right-[-10px] top-1/2 h-16 w-16 -translate-y-1/2 text-white opacity-[0.06] select-none" aria-hidden />
+                      ) : (
+                        <Layers className="pointer-events-none absolute right-[-10px] top-1/2 h-16 w-16 -translate-y-1/2 text-white opacity-[0.06] select-none" aria-hidden />
+                      )}
+
+                      {/* Rank */}
+                      <span className="w-8 shrink-0 font-mono text-xs font-medium tracking-wide text-zinc-500 text-center tabular-nums select-none">
+                        {rank}
+                      </span>
+
+                      {/* Icon box */}
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border border-[#22262d] bg-[#1b1f26]">
+                        {hasMods ? (
+                          <Flame className="h-3.5 w-3.5 text-zinc-400" />
+                        ) : (
+                          <Layers className="h-3.5 w-3.5 text-zinc-400" />
+                        )}
+                      </div>
+
+                      {/* Star fav */}
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            await api.toggleProfileFavorite(p.id);
+                            onProfileChange({ ...p, isFavorite: !p.isFavorite });
+                          } catch (err) {
+                            console.error('Toggle favorite failed', err);
+                          }
+                        }}
+                        title={p.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                        className="p-1 rounded text-zinc-500 hover:text-amber-400 transition-colors shrink-0"
+                      >
+                        <Star
+                          className={clsx(
+                            'h-3.5 w-3.5',
+                            p.isFavorite ? 'fill-amber-400 text-amber-400' : 'text-zinc-500'
+                          )}
+                        />
+                      </button>
+
+                      {/* Name + subtitle */}
+                      <div className="flex-1 min-w-0 flex flex-col justify-center">
+                        <span
+                          className="font-mono text-[13px] font-bold leading-none tracking-[-0.02em] text-zinc-100 truncate"
+                          style={{ letterSpacing: '-0.02em' }}
+                        >
+                          {p.name}
+                        </span>
+                        <span className="font-mono text-[11px] leading-none text-zinc-500 mt-1 truncate">
+                          {`${(p.engineName || p.engine_name || 'NO PORT').toString().toUpperCase()} \u2022 ${(p.iwadName || p.iwad_name || 'NO IWAD').toString().toUpperCase()}`}
+                        </span>
+                      </div>
+
+                      {/* Metric block */}
+                      <div className="relative z-10 flex flex-col items-end gap-0.5 font-mono shrink-0">
+                        <span className="text-[11px] font-bold leading-none text-zinc-300 tabular-nums">
+                          {activeModCount > 0 ? `${activeModCount} mods` : 'VANILLA'}
+                        </span>
+                        <span
+                          className={clsx(
+                            'text-[10px] font-bold leading-none tracking-wide tabular-nums',
+                            hasEngineAndIwad ? 'text-emerald-400' : 'text-red-400'
+                          )}
+                        >
+                          {hasEngineAndIwad ? '+ READY' : '- NEEDS SETUP'}
+                        </span>
+                      </div>
+
+                      {/* Play */}
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            await api.launchProfile(p.id);
+                          } catch (err) {
+                            console.error('Launch failed', err);
+                          }
+                        }}
+                        title="Launch preset"
+                        className="relative z-10 inline-flex items-center gap-1 rounded bg-[#dc2626] px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-[#ef4444] transition-colors shrink-0"
+                      >
+                        <Play className="h-3 w-3 fill-current" />
+                        <span>Play</span>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

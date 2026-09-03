@@ -9,6 +9,8 @@ import {
   Cpu,
   Disc,
   Layers,
+  Flame,
+  Star,
   Clock,
   CheckCircle2,
   XCircle,
@@ -19,9 +21,131 @@ import {
 } from 'lucide-react';
 import { Profile, Mod, IWAD, Engine, LaunchRecord, HistoryStats, Settings } from '../../types';
 import { api } from '../../services/api';
-import { RecentProfileCard } from './RecentProfileCard';
 import { formatDuration, formatRelativeTime, formatDate } from '../../utils/formatters';
 import { cn } from '../../utils/cn';
+
+interface ProfileLeaderboardRowProps {
+  profile: Profile;
+  rank: number;
+  onLaunch: (profileId: string) => Promise<void>;
+  onToggleFavorite: (profileId: string) => Promise<void>;
+  onSelectProfile?: (profileId: string) => void;
+}
+
+const ProfileLeaderboardRow: React.FC<ProfileLeaderboardRowProps> = ({
+  profile,
+  rank,
+  onLaunch,
+  onToggleFavorite,
+  onSelectProfile,
+}) => {
+  const [isLaunching, setIsLaunching] = useState(false);
+  const [isFavLoading, setIsFavLoading] = useState(false);
+
+  const activeModCount = profile.mods?.filter((m) => m.enabled).length ?? 0;
+  const totalModCount = profile.mods?.length ?? 0;
+  const isReady = Boolean(profile.engineName && profile.iwadName);
+  const rankLabel = String(rank).padStart(2, '0');
+  const GhostIcon = totalModCount > 0 ? Flame : Layers;
+  const InlineIcon = totalModCount > 0 ? Flame : Layers;
+
+  const handleLaunch = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isLaunching) return;
+    setIsLaunching(true);
+    try {
+      await onLaunch(profile.id);
+    } finally {
+      setIsLaunching(false);
+    }
+  };
+
+  const handleFavorite = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isFavLoading) return;
+    setIsFavLoading(true);
+    try {
+      await onToggleFavorite(profile.id);
+    } finally {
+      setIsFavLoading(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={() => onSelectProfile?.(profile.id)}
+      className="group relative flex h-[56px] w-full items-center gap-3 overflow-hidden border border-[#22262d] bg-[#14171c] px-3 transition-colors hover:bg-[#181c22] cursor-pointer select-none"
+    >
+      <span className="w-8 shrink-0 font-mono text-xs font-medium tracking-wide text-zinc-500 text-center">
+        {rankLabel}
+      </span>
+
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border border-[#22262d] bg-[#1b1f26]">
+        <InlineIcon className="h-3.5 w-3.5 text-zinc-400" />
+      </div>
+
+      <button
+        type="button"
+        onClick={handleFavorite}
+        disabled={isFavLoading}
+        title={profile.isFavorite ? 'Remove favorite' : 'Add favorite'}
+        className="shrink-0 rounded p-1 text-zinc-500 hover:text-amber-400 hover:bg-white/[0.04] transition-colors disabled:opacity-50"
+      >
+        <Star
+          className={cn(
+            'h-3.5 w-3.5 transition-colors',
+            profile.isFavorite ? 'fill-amber-400 text-amber-400' : 'text-zinc-500'
+          )}
+        />
+      </button>
+
+      <div className="min-w-0 flex-1">
+        <div
+          className="truncate font-mono text-[13px] font-bold leading-none tracking-[-0.02em] text-zinc-100"
+          title={profile.name}
+        >
+          {profile.name}
+        </div>
+        <div className="truncate font-mono text-[11px] leading-none text-zinc-500 mt-1">
+          {(profile.engineName || 'NO PORT').toUpperCase()} {profile.engineName && profile.iwadName ? '•' : ''} {(profile.iwadName || 'NO IWAD').toUpperCase()}
+        </div>
+      </div>
+
+      <div className="relative z-10 flex shrink-0 flex-col items-end gap-0.5 font-mono">
+        <span className="text-[11px] font-bold leading-none text-zinc-300">
+          {totalModCount === 0 ? 'VANILLA' : `${activeModCount} mods`}
+        </span>
+        <span
+          className={cn(
+            'text-[10px] font-bold leading-none tracking-wide',
+            isReady ? 'text-emerald-400' : 'text-red-400'
+          )}
+        >
+          {isReady ? '+ READY' : '- NEEDS SETUP'}
+        </span>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleLaunch}
+        disabled={isLaunching}
+        className="relative z-10 inline-flex shrink-0 items-center gap-1 rounded bg-[#dc2626] px-2.5 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-[#ef4444] disabled:opacity-50"
+      >
+        {isLaunching ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
+          <Play className="h-3 w-3 fill-current" />
+        )}
+        <span>{isLaunching ? '...' : 'Play'}</span>
+      </button>
+
+      <GhostIcon
+        className="pointer-events-none absolute right-[-10px] top-1/2 h-16 w-16 -translate-y-1/2 text-white opacity-[0.06] select-none"
+        aria-hidden
+      />
+    </div>
+  );
+};
 
 interface DashboardViewProps {
   onNavigateToLibrary?: () => void;
@@ -399,11 +523,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {displayProfiles.map((prof) => (
-              <RecentProfileCard
+          <div className="flex flex-col gap-2">
+            {displayProfiles.map((prof, idx) => (
+              <ProfileLeaderboardRow
                 key={prof.id}
                 profile={prof}
+                rank={idx + 1}
                 onLaunch={handleLaunch}
                 onToggleFavorite={handleToggleFavorite}
                 onSelectProfile={onSelectProfile}
