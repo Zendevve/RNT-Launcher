@@ -15,6 +15,7 @@ import {
   Sparkles,
   ArrowUpDown,
   FileCode,
+  RotateCw,
 } from 'lucide-react';
 import { IdgamesFile, Mod } from '../../types';
 import { api } from '../../services/api';
@@ -297,9 +298,33 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
                 <div className="flex h-64 flex-col items-center justify-center p-6 text-center">
                   <AlertCircle className="h-8 w-8 text-doom-red mb-2" />
                   <h4 className="font-mono text-sm font-bold text-doom-text uppercase">
-                    Query Failed
+                    {error.toLowerCase().includes('cloudflare') || error.toLowerCase().includes('shielded')
+                      ? 'Archive Temporarily Shielded'
+                      : 'Query Failed'}
                   </h4>
-                  <p className="mt-1 font-mono text-xs text-doom-muted max-w-md">{error}</p>
+                  <p className="mt-1 font-mono text-xs text-doom-muted max-w-md leading-relaxed">{error}</p>
+                  {(error.toLowerCase().includes('cloudflare') || error.toLowerCase().includes('temporarily')) && (
+                    <p className="mt-3 font-mono text-[11px] text-zinc-500 max-w-sm">
+                      Tip: try a more specific search term, or use a popular suggestion chip above. You can also browse at{' '}
+                      <a
+                        href="https://www.doomworld.com/idgames/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-400 hover:underline"
+                      >
+                        doomworld.com/idgames
+                      </a>{' '}
+                      directly.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleSearch(query)}
+                    className="mt-4 inline-flex items-center gap-1.5 rounded border border-doom-border bg-doom-card px-3 py-1.5 font-mono text-xs text-doom-text hover:bg-doom-surface"
+                  >
+                    <RotateCw className="h-3 w-3" />
+                    Retry
+                  </button>
                 </div>
               ) : !hasSearched ? (
                 <div className="flex h-64 flex-col items-center justify-center p-6 text-center text-doom-muted">
