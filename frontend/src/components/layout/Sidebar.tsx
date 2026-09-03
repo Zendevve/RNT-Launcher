@@ -143,17 +143,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           badgeVariant: 'warning',
           matchViews: ['diagnostics'],
         },
-        {
-          id: 'settings',
-          label: 'Settings',
-          icon: <Settings className="w-4 h-4" />,
-          badge: !isReady ? 'Setup' : undefined,
-          badgeVariant: 'warning',
-          matchViews: ['settings'],
-        },
       ],
     },
   ];
+
+  const isSettingsActive = activeView === 'settings';
+  const settingsBadge = !isReady ? 'Setup' : undefined;
 
   return (
     <aside
@@ -287,6 +282,46 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </LayoutGroup>
       </div>
 
+      {/* Pinned Settings at very bottom */}
+      <div className="mt-auto border-t border-[#22262d] p-2 shrink-0">
+        <motion.button
+          type="button"
+          onClick={() => onViewChange('settings')}
+          title={collapsed ? 'Settings' : undefined}
+          whileTap={{ scale: 0.97 }}
+          transition={{ duration: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
+          className={cn(
+            'w-full flex items-center rounded-md font-medium relative text-left',
+            isCompact ? 'px-2.5 py-1.5 text-xs' : 'px-3 py-2 text-xs',
+            collapsed ? 'justify-center px-0 py-2' : 'justify-between',
+            isSettingsActive
+              ? 'text-zinc-100'
+              : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] border border-transparent'
+          )}
+        >
+          {isSettingsActive && (
+            <motion.div
+              layoutId="sidebar-active-bg"
+              className="absolute inset-0 bg-[#1c2026] border border-[#2c323d] rounded-md shadow-xs"
+              transition={shouldReduceMotion ? { duration: 0 } : springDefault}
+              initial={false}
+            >
+              <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-[#dc2626] rounded-r" />
+            </motion.div>
+          )}
+          <div className="flex items-center gap-2.5 min-w-0 truncate relative z-10">
+            <span className={cn('flex-shrink-0 transition-colors duration-100', isSettingsActive ? 'text-[#ef4444]' : 'text-zinc-400')}>
+              <Settings className="w-4 h-4" />
+            </span>
+            {!collapsed && <span className={cn('truncate tracking-tight', isSettingsActive ? 'text-zinc-100 font-medium' : 'text-zinc-300')}>Settings</span>}
+          </div>
+          {!collapsed && settingsBadge && (
+            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded relative z-10 flex-shrink-0 font-medium leading-none bg-[#2b2011] text-[#fbbf24] border border-amber-500/20">
+              {settingsBadge}
+            </span>
+          )}
+        </motion.button>
+      </div>
     </aside>
   );
 };
