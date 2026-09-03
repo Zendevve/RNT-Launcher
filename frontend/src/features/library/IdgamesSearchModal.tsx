@@ -295,35 +295,38 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
                   </p>
                 </div>
               ) : error ? (
-                <div className="flex h-64 flex-col items-center justify-center p-6 text-center">
-                  <AlertCircle className="h-8 w-8 text-doom-red mb-2" />
-                  <h4 className="font-mono text-sm font-bold text-doom-text uppercase">
+                <div className="flex min-h-[280px] flex-col items-center justify-center p-8 text-center">
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-full border mb-3 ${error.toLowerCase().includes('cloudflare') || error.toLowerCase().includes('shielded') ? 'bg-amber-950/30 border-amber-800/30 text-amber-400' : 'bg-red-950/30 border-red-800/30 text-red-400'}`}>
+                    <AlertCircle className="h-5 w-5" />
+                  </div>
+                  <h4 className="text-sm font-semibold text-zinc-100 tracking-tight">
                     {error.toLowerCase().includes('cloudflare') || error.toLowerCase().includes('shielded')
-                      ? 'Archive Temporarily Shielded'
-                      : 'Query Failed'}
+                      ? 'Archive temporarily unavailable'
+                      : 'Search failed'}
                   </h4>
-                  <p className="mt-1 font-mono text-xs text-doom-muted max-w-md leading-relaxed">{error}</p>
+                  <p className="mt-1.5 max-w-md text-xs leading-relaxed text-zinc-400">{error}</p>
                   {(error.toLowerCase().includes('cloudflare') || error.toLowerCase().includes('temporarily')) && (
-                    <p className="mt-3 font-mono text-[11px] text-zinc-500 max-w-sm">
-                      Tip: try a more specific search term, or use a popular suggestion chip above. You can also browse at{' '}
+                    <div className="mt-4 rounded-lg border border-[#22262d] bg-[#14171c] px-4 py-3 text-left max-w-sm w-full">
+                      <p className="text-[11px] leading-relaxed text-zinc-400">
+                        Try a more specific term — use the <span className="text-zinc-300 font-medium">Popular</span> chips above — or browse the archive directly.
+                      </p>
                       <a
                         href="https://www.doomworld.com/idgames/"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-400 hover:underline"
+                        className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors"
                       >
-                        doomworld.com/idgames
-                      </a>{' '}
-                      directly.
-                    </p>
+                        Open doomworld.com/idgames <span aria-hidden>↗</span>
+                      </a>
+                    </div>
                   )}
                   <button
                     type="button"
                     onClick={() => handleSearch(query)}
-                    className="mt-4 inline-flex items-center gap-1.5 rounded border border-doom-border bg-doom-card px-3 py-1.5 font-mono text-xs text-doom-text hover:bg-doom-surface"
+                    className="mt-4 inline-flex items-center gap-1.5 rounded bg-[#dc2626] hover:bg-[#ef4444] px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors"
                   >
-                    <RotateCw className="h-3 w-3" />
-                    Retry
+                    <RotateCw className="h-3.5 w-3.5" />
+                    Try again
                   </button>
                 </div>
               ) : !hasSearched ? (
