@@ -387,7 +387,7 @@ function AppContent() {
         />
 
         {/* Dynamic View Content */}
-        <main className="flex-1 overflow-hidden relative bg-[#0c0e12]">
+        <main className="flex-1 min-h-0 overflow-hidden relative bg-[#0c0e12] flex flex-col">
           {activeView === 'dashboard' && (
             <DashboardView
               onNavigateToLibrary={() => setActiveView('library')}
