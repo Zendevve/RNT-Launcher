@@ -486,7 +486,7 @@ function AppContent() {
                             api.launchProfile(p.id);
                             setIsSearchModalOpen(false);
                           }}
-                          className="px-2.5 py-1 text-xs bg-[#dc2626] hover:bg-[#ef4444] text-white font-medium rounded flex items-center gap-1 transition-colors"
+                          className="px-2.5 py-1 text-xs bg-[#5e7ce2] hover:bg-[#4d6bd4] text-[#09090b] font-[600] rounded-[6px] flex items-center gap-1 transition-colors"
                         >
                           <Play className="w-3 h-3 fill-current" /> Play
                         </button>

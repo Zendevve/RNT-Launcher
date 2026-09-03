@@ -435,7 +435,7 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
           <button
             type="button"
             onClick={() => setIsAddModalOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded bg-[#dc2626] hover:bg-[#ef4444] px-3.5 py-1.5 text-xs font-semibold text-white transition-colors shadow-xs"
+            className="inline-flex items-center gap-1.5 rounded-[8px] bg-[#5e7ce2] hover:bg-[#4d6bd4] px-3.5 py-1.5 text-xs font-[600] text-[#09090b] transition-colors shadow-xs"
           >
             <Plus className="h-3.5 w-3.5" />
             <span>Add Mod</span>
@@ -668,7 +668,7 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
                           In Setup
                         </span>
                       ) : (
-                        <span className="rounded bg-[#22262d] hover:bg-[#dc2626] px-2 py-0.5 text-[10px] text-zinc-300 hover:text-white shrink-0 ml-2 transition-colors">
+                        <span className="rounded-[6px] bg-[#2d2d34] hover:bg-[#5e7ce2] hover:text-[#09090b] px-2 py-0.5 text-[10px] text-zinc-300 font-[500] shrink-0 ml-2 transition-colors">
                           + Add
                         </span>
                       )}

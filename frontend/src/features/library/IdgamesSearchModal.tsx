@@ -323,7 +323,7 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
                   <button
                     type="button"
                     onClick={() => handleSearch(query)}
-                    className="mt-4 inline-flex items-center gap-1.5 rounded bg-[#dc2626] hover:bg-[#ef4444] px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors"
+                    className="mt-4 inline-flex items-center gap-1.5 rounded-[8px] bg-[#5e7ce2] hover:bg-[#4d6bd4] px-4 py-1.5 text-xs font-[600] text-[#09090b] shadow-sm transition-colors"
                   >
                     <RotateCw className="h-3.5 w-3.5" />
                     Try again

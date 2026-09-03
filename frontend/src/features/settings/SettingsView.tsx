@@ -284,7 +284,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'direct
             type="button"
             onClick={handleSaveSettings}
             disabled={!isDirty || isSaving || isLoading}
-            className="inline-flex items-center gap-1.5 rounded bg-[#dc2626] hover:bg-[#ef4444] px-3.5 py-1 text-xs font-semibold text-white transition-colors disabled:opacity-50 shadow-xs"
+            className="inline-flex items-center gap-1.5 rounded-[8px] bg-[#5e7ce2] hover:bg-[#4d6bd4] px-3.5 py-1 text-xs font-[600] text-[#09090b] transition-colors disabled:opacity-50 shadow-xs"
           >
             <Save className="h-3 w-3" />
             <span>{isSaving ? 'Saving...' : 'Save Settings'}</span>

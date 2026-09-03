@@ -422,7 +422,7 @@ export const HistoryView: React.FC = () => {
                               type="button"
                               onClick={() => handleLaunchAgain(record)}
                               disabled={isLaunching}
-                              className="inline-flex items-center gap-1.5 rounded bg-[#dc2626] hover:bg-[#ef4444] px-2.5 py-1 text-xs font-semibold text-white transition-colors disabled:opacity-50"
+                              className="inline-flex items-center gap-1.5 rounded-[8px] bg-[#5e7ce2] hover:bg-[#4d6bd4] px-2.5 py-1 text-xs font-[600] text-[#09090b] transition-colors disabled:opacity-50"
                             >
                               {isLaunching ? (
                                 <>

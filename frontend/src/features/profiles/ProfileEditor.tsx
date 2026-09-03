@@ -502,7 +502,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
               className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded bg-[#181f26] hover:bg-[#202732] border border-[#22262d] text-zinc-200 transition-colors"
               title="Create a new setup"
             >
-              <Plus className="w-3.5 h-3.5 text-[#dc2626]" />
+              <Plus className="w-3.5 h-3.5 text-[#5e7ce2]" />
               <span>New</span>
             </button>
           )}
@@ -581,8 +581,8 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
             className={clsx(
               'h-8 px-5 font-bold text-xs tracking-wider uppercase rounded-md transition-colors flex items-center gap-2 text-white select-none',
               validation?.status === 'CANNOT_LAUNCH'
-                ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-[#22262d]'
-                : 'bg-[#dc2626] hover:bg-[#ef4444] active:bg-[#b91c1c] shadow-sm'
+                ? 'bg-[#101010] text-[#71717a] cursor-not-allowed border border-[#2d2d34]'
+                : 'bg-[#5e7ce2] hover:bg-[#4d6bd4] active:bg-[#435ec0] text-[#09090b] font-[600] shadow-sm'
             )}
           >
             {isLaunching ? (
@@ -825,7 +825,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
                     type="checkbox"
                     checked={isolateSaves}
                     onChange={(e) => handleToggleIsolateSaves(e.target.checked)}
-                    className="w-4 h-4 rounded border-[#22262d] bg-black text-[#dc2626] focus:ring-[#dc2626] cursor-pointer accent-red-600"
+                    className="w-4 h-4 rounded border-[#2d2d34] bg-[#09090b] text-[#5e7ce2] focus:ring-[#5e7ce2] cursor-pointer accent-[#5e7ce2]"
                   />
                   <span className="text-xs font-medium text-zinc-200">
                     Store savegames in dedicated folder for this preset
@@ -946,7 +946,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
                 <button
                   type="button"
                   onClick={onCreateProfileClick}
-                  className="inline-flex items-center gap-1.5 rounded bg-[#dc2626] hover:bg-[#ef4444] px-3.5 py-1.5 text-xs font-semibold text-white transition-colors shrink-0"
+                  className="inline-flex items-center gap-1.5 rounded-[8px] bg-[#5e7ce2] hover:bg-[#4d6bd4] px-3.5 py-1.5 text-xs font-[600] text-[#09090b] transition-colors shrink-0"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>New Setup</span>

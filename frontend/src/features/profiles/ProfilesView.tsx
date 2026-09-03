@@ -213,7 +213,7 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
               onClick={handleAutoDetect}
               isLoading={isAutoDetecting}
               leftIcon={<RotateCw className={clsx('w-4 h-4', isAutoDetecting && 'animate-spin')} />}
-              className="font-medium px-6 bg-[#dc2626] hover:bg-[#ef4444] text-white border-0 text-xs tracking-wide"
+              className="font-medium px-6 bg-[#5e7ce2] hover:bg-[#4d6bd4] text-[#09090b] border-0 text-xs tracking-wide font-[600]"
             >
               {isAutoDetecting ? 'Auto-Detecting Games...' : 'Auto-Detect Installed Games & Ports'}
             </Button>
@@ -271,7 +271,7 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
               size="sm"
               onClick={handleOpenCreateModal}
               leftIcon={<Plus className="w-3.5 h-3.5" />}
-              className="bg-[#dc2626] hover:bg-[#ef4444] text-white text-xs font-medium"
+              className="bg-[#5e7ce2] hover:bg-[#4d6bd4] text-[#09090b] text-xs font-[600]"
             >
               + New Setup
             </Button>
@@ -304,7 +304,7 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
               variant="primary"
               onClick={handleCreateProfileSubmit}
               isLoading={isCreating}
-              className="bg-[#dc2626] hover:bg-[#ef4444] text-white"
+              className="bg-[#5e7ce2] hover:bg-[#4d6bd4] text-[#09090b] font-[600]"
             >
               Create Preset
             </Button>
