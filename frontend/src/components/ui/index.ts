@@ -5,4 +5,4 @@ export * from './Badge';
 export * from './ContextMenu';
 export * from './Toast';
 export * from './Tabs';
-export * from './ProgressBar';
+export * from './Card';

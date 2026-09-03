@@ -308,7 +308,8 @@ function AppContent() {
   return (
     <div
       data-density={density}
-      className="flex h-screen w-screen bg-[#0c0e12] text-zinc-100 font-sans antialiased overflow-hidden select-none"
+      className="flex h-screen w-screen bg-[#09090b] text-[#f4f4f5] antialiased overflow-hidden select-none"
+      style={{ fontFamily: 'var(--font-sans)' }}
     >
       {/* Navigation Sidebar */}
       <Sidebar
@@ -328,8 +329,8 @@ function AppContent() {
           iwadName: allIwads[0]?.name,
         }}
       />
-      {/* Main Content Viewport */}
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#0c0e12]">
+      {/* Main Content Viewport - 8px rhythm container */}
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#09090b]">
         {/* Top Header */}
         <Header
           title={viewTitles[activeView] || 'RNT Launcher'}
@@ -385,9 +386,8 @@ function AppContent() {
           }
           onDismiss={() => setLastScanResult(null)}
         />
-
-        {/* Dynamic View Content */}
-        <main className="flex-1 min-h-0 overflow-hidden relative bg-[#0c0e12] flex flex-col">
+        {/* Dynamic View Content - compact density uses 8px rhythm */}
+        <main className="flex-1 min-h-0 overflow-hidden relative bg-[#09090b] flex flex-col">
           {activeView === 'dashboard' && (
             <DashboardView
               onNavigateToLibrary={() => setActiveView('library')}

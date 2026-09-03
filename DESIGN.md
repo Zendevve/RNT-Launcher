@@ -1,53 +1,59 @@
-# Design System: RNT Launcher (Calm Utilitarian Desktop)
+# Design System: Slate Brand World (https://slate-template.framer.website/)
 
 <!-- impeccable:design-schema 1 -->
 
 ## Design Philosophy
 
-A calm, high-performance desktop utility for Doom players and modders. Inspired by professional tools like Linear, GitHub Desktop, and Prism Launcher. The interface prioritizes earned familiarity, low cognitive load, and instant access to launching games over decorative flair, badge explosions, or toy-like animations.
+The visual world of Slate: an ultra-refined, deep space dark mode characterized by matte absolute blacks (`#09090b`), periwinkle blue primary accents (`#5e7ce2`), ghost neutral surfaces (`#f4f4f5` at low opacity, `#101010`, `#0e0e11`), subtle borders (`#2d2d34`), Geist Medium typography, and instantaneous 0.001s ease transitions.
 
-## Core Rules
+## Brand Tokens (from Slate Extraction)
 
-1. **No Badge Soup:** A component gets at most one quiet format indicator where necessary. Do not stack format, category, usage count, status, and icon badges on every card.
-2. **No Monospace as Costume:** Monospace is reserved exclusively for file paths, CLI arguments, hashes, and technical telemetry. Labels, titles, subtitles, and button text use standard proportional typography.
-3. **No Gratuitous Spring Motion:** Animations are crisp, linear or subtle ease-out transitions between 100ms and 150ms. No bouncy scale effects (`active:scale-[0.98]`) or wobbling spring physics that make a desktop app feel like a toy.
-4. **No Nested Cards:** Surfaces are organized with clean borders, subtle background tints, and structural alignment rather than cards inside cards inside cards.
-5. **Color Discipline:** The canvas is deep obsidian (`#0c0e12`), surfaces are charcoal (`#13161a` and `#181c21`), hairline dividers are subtle (`#22262c` or `rgba(255,255,255,0.06)`). Red (`#dc2626`) is strictly reserved for the primary Launch CTA and destructive actions.
+- **Canvas Background:** `#09090b` (rgb(9, 9, 11))
+- **Primary Accent:** `#5e7ce2` (rgb(94, 124, 226))
+- **Text Foreground:** `#f4f4f5` (rgb(244, 244, 245))
+- **Neutral Subtext:** `#a1a1aa` (rgb(161, 161, 170))
+- **Neutral Muted:** `#71717a` (rgb(113, 113, 122))
+- **Dark Neutral / Borders:** `#2d2d34` (rgb(45, 45, 52), hover `#36363e`)
+- **Card / Surface Background:** `#0f0f12` (rgb(15, 15, 18)), `#0c0c0f` (rgb(12, 12, 15)), `#101010` (rgb(16, 16, 16))
+- **Ghost Surface:** `rgba(255, 255, 255, 0.05)` on dark backdrops
 
 ## Typography
 
-- **Font Family:** `system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
-- **Monospace Family:** `'JetBrains Mono', 'Fira Code', ui-monospace, monospace` (paths, hashes, CLI args only)
-- **Hierarchy:**
-  - App Header: 13px font-semibold, letter-spacing -0.01em
-  - Section Headings: 14px font-bold, text-zinc-100
-  - Item Titles: 13px font-medium, text-zinc-200
-  - Body & Subtitles: 12px font-normal, text-zinc-400
-  - Meta/Captions: 11px font-normal, text-zinc-500
+- **Font Family:** `Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
+- **Default Weight:** 500 (Medium)
+- **Hierarchy Scale:**
+  - Heading 1: 52px (weight 500, leading tight)
+  - Heading 2: 40px (weight 500)
+  - Heading 4: 32px (weight 500)
+  - Body Large: 18px
+  - Body: 16px, 14px
+  - Caption: 12px, 10px (letter-spacing: 0.08em)
 
-## Color Palette
+## Spacing & Rhythm
 
-- **Background Canvas:** `#0c0e12` (matte obsidian)
-- **Sidebar Surface:** `#101317`
-- **Panel / Card Surface:** `#14171c`
-- **Raised / Hover Surface:** `#1b1f26`
-- **Border Hairline:** `#22262d` (subtle contrast)
-- **Accent Primary (Launch):** `#dc2626` (Crimson, hover `#ef4444`, active `#b91c1c`)
-- **Semantic Ready / Success:** `#10b981` (Emerald)
-- **Semantic Warning:** `#f59e0b` (Amber)
-- **Semantic Error:** `#ef4444` (Red)
-- **Text Primary:** `#f4f4f5` (Zinc 100)
-- **Text Secondary:** `#a1a1aa` (Zinc 400)
-- **Text Muted:** `#71717a` (Zinc 500)
+- **8px System:** 4px (0.25rem), 6px (0.38rem), 8px (0.5rem), 12px (0.75rem), 16px (1.0rem), 20px (1.25rem), 24px (1.5rem), 32px (2.0rem), 48px (3.0rem), 64px (4.0rem)
 
-## Component Standards
+## Border Radius
+
+- Inner/div: `2px`
+- Standard buttons / controls: `8px` / `9px` / `14px`
+- Outer cards / containers: `12px`
+- Pill badges: `32px`
+
+## Motion
+
+- Scale: `0.001s ease`
+- Transition timing: instantaneous responsiveness (`0.001s ease` color shift on hover, no sluggish delays)
+
+## Component Specifications
 
 - **Buttons:**
-  - Primary (Launch): Crimson background `#dc2626`, bold white text, subtle shadow, 100ms transition.
-  - Secondary: `#1c2026` surface, `#2a2f38` border, text-zinc-200, hover `#242a33`.
-  - Ghost: Transparent background, text-zinc-400, hover text-zinc-200 hover bg-white/[0.04].
-- **Inputs & Selects:**
-  - Background `#0e1014`, border `#242830`, text-zinc-100, focus border `#dc2626` with no glaring glow.
-- **Mod Load Order Table:**
-  - Clean rows with drag handle, sequence number, enabled checkbox, mod name, quiet format pill, and trash action.
-  - Generous target areas, clear drag highlight, and instant feedback.
+  - Primary / Action: `#5e7ce2` periwinkle background, dark `#09090b` text, radius 8px / 14px.
+  - Dark Action: `#0f0f12` background, `#f4f4f5` text, `#2d2d34` border, radius 8px / 14px.
+  - Secondary / Ghost: `#0c0c0f` background, `#a1a1aa` text, hover `#f4f4f5`.
+- **Inputs:**
+  - Background `#09090b`, text `#f4f4f5`, border 1px solid `#2d2d34`, focus border `#5e7ce2`, radius 8px.
+- **Cards & Panes:**
+  - Background `#0f0f12` or `#101010`, border 1px solid `#2d2d34`, radius 12px.
+- **Sidebar & Shell:**
+  - Sidebar `#101010` with `#2d2d34` border, active indicator `#5e7ce2` accent bar with `rgba(255,255,255,0.05)` pill.

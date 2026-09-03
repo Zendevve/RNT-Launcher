@@ -10,6 +10,12 @@ interface RecentProfileCardProps {
   onSelectProfile?: (profileId: string) => void;
 }
 
+/**
+ * Slate Framer — RecentProfileCard
+ * - Card radius 12px, bg #0f0f12 / hover #0c0c0f, border #2d2d34
+ * - Button bg #0f0f12 / #0c0c0f, radius 14px/32px, padding 8px 14px 8px 18px
+ * - Text #f4f4f5 / #a1a1aa / #71717a, accent #5e7ce2, Geist 500, motion 0.001s ease
+ */
 export const RecentProfileCard: React.FC<RecentProfileCardProps> = ({
   profile,
   onLaunch,
@@ -47,17 +53,23 @@ export const RecentProfileCard: React.FC<RecentProfileCardProps> = ({
   return (
     <div
       onClick={() => onSelectProfile?.(profile.id)}
-      className="group relative flex flex-col justify-between rounded-lg border border-[#22262d] bg-[#14171c] hover:bg-[#181c22] hover:border-[#2f3540] p-4 transition-colors duration-100 cursor-pointer select-none"
+      className="group relative flex flex-col justify-between rounded-[12px] border border-[#2d2d34] bg-[#0f0f12] hover:bg-[#0c0c0f] hover:border-[#3a3a44] p-4 transition-[background-color,border-color] duration-[0.001s] ease-[ease] cursor-pointer select-none"
     >
       <div>
         {/* Header: Title and Star */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <h3 className="text-sm font-semibold text-zinc-100 group-hover:text-white truncate" title={profile.name}>
+            <h3
+              className="text-sm font-[500] text-[#f4f4f5] group-hover:text-white truncate [font-family:var(--font-geist),Geist,sans-serif] tracking-tight"
+              title={profile.name}
+            >
               {profile.name}
             </h3>
             {profile.description && (
-              <p className="text-xs text-zinc-400 truncate mt-0.5" title={profile.description}>
+              <p
+                className="text-xs text-[#a1a1aa] truncate mt-0.5 font-[500] [font-family:var(--font-geist),Geist,sans-serif]"
+                title={profile.description}
+              >
                 {profile.description}
               </p>
             )}
@@ -68,34 +80,34 @@ export const RecentProfileCard: React.FC<RecentProfileCardProps> = ({
             title={profile.isFavorite ? 'Remove favorite' : 'Add to favorites'}
             onClick={handleFavoriteClick}
             disabled={isFavLoading}
-            className="text-zinc-500 hover:text-amber-400 p-1 rounded hover:bg-white/[0.04] transition-colors shrink-0"
+            className="text-[#71717a] hover:text-[#5e7ce2] p-1 rounded-[8px] hover:bg-[#0c0c0f] transition-[color,background-color] duration-[0.001s] ease-[ease] shrink-0"
           >
             <Star
               className={cn(
-                'w-4 h-4 transition-colors',
-                profile.isFavorite ? 'fill-amber-400 text-amber-400' : 'text-zinc-500'
+                'w-4 h-4 transition-[color] duration-[0.001s] ease-[ease]',
+                profile.isFavorite ? 'fill-[#5e7ce2] text-[#5e7ce2]' : 'text-[#71717a]'
               )}
             />
           </button>
         </div>
 
         {/* Engine & IWAD Specs */}
-        <div className="mt-3 flex flex-col gap-1 text-xs text-zinc-400">
+        <div className="mt-3 flex flex-col gap-1 text-xs text-[#a1a1aa] font-[500] [font-family:var(--font-geist),Geist,sans-serif]">
           <div className="flex items-center gap-1.5 truncate">
-            <Cpu className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-            <span className="truncate">{profile.engineName || 'No Port Configured'}</span>
+            <Cpu className="w-3.5 h-3.5 text-[#71717a] shrink-0" />
+            <span className="truncate text-[#a1a1aa]">{profile.engineName || 'No Port Configured'}</span>
           </div>
           <div className="flex items-center gap-1.5 truncate">
-            <Disc className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-            <span className="truncate">{profile.iwadName || 'No IWAD Configured'}</span>
+            <Disc className="w-3.5 h-3.5 text-[#71717a] shrink-0" />
+            <span className="truncate text-[#a1a1aa]">{profile.iwadName || 'No IWAD Configured'}</span>
           </div>
         </div>
       </div>
 
       {/* Footer: Mod count & Launch CTA */}
-      <div className="mt-4 pt-3 border-t border-[#22262d] flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 text-xs text-zinc-500">
-          <Layers className="w-3.5 h-3.5 text-zinc-500" />
+      <div className="mt-4 pt-3 border-t border-[#2d2d34] flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-xs text-[#71717a] font-[500] [font-family:var(--font-geist),Geist,sans-serif]">
+          <Layers className="w-3.5 h-3.5 text-[#71717a]" />
           <span>
             {totalModsCount === 0 ? 'Vanilla' : `${activeModsCount}/${totalModsCount} mods`}
           </span>
@@ -109,7 +121,7 @@ export const RecentProfileCard: React.FC<RecentProfileCardProps> = ({
               onSelectProfile?.(profile.id);
             }}
             title="Configure setup"
-            className="p-1.5 text-zinc-500 hover:text-zinc-200 rounded hover:bg-white/[0.04] transition-colors"
+            className="p-1.5 text-[#71717a] hover:text-[#f4f4f5] rounded-[8px] hover:bg-[#0c0c0f] transition-[color,background-color] duration-[0.001s] ease-[ease]"
           >
             <ArrowUpRight className="w-3.5 h-3.5" />
           </button>
@@ -117,7 +129,7 @@ export const RecentProfileCard: React.FC<RecentProfileCardProps> = ({
             type="button"
             onClick={handleLaunch}
             disabled={isLaunching}
-            className="inline-flex items-center gap-1.5 rounded bg-[#dc2626] hover:bg-[#ef4444] px-3 py-1 text-xs font-semibold text-white transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-[14px] bg-[#0f0f12] hover:bg-[#0c0c0f] text-[#f4f4f5] border border-[#2d2d34] hover:border-[#3a3a44] pt-[8px] pr-[14px] pb-[8px] pl-[18px] text-xs font-[500] transition-[background-color,color,border-color] duration-[0.001s] ease-[ease] disabled:opacity-50 [font-family:var(--font-geist),Geist,sans-serif]"
           >
             {isLaunching ? (
               <>

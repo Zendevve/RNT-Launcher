@@ -40,79 +40,80 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header
       className={cn(
-        'h-12 bg-[#101317] border-b border-[#22262d] px-4 flex items-center justify-between gap-4 select-none z-20 flex-shrink-0',
+        'h-12 bg-[#09090b] border-b border-[#2d2d34] px-4 flex items-center justify-between gap-4 select-none z-20 flex-shrink-0',
         className
       )}
     >
-      {/* Single Header Breadcrumb */}
+      {/* Breadcrumb - Geist 500, caption tracking */}
       <div className="flex items-center gap-2 min-w-0">
-        <span className="text-[11px] font-mono font-medium text-zinc-500 uppercase tracking-wider">
+        <span className="text-[11px] font-medium text-[#71717a] uppercase tracking-[0.08em]" style={{ fontFamily: 'var(--font-sans)' }}>
           RNT
         </span>
-        <span className="text-zinc-600 font-mono text-xs select-none">/</span>
-        <h1 className="text-xs font-semibold text-zinc-200 tracking-wide truncate">
+        <span className="text-[#2d2d34] font-mono text-xs select-none">/</span>
+        <h1 className="text-xs font-medium text-[#f4f4f5] tracking-tight truncate" style={{ fontFamily: 'var(--font-sans)' }}>
           {title}
         </h1>
         {activeProfileName && (
-          <div className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-zinc-300 bg-white/[0.04] px-2 py-0.5 rounded border border-[#22262d]">
-            <span className="text-zinc-500 font-normal">Active:</span>
-            <span className="text-zinc-200 font-medium truncate max-w-[160px]">
+          <div className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-[#a1a1aa] bg-[rgba(244,244,245,0.05)] px-2 py-0.5 rounded-[8px] border border-[#2d2d34]">
+            <span className="text-[#71717a] font-medium tracking-[0.04em] uppercase text-[10px]" style={{ fontFamily: 'var(--font-sans)' }}>Active:</span>
+            <span className="text-[#f4f4f5] font-medium truncate max-w-[160px]" style={{ fontFamily: 'var(--font-sans)' }}>
               {activeProfileName}
             </span>
           </div>
         )}
       </div>
 
-      {/* Center Global Search Trigger (Ctrl+K) */}
+      {/* Center Global Search Trigger (Ctrl+K) - 8px rhythm */}
       {showSearch && (
         <div className="flex-1 max-w-sm mx-4 hidden sm:block">
           <button
             type="button"
             onClick={() => onSearchClick?.()}
-            className="w-full h-7 pl-8 pr-2 bg-[#14171a] text-zinc-400 text-xs rounded border border-[#22262d] flex items-center justify-between hover:border-zinc-600 hover:text-zinc-200 transition-colors relative"
+            className="w-full h-8 pl-8 pr-2 bg-[#101010] text-[#a1a1aa] text-xs rounded-[8px] border border-[#2d2d34] flex items-center justify-between hover:border-[#3a3a44] hover:text-[#f4f4f5] transition-colors relative"
+            style={{ fontFamily: 'var(--font-sans)' }}
           >
-            <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 pointer-events-none" />
-            <span className="truncate text-[11px] text-zinc-400">
+            <Search className="w-3.5 h-3.5 text-[#71717a] absolute left-2.5 pointer-events-none" />
+            <span className="truncate text-[12px] text-[#71717a] tracking-[0.01em]">
               {searchQuery || searchPlaceholder}
             </span>
-            <kbd className="text-[9.5px] font-mono text-zinc-400 bg-white/[0.06] px-1.5 py-0.5 rounded border border-white/[0.08]">
+            <kbd className="text-[10px] font-medium text-[#a1a1aa] bg-[rgba(244,244,245,0.05)] px-1.5 py-0.5 rounded-[6px] border border-[#2d2d34] tracking-[0.04em]">
               {isMac ? '⌘K' : 'Ctrl+K'}
             </kbd>
           </button>
         </div>
       )}
 
-      {/* Right Controls: Status / Scan / Universal Crimson Play CTA */}
+      {/* Right Controls: Status / Scan / Periwinkle Play CTA - 8px rhythm, Geist */}
       <div className="flex items-center gap-2 flex-shrink-0">
         {/* Launch Status indicator */}
         {launchStatus && launchStatus !== 'IDLE' && (
           <div className="hidden lg:flex items-center">
             {launchStatus === 'RUNNING' && (
-              <span className="inline-flex items-center gap-1.5 text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-[8px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 tracking-[0.04em]" style={{ fontFamily: 'var(--font-sans)' }}>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
                 RUNNING
               </span>
             )}
             {launchStatus === 'LAUNCHING' && (
-              <span className="inline-flex items-center gap-1.5 text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-[8px] bg-amber-500/10 text-amber-400 border border-amber-500/20 tracking-[0.04em]" style={{ fontFamily: 'var(--font-sans)' }}>
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
                 LAUNCHING
               </span>
             )}
             {launchStatus === 'READY' && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-[8px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 tracking-[0.04em]" style={{ fontFamily: 'var(--font-sans)' }}>
                 <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                 READY
               </span>
             )}
             {launchStatus === 'WARNING' && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-[8px] bg-amber-500/10 text-amber-400 border border-amber-500/20 tracking-[0.04em]" style={{ fontFamily: 'var(--font-sans)' }}>
                 <ShieldAlert className="w-3 h-3 text-amber-400" />
                 WARNINGS
               </span>
             )}
             {launchStatus === 'ERROR' && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-[8px] bg-red-500/10 text-red-400 border border-red-500/20 tracking-[0.04em]" style={{ fontFamily: 'var(--font-sans)' }}>
                 <ShieldAlert className="w-3 h-3 text-red-400" />
                 CANNOT LAUNCH
               </span>
@@ -126,22 +127,24 @@ export const Header: React.FC<HeaderProps> = ({
             type="button"
             onClick={onQuickScan}
             disabled={isScanning}
-            className="h-7 px-2.5 inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] disabled:text-zinc-600 rounded transition-colors"
+            className="h-8 px-3 inline-flex items-center gap-1.5 text-xs font-medium text-[#a1a1aa] hover:text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.05)] disabled:text-[#71717a] rounded-[8px] transition-colors"
+            style={{ fontFamily: 'var(--font-sans)' }}
           >
             <RefreshCw
-              className={cn('w-3.5 h-3.5', isScanning && 'animate-spin text-red-400')}
+              className={cn('w-3.5 h-3.5', isScanning && 'animate-spin text-[#5e7ce2]')}
             />
             <span>{isScanning ? 'Scanning...' : 'Scan'}</span>
           </button>
         )}
 
-        {/* Universal Crimson Play Button */}
+        {/* Universal Periwinkle Play Button */}
         {onQuickLaunch && (
           <button
             type="button"
             onClick={onQuickLaunch}
             disabled={launchStatus === 'RUNNING' || launchStatus === 'LAUNCHING'}
-            className="h-7 px-3.5 inline-flex items-center gap-1.5 bg-[#dc2626] hover:bg-[#ef4444] active:bg-[#b91c1c] disabled:opacity-50 disabled:pointer-events-none text-white font-bold tracking-wider uppercase text-xs rounded transition-colors duration-150 shadow-sm"
+            className="h-8 px-4 inline-flex items-center gap-1.5 bg-[#5e7ce2] hover:bg-[#6b8bf0] active:bg-[#4a62c6] disabled:opacity-50 disabled:pointer-events-none text-white font-medium tracking-[0.04em] uppercase text-xs rounded-[8px] transition-colors duration-150"
+            style={{ fontFamily: 'var(--font-sans)' }}
           >
             <Play className="w-3 h-3 fill-current" />
             <span>PLAY</span>

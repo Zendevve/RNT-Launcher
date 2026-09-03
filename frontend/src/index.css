@@ -1,40 +1,68 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
   color-scheme: dark;
-  --font-sans: "SF Pro Display", "Geist Sans", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  /* Slate Framer extraction — CSS vars (exact hexes) */
+  --bg: #09090b;
+  --primary: #5e7ce2;
+  --surface: #f4f4f5;
+  --neutral: #a1a1aa;
+  --neutral-muted: #71717a;
+  --accent: #2d2d34;
+  /* Font */
+  --font-geist: "Geist", sans-serif;
+  --font-sans: var(--font-geist);
   --font-mono: "SF Mono", "Geist Mono", "JetBrains Mono", monospace;
+  /* Radii */
+  --radius-div: 2px;
+  --radius-default: 8px;
+  --radius-card: 8px;
+  --radius-button: 8px;
+  --radius-outer: 12px;
+  --radius-lg: 12px;
+  /* Motion — Slate scale 0.001s ease */
+  --motion-duration: 0.001s;
+  --motion-ease: ease;
 }
 
 body {
-  font-family: var(--font-sans);
-  background-color: #0c0e12;
-  color: #e2e8f0;
--webkit-font-smoothing: antialiased;
--moz-osx-font-smoothing: grayscale;
+  font-family: var(--font-geist), var(--font-sans);
+  font-weight: 500;
+  background-color: var(--bg);
+  color: var(--surface);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   user-select: none;
 }
 
 ::selection {
-  background-color: rgba(220, 38, 38, 0.35);
+  background-color: rgba(94, 124, 226, 0.35);
   color: #ffffff;
 }
 
-/* Typographic Hierarchy */
+/* Typographic Hierarchy — Geist 500 */
 .display-title {
+  font-family: var(--font-geist);
+  font-weight: 500;
   letter-spacing: -0.025em;
   line-height: 1.15;
 }
 
 .section-title {
+  font-family: var(--font-geist);
+  font-weight: 500;
   letter-spacing: -0.015em;
   line-height: 1.25;
 }
 
 .body-text {
+  font-family: var(--font-geist);
+  font-weight: 500;
   letter-spacing: -0.005em;
   line-height: 1.6;
 }
@@ -44,42 +72,46 @@ body {
   letter-spacing: 0.035em;
 }
 
-/* Minimalist Flat Surface System */
+/* Minimalist Flat Surface System — Slate palette */
 .glass-chrome {
-  background: #101317;
-  border-bottom: 1px solid #22262d;
+  background: var(--bg);
+  border-bottom: 1px solid var(--accent);
 }
 
 .glass-sidebar {
-  background: #101317;
-  border-right: 1px solid #22262d;
+  background: var(--bg);
+  border-right: 1px solid var(--accent);
 }
 
 .glass-surface {
-  background: #14171a;
-  border: 1px solid #22262d;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  color: var(--bg);
 }
 
 .glass-card {
-  background: #15181c;
-  border: 1px solid #22262d;
-  transition: border-color 0.15s ease-out, background-color 0.15s ease-out;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-card);
+  color: var(--bg);
+  transition: border-color var(--motion-duration) var(--motion-ease), background-color var(--motion-duration) var(--motion-ease);
 }
 
 .glass-card:hover {
-  background: #1c2026;
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: var(--neutral);
 }
 
 .glass-input {
-  background: #101317;
-  border: 1px solid #22262d;
-  transition: border-color 0.15s ease-out;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-default);
+  color: var(--surface);
+  transition: border-color var(--motion-duration) var(--motion-ease);
 }
 
 .glass-input:focus-within {
-  border-color: #dc2626;
-  box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.4);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px rgba(94, 124, 226, 0.4);
 }
 
 /* Muted Pastel Spot Accents */
@@ -113,9 +145,9 @@ body {
   border: 1px solid rgba(192, 132, 252, 0.25);
 }
 
-/* Tactile Spring Press Feedback */
+/* Tactile Spring Press Feedback — Slate motion 0.001s ease */
 .pressable {
-  transition: opacity 0.12s ease-out;
+  transition: opacity var(--motion-duration) var(--motion-ease);
 }
 .pressable:active {
   opacity: 0.85;
@@ -132,12 +164,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #22262d;
+  background: var(--accent);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3f454c;
+  background: var(--neutral-muted);
 }
 
 /* Reduced Motion & Transparency Accessibility */
@@ -154,6 +186,6 @@ body {
   .glass-chrome, .glass-sidebar, .glass-surface, .glass-card, .glass-input {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
-    background: #14171a !important;
+    background: var(--surface) !important;
   }
 }

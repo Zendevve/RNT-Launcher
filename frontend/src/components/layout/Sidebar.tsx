@@ -153,30 +153,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside
       className={cn(
-        'h-full bg-[#101317] border-r border-[#22262d] flex flex-col justify-between select-none z-30 flex-shrink-0 transition-[width] duration-150',
+        'h-full bg-[#101010] border-r border-[#2d2d34] flex flex-col justify-between select-none z-30 flex-shrink-0 transition-[width] duration-150',
         collapsed ? 'w-14' : isCompact ? 'w-56' : 'w-60',
         className
       )}
     >
-      {/* Brand Header */}
+      {/* Brand Header - 8px rhythm, Geist 500 */}
       <div className="flex flex-col flex-shrink-0">
         <div
           className={cn(
-            'h-12 border-b border-[#22262d] flex items-center transition-all',
+            'h-12 border-b border-[#2d2d34] flex items-center transition-all',
             collapsed ? 'justify-center px-2' : 'justify-between px-3'
           )}
         >
           {!collapsed ? (
-            <div className="flex items-center gap-2.5 overflow-hidden">
-              <div className="w-7 h-7 rounded bg-[#dc2626] flex items-center justify-center flex-shrink-0">
+            <div className="flex items-center gap-2 overflow-hidden">
+              <div className="w-7 h-7 rounded-[8px] bg-[#5e7ce2] flex items-center justify-center flex-shrink-0">
                 <Flame className="w-4 h-4 text-white fill-white/20" />
               </div>
 
               <div className="flex flex-col min-w-0">
-                <span className="font-semibold text-xs text-zinc-100 tracking-tight leading-tight truncate">
+                <span className="font-medium text-xs text-[#f4f4f5] tracking-tight leading-tight truncate" style={{ fontFamily: 'var(--font-sans)' }}>
                   RNT Launcher
                 </span>
-                <span className="font-mono text-[9px] text-zinc-500 tracking-wider leading-tight">
+                <span className="font-medium text-[10px] text-[#a1a1aa] uppercase tracking-[0.08em] leading-tight" style={{ fontFamily: 'var(--font-sans)' }}>
                   DOOM MOD MANAGER
                 </span>
               </div>
@@ -194,13 +194,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           )}
         </div>
-        {/* Navigation Sections - LayoutGroup enables fluid shared active pill */}
+        {/* Navigation Sections - LayoutGroup enables fluid shared active pill | compact = 8px rhythm */}
         <LayoutGroup>
-          <nav className={cn('flex-1 overflow-y-auto space-y-3', isCompact ? 'p-1.5' : 'p-2')}>
+          <nav className={cn('flex-1 overflow-y-auto space-y-3', isCompact ? 'p-2' : 'p-2')}>
           {sections.map((section, sIdx) => (
-            <div key={section.title || sIdx} className="space-y-0.5">
+            <div key={section.title || sIdx} className="space-y-1">
               {!collapsed && section.title && (
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 px-2.5 pt-1.5 pb-1">
+                <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-[#71717a] px-2 pt-2 pb-1" style={{ fontFamily: 'var(--font-sans)' }}>
                   {section.title}
                 </div>
               )}
@@ -219,29 +219,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     whileTap={{ scale: 0.97 }}
                     transition={{ duration: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
                     className={cn(
-                      'w-full flex items-center rounded-md font-medium relative text-left',
-                      isCompact ? 'px-2.5 py-1.5 text-xs' : 'px-3 py-2 text-xs',
+                      'w-full flex items-center rounded-[8px] font-medium relative text-left transition-colors duration-150',
+                      isCompact ? 'px-2 py-2 text-xs gap-2' : 'px-3 py-2 text-xs gap-2',
                       collapsed ? 'justify-center px-0 py-2' : 'justify-between',
                       isActive
-                        ? 'text-zinc-100'
-                        : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] border border-transparent'
+                        ? 'text-[#f4f4f5]'
+                        : 'text-[#a1a1aa] hover:text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.05)] border border-transparent'
                     )}
+                    style={{ fontFamily: 'var(--font-sans)' }}
                   >
                     {isActive && (
                       <motion.div
                         layoutId="sidebar-active-bg"
-                        className="absolute inset-0 bg-[#1c2026] border border-[#2c323d] rounded-md shadow-xs"
+                        className="absolute inset-0 bg-[rgba(244,244,245,0.05)] rounded-[8px]"
                         transition={shouldReduceMotion ? { duration: 0 } : springDefault}
                         initial={false}
                       >
-                        <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-[#dc2626] rounded-r" />
+                        <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-[#5e7ce2] rounded-r" />
                       </motion.div>
                     )}
-                    <div className="flex items-center gap-2.5 min-w-0 truncate relative z-10">
+                    <div className="flex items-center gap-2 min-w-0 truncate relative z-10">
                       <span
                         className={cn(
                           'flex-shrink-0 transition-colors duration-100',
-                          isActive ? 'text-[#ef4444]' : 'text-zinc-400 group-hover:text-zinc-200'
+                          isActive ? 'text-[#5e7ce2]' : 'text-[#71717a]'
                         )}
                       >
                         {item.icon}
@@ -250,8 +251,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       {!collapsed && (
                         <span
                           className={cn(
-                            'truncate tracking-tight',
-                            isActive ? 'text-zinc-100 font-medium' : 'text-zinc-300'
+                            'truncate tracking-tight font-medium',
+                            isActive ? 'text-[#f4f4f5]' : 'text-[#a1a1aa]'
                           )}
                         >
                           {item.label}
@@ -262,12 +263,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {!collapsed && hasBadge && (
                       <span
                         className={cn(
-                          'font-mono text-[10px] px-1.5 py-0.5 rounded relative z-10 flex-shrink-0 font-medium leading-none',
+                          'font-mono text-[10px] px-1.5 py-0.5 rounded-[8px] relative z-10 flex-shrink-0 font-medium leading-none border',
                           item.badgeVariant === 'warning'
-                            ? 'bg-[#2b2011] text-[#fbbf24] border border-amber-500/20'
+                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                             : isActive
-                            ? 'bg-white/[0.08] text-zinc-200 border border-white/[0.08]'
-                            : 'bg-white/[0.04] text-zinc-400 border border-white/[0.06]'
+                            ? 'bg-white/[0.08] text-[#f4f4f5] border-white/[0.08]'
+                            : 'bg-[rgba(244,244,245,0.05)] text-[#a1a1aa] border-[#2d2d34]'
                         )}
                       >
                         {item.badge}
@@ -282,8 +283,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </LayoutGroup>
       </div>
 
-      {/* Pinned Settings at very bottom */}
-      <div className="mt-auto border-t border-[#22262d] p-2 shrink-0">
+      {/* Pinned Settings at very bottom - Slate border */}
+      <div className="mt-auto border-t border-[#2d2d34] p-2 shrink-0">
         <motion.button
           type="button"
           onClick={() => onViewChange('settings')}
@@ -291,32 +292,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
           whileTap={{ scale: 0.97 }}
           transition={{ duration: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
           className={cn(
-            'w-full flex items-center rounded-md font-medium relative text-left',
-            isCompact ? 'px-2.5 py-1.5 text-xs' : 'px-3 py-2 text-xs',
+            'w-full flex items-center rounded-[8px] font-medium relative text-left transition-colors duration-150 gap-2',
+            isCompact ? 'px-2 py-2 text-xs' : 'px-3 py-2 text-xs',
             collapsed ? 'justify-center px-0 py-2' : 'justify-between',
             isSettingsActive
-              ? 'text-zinc-100'
-              : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] border border-transparent'
+              ? 'text-[#f4f4f5]'
+              : 'text-[#a1a1aa] hover:text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.05)] border border-transparent'
           )}
+          style={{ fontFamily: 'var(--font-sans)' }}
         >
           {isSettingsActive && (
             <motion.div
               layoutId="sidebar-active-bg"
-              className="absolute inset-0 bg-[#1c2026] border border-[#2c323d] rounded-md shadow-xs"
+              className="absolute inset-0 bg-[rgba(244,244,245,0.05)] rounded-[8px]"
               transition={shouldReduceMotion ? { duration: 0 } : springDefault}
               initial={false}
             >
-              <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-[#dc2626] rounded-r" />
+              <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-[#5e7ce2] rounded-r" />
             </motion.div>
           )}
-          <div className="flex items-center gap-2.5 min-w-0 truncate relative z-10">
-            <span className={cn('flex-shrink-0 transition-colors duration-100', isSettingsActive ? 'text-[#ef4444]' : 'text-zinc-400')}>
+          <div className="flex items-center gap-2 min-w-0 truncate relative z-10">
+            <span className={cn('flex-shrink-0 transition-colors duration-100', isSettingsActive ? 'text-[#5e7ce2]' : 'text-[#71717a]')}>
               <Settings className="w-4 h-4" />
             </span>
-            {!collapsed && <span className={cn('truncate tracking-tight', isSettingsActive ? 'text-zinc-100 font-medium' : 'text-zinc-300')}>Settings</span>}
+            {!collapsed && <span className={cn('truncate tracking-tight font-medium', isSettingsActive ? 'text-[#f4f4f5]' : 'text-[#a1a1aa]')}>Settings</span>}
           </div>
           {!collapsed && settingsBadge && (
-            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded relative z-10 flex-shrink-0 font-medium leading-none bg-[#2b2011] text-[#fbbf24] border border-amber-500/20">
+            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-[8px] relative z-10 flex-shrink-0 font-medium leading-none bg-amber-500/10 text-amber-400 border border-amber-500/20">
               {settingsBadge}
             </span>
           )}

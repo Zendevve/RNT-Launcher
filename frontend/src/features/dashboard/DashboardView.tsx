@@ -92,7 +92,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       setHistoryStats(fetchedStats);
       setSettings(fetchedSettings);
 
-      // Default hero preset: favorite or first
       if (profs.length > 0) {
         setSelectedHeroProfileId((prev) => {
           if (prev && profs.some((p) => p.id === prev)) return prev;
@@ -174,13 +173,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const isCompact = settings?.uiDensity === 'compact';
   const hasAssets = engines.length > 0 && iwads.length > 0;
 
-  // Active hero profile object
   const activeHeroProfile =
     profiles.find((p) => p.id === selectedHeroProfileId) ||
     profiles.find((p) => p.isFavorite) ||
     profiles[0];
 
-  // Presets gallery (favorites first, up to 6)
   const sortedProfiles = [...profiles].sort((a, b) => {
     if (a.isFavorite && !b.isFavorite) return -1;
     if (!a.isFavorite && b.isFavorite) return 1;
@@ -191,37 +188,37 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   return (
     <div
       className={cn(
-        'flex-1 min-h-0 overflow-y-auto bg-[#0c0e12] text-zinc-100 select-none',
+        'flex-1 min-h-0 overflow-y-auto bg-[#09090b] text-[#f4f4f5] select-none [font-family:var(--font-geist),Geist,sans-serif] font-[500]',
         isCompact ? 'p-5 pb-16 space-y-6' : 'p-6 md:p-8 pb-20 space-y-8'
       )}
     >
-      {/* Action Notification Toast */}
+      {/* Notification — Slate card 12px, 0.001s ease */}
       {notification && (
         <div
           className={cn(
-            'fixed bottom-6 right-8 z-50 flex items-center gap-2.5 rounded-lg border px-4 py-2.5 text-xs font-medium shadow-lg transition-all duration-150',
+            'fixed bottom-6 right-8 z-50 flex items-center gap-2.5 rounded-[12px] border px-4 py-2.5 text-xs font-[500] shadow-lg transition-[background-color,border-color,color] duration-[0.001s] ease-[ease] [font-family:var(--font-geist),Geist,sans-serif]',
             notification.type === 'success'
-              ? 'border-emerald-800/40 bg-[#122419] text-emerald-200'
+              ? 'border-[#2d2d34] bg-[#0f0f12] text-[#f4f4f5]'
               : notification.type === 'error'
-              ? 'border-red-800/40 bg-[#2b1416] text-red-200'
-              : 'border-blue-800/40 bg-[#132232] text-blue-200'
+              ? 'border-[#2d2d34] bg-[#0f0f12] text-[#f4f4f5]'
+              : 'border-[#2d2d34] bg-[#0f0f12] text-[#a1a1aa]'
           )}
         >
-          {notification.type === 'success' && <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />}
+          {notification.type === 'success' && <CheckCircle2 className="h-4 w-4 text-[#5e7ce2] shrink-0" />}
           {notification.type === 'error' && <XCircle className="h-4 w-4 text-red-400 shrink-0" />}
-          {notification.type === 'info' && <Clock className="h-4 w-4 text-blue-400 shrink-0" />}
+          {notification.type === 'info' && <Clock className="h-4 w-4 text-[#5e7ce2] shrink-0" />}
           <span>{notification.message}</span>
         </div>
       )}
 
-      {/* HERO SECTION */}
+      {/* HERO SECTION — Slate */}
       {hasAssets ? (
-        <div className="rounded-xl border border-[#22262d] bg-[#12151a] p-6 md:p-7 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div className="rounded-[12px] border border-[#2d2d34] bg-[#0f0f12] p-6 md:p-7 flex flex-col lg:flex-row lg:items-center justify-between gap-6 transition-[border-color,background-color] duration-[0.001s] ease-[ease]">
           <div className="flex-1 min-w-0 space-y-3">
-            {/* Top Status & Preset Switcher Row */}
+            {/* Top Status & Preset Switcher */}
             <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              <div className="flex items-center gap-1.5 text-xs font-[500] text-[#5e7ce2]">
+                <span className="h-2 w-2 rounded-full bg-[#5e7ce2]" />
                 <span>Ready to Launch</span>
               </div>
 
@@ -231,48 +228,48 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     value={selectedHeroProfileId}
                     onChange={(e) => setSelectedHeroProfileId(e.target.value)}
                     aria-label="Select active preset"
-                    className="appearance-none bg-[#1a1e26] hover:bg-[#202530] text-zinc-300 hover:text-white border border-[#2c323e] rounded-md px-3 py-1 pr-7 text-xs font-medium cursor-pointer focus:outline-none focus:border-[#dc2626] transition-colors"
+                    className="appearance-none bg-[#0c0c0f] hover:bg-[#0f0f12] text-[#a1a1aa] hover:text-[#f4f4f5] border border-[#2d2d34] rounded-[8px] px-3 py-1 pr-7 text-xs font-[500] cursor-pointer focus:outline-none focus:border-[var(--framer-input-focused-border-color)] transition-[background-color,color,border-color] duration-[0.001s] ease-[ease] [font-family:var(--font-geist),Geist,sans-serif]"
                   >
                     {profiles.map((p) => (
-                      <option key={p.id} value={p.id} className="bg-[#14171c] text-zinc-100">
+                      <option key={p.id} value={p.id} className="bg-[#0c0c0f] text-[#f4f4f5]">
                         {p.isFavorite ? '★ ' : ''}
                         {p.name}
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-zinc-400 absolute right-2 pointer-events-none" />
+                  <ChevronDown className="w-3.5 h-3.5 text-[#71717a] absolute right-2 pointer-events-none" />
                 </div>
               )}
             </div>
 
-            {/* Main Title & Description */}
+            {/* Title & Description */}
             <div>
-              <h1 className="text-xl md:text-2xl font-bold tracking-tight text-white truncate">
+              <h1 className="text-xl md:text-2xl font-[500] tracking-tight text-[#f4f4f5] truncate [font-family:var(--font-geist),Geist,sans-serif]">
                 {activeHeroProfile
                   ? activeHeroProfile.name
                   : (iwads.find((w) => w.id === engines[0]?.id)?.name || 'Doom II')}
               </h1>
-              <p className="text-xs text-zinc-400 mt-1 max-w-xl line-clamp-2 leading-relaxed">
+              <p className="text-xs text-[#a1a1aa] mt-1 max-w-xl line-clamp-2 leading-relaxed font-[500]">
                 {activeHeroProfile?.description ||
                   'Instant launch with selected source port engine and configured mod load order.'}
               </p>
             </div>
 
-            {/* Quick Specs Pill Row */}
-            <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-zinc-400">
-              <div className="flex items-center gap-1.5 bg-[#171b22] border border-[#22262d] px-2.5 py-1 rounded">
-                <Cpu className="h-3.5 w-3.5 text-zinc-400" />
-                <span>{activeHeroProfile?.engineName || engines[0]?.name || 'Port'}</span>
+            {/* Specs pills — 8px radius, 8px spacing */}
+            <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-[#a1a1aa]">
+              <div className="flex items-center gap-1.5 bg-[#0c0c0f] border border-[#2d2d34] px-2.5 py-1 rounded-[8px] transition-colors duration-[0.001s] ease-[ease]">
+                <Cpu className="h-3.5 w-3.5 text-[#71717a]" />
+                <span className="font-[500] text-[#a1a1aa]">{activeHeroProfile?.engineName || engines[0]?.name || 'Port'}</span>
               </div>
 
-              <div className="flex items-center gap-1.5 bg-[#171b22] border border-[#22262d] px-2.5 py-1 rounded">
-                <Disc className="h-3.5 w-3.5 text-zinc-400" />
-                <span>{activeHeroProfile?.iwadName || iwads[0]?.name || 'IWAD'}</span>
+              <div className="flex items-center gap-1.5 bg-[#0c0c0f] border border-[#2d2d34] px-2.5 py-1 rounded-[8px] transition-colors duration-[0.001s] ease-[ease]">
+                <Disc className="h-3.5 w-3.5 text-[#71717a]" />
+                <span className="font-[500] text-[#a1a1aa]">{activeHeroProfile?.iwadName || iwads[0]?.name || 'IWAD'}</span>
               </div>
 
-              <div className="flex items-center gap-1.5 bg-[#171b22] border border-[#22262d] px-2.5 py-1 rounded">
-                <Layers className="h-3.5 w-3.5 text-zinc-400" />
-                <span>
+              <div className="flex items-center gap-1.5 bg-[#0c0c0f] border border-[#2d2d34] px-2.5 py-1 rounded-[8px] transition-colors duration-[0.001s] ease-[ease]">
+                <Layers className="h-3.5 w-3.5 text-[#71717a]" />
+                <span className="font-[500] text-[#a1a1aa]">
                   {activeHeroProfile?.mods && activeHeroProfile.mods.length > 0
                     ? `${activeHeroProfile.mods.filter((m) => m.enabled).length} active mod(s)`
                     : 'Vanilla (No Mods)'}
@@ -281,13 +278,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          {/* Big Authoritative Crimson Launch Button & Secondary Action */}
+          {/* CTA — Button Slate spec: bg #0f0f12 / #0c0c0f, radius 14px/32px, padding 8px 14px 8px 18px, motion 0.001s ease */}
           <div className="flex flex-col sm:flex-row lg:flex-col items-stretch sm:items-center lg:items-end gap-2.5 shrink-0">
             <button
               type="button"
               onClick={handleLaunchHero}
               disabled={isLaunchingHero}
-              className="inline-flex items-center justify-center gap-2.5 rounded-lg bg-[#dc2626] hover:bg-[#ef4444] px-7 py-3 text-sm font-bold text-white transition-colors disabled:opacity-50 shadow-md"
+              className="inline-flex items-center justify-center gap-2.5 rounded-[32px] bg-[#0f0f12] hover:bg-[#0c0c0f] text-[#f4f4f5] border border-[#2d2d34] hover:border-[#3a3a44] pt-[8px] pr-[14px] pb-[8px] pl-[18px] text-sm font-[500] transition-[background-color,color,border-color] duration-[0.001s] ease-[ease] disabled:opacity-50 shadow-none [font-family:var(--font-geist),Geist,sans-serif]"
             >
               {isLaunchingHero ? (
                 <>
@@ -306,7 +303,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 type="button"
                 onClick={() => onSelectProfile(activeHeroProfile.id)}
-                className="inline-flex items-center justify-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 py-1 transition-colors"
+                className="inline-flex items-center justify-center gap-1.5 text-xs text-[#a1a1aa] hover:text-[#f4f4f5] py-1 transition-[color] duration-[0.001s] ease-[ease] font-[500] [font-family:var(--font-geist),Geist,sans-serif]"
               >
                 <Sliders className="w-3.5 h-3.5" />
                 <span>Configure Setup</span>
@@ -315,16 +312,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
       ) : (
-        /* FIRST-RUN ONBOARDING HERO */
-        <div className="rounded-xl border border-[#22262d] bg-[#12151a] p-8 text-center space-y-4">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#1c2028] text-amber-400 border border-[#2a303d]">
+        /* ONBOARDING — Slate */
+        <div className="rounded-[12px] border border-[#2d2d34] bg-[#0f0f12] p-8 text-center space-y-4 transition-colors duration-[0.001s] ease-[ease]">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#0c0c0f] text-[#5e7ce2] border border-[#2d2d34]">
             <AlertTriangle className="h-6 w-6" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white tracking-tight">
-              Welcome to RNT Launcher. Let's find your Doom games.
+            <h2 className="text-lg font-[500] text-[#f4f4f5] tracking-tight [font-family:var(--font-geist),Geist,sans-serif]">
+              Welcome to RNT Launcher. Let&apos;s find your Doom games.
             </h2>
-            <p className="mx-auto mt-1 max-w-md text-xs text-zinc-400 leading-relaxed">
+            <p className="mx-auto mt-1 max-w-md text-xs text-[#a1a1aa] leading-relaxed font-[500]">
               Scan your system to automatically discover installed source ports (GZDoom, PRBoom+, DSDA-Doom, Woof) and game IWADs (DOOM, DOOM II, Final Doom).
             </p>
           </div>
@@ -333,7 +330,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               type="button"
               onClick={handleScan}
               disabled={isScanning}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#dc2626] hover:bg-[#ef4444] px-5 py-2 text-xs font-bold text-white transition-colors"
+              className="inline-flex items-center gap-2 rounded-[14px] bg-[#0f0f12] hover:bg-[#0c0c0f] text-[#f4f4f5] border border-[#2d2d34] pt-[8px] pr-[14px] pb-[8px] pl-[18px] text-xs font-[500] transition-[background-color,color,border-color] duration-[0.001s] ease-[ease] [font-family:var(--font-geist),Geist,sans-serif]"
             >
               <FolderSearch className="h-4 w-4" />
               <span>{isScanning ? 'Scanning...' : 'Auto-Detect Installed Games & Ports'}</span>
@@ -342,7 +339,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 type="button"
                 onClick={onNavigateToLibrary}
-                className="inline-flex items-center gap-2 rounded-lg border border-[#22262d] bg-[#171b22] hover:bg-[#1f242e] px-4 py-2 text-xs font-medium text-zinc-300 hover:text-white transition-colors"
+                className="inline-flex items-center gap-2 rounded-[14px] border border-[#2d2d34] bg-[#0c0c0f] hover:bg-[#0f0f12] hover:border-[#3a3a44] px-4 py-2 text-xs font-[500] text-[#a1a1aa] hover:text-[#f4f4f5] transition-[background-color,color,border-color] duration-[0.001s] ease-[ease] [font-family:var(--font-geist),Geist,sans-serif]"
               >
                 <FolderOpen className="h-4 w-4" />
                 <span>Open Library</span>
@@ -352,12 +349,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       )}
 
-      {/* YOUR SETUPS GALLERY */}
+      {/* SETUPS GALLERY — Slate */}
       <div className="space-y-3.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-bold text-zinc-100 tracking-tight">Your Setups</h2>
-            <span className="text-xs font-mono text-zinc-500">({profiles.length})</span>
+            <h2 className="text-sm font-[500] text-[#f4f4f5] tracking-tight [font-family:var(--font-geist),Geist,sans-serif]">Your Setups</h2>
+            <span className="text-xs font-[500] text-[#71717a] [font-family:var(--font-geist),Geist,sans-serif]">({profiles.length})</span>
           </div>
 
           <div className="flex items-center gap-3">
@@ -365,9 +362,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 type="button"
                 onClick={onCreateProfile}
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-400 hover:text-white transition-colors"
+                className="inline-flex items-center gap-1.5 text-xs font-[500] text-[#a1a1aa] hover:text-[#f4f4f5] transition-[color] duration-[0.001s] ease-[ease] [font-family:var(--font-geist),Geist,sans-serif]"
               >
-                <Plus className="h-3.5 w-3.5 text-[#dc2626]" />
+                <Plus className="h-3.5 w-3.5 text-[#5e7ce2]" />
                 <span>New Setup</span>
               </button>
             )}
@@ -375,7 +372,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 type="button"
                 onClick={onNavigateToProfiles}
-                className="inline-flex items-center gap-1 text-xs font-medium text-zinc-400 hover:text-white transition-colors"
+                className="inline-flex items-center gap-1 text-xs font-[500] text-[#a1a1aa] hover:text-[#f4f4f5] transition-[color] duration-[0.001s] ease-[ease] [font-family:var(--font-geist),Geist,sans-serif]"
               >
                 <span>View all</span>
                 <ArrowUpRight className="h-3 w-3" />
@@ -385,13 +382,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {displayProfiles.length === 0 ? (
-          <div className="rounded-lg border border-[#22262d] bg-[#14171c] p-6 text-center">
-            <p className="text-xs text-zinc-400">No preset setups configured yet.</p>
+          <div className="rounded-[12px] border border-[#2d2d34] bg-[#0f0f12] p-6 text-center transition-colors duration-[0.001s] ease-[ease]">
+            <p className="text-xs text-[#a1a1aa] font-[500]">No preset setups configured yet.</p>
             {onCreateProfile && (
               <button
                 type="button"
                 onClick={onCreateProfile}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-[#dc2626] hover:bg-[#ef4444] px-3.5 py-1.5 text-xs font-semibold text-white transition-colors"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-[14px] bg-[#0f0f12] hover:bg-[#0c0c0f] text-[#f4f4f5] border border-[#2d2d34] pt-[8px] pr-[14px] pb-[8px] pl-[18px] text-xs font-[500] transition-[background-color,color] duration-[0.001s] ease-[ease] [font-family:var(--font-geist),Geist,sans-serif]"
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span>Create First Setup</span>
@@ -413,32 +410,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         )}
       </div>
 
-      {/* TWO-COLUMN ACTIVITY & SYSTEM OVERVIEW */}
+      {/* ACTIVITY & SYSTEM OVERVIEW — 12-col */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-1">
-        {/* Left Column (7 cols): Recent Gameplay Sessions */}
+        {/* Recent Sessions */}
         <div className="lg:col-span-7 space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-zinc-100 tracking-tight">Recent Sessions</h2>
+            <h2 className="text-sm font-[500] text-[#f4f4f5] tracking-tight [font-family:var(--font-geist),Geist,sans-serif]">Recent Sessions</h2>
             <button
               type="button"
               onClick={loadDashboardData}
               title="Refresh recent sessions"
-              className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors"
+              className="p-1 rounded-[8px] text-[#71717a] hover:text-[#f4f4f5] hover:bg-[#0c0c0f] transition-[background-color,color] duration-[0.001s] ease-[ease]"
             >
               <RotateCw className="h-3.5 w-3.5" />
             </button>
           </div>
 
-          <div className="overflow-hidden rounded-lg border border-[#22262d] bg-[#14171c]">
+          <div className="overflow-hidden rounded-[12px] border border-[#2d2d34] bg-[#0f0f12] transition-colors duration-[0.001s] ease-[ease]">
             {history.length === 0 ? (
-              <div className="p-6 text-center text-xs text-zinc-500">
+              <div className="p-6 text-center text-xs text-[#71717a] font-[500]">
                 No recent gameplay sessions logged yet. Launch a preset to start tracking time.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-[#22262d] bg-[#101317] text-[11px] font-semibold text-zinc-400">
+                    <tr className="border-b border-[#2d2d34] bg-[#09090b] text-[11px] font-[500] text-[#a1a1aa] [font-family:var(--font-geist),Geist,sans-serif]">
                       <th className="px-3.5 py-2.5">Preset</th>
                       <th className="px-3.5 py-2.5">Port / IWAD</th>
                       <th className="px-3.5 py-2.5">Duration</th>
@@ -446,38 +443,38 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <th className="px-3.5 py-2.5 text-right">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#1e2229]">
+                  <tbody className="divide-y divide-[#2d2d34]">
                     {history.slice(0, 5).map((record) => {
                       const isSuccess = record.status === 'success' || record.exitCode === 0;
                       return (
-                        <tr key={record.id} className="hover:bg-white/[0.02] transition-colors">
-                          <td className="px-3.5 py-2.5 font-medium text-zinc-200">
+                        <tr key={record.id} className="hover:bg-[#0c0c0f] transition-[background-color] duration-[0.001s] ease-[ease]">
+                          <td className="px-3.5 py-2.5 font-[500] text-[#f4f4f5]">
                             <div className="flex items-center gap-2">
                               <span
                                 className={cn(
                                   'h-1.5 w-1.5 rounded-full shrink-0',
-                                  isSuccess ? 'bg-emerald-400' : 'bg-red-400'
+                                  isSuccess ? 'bg-[#5e7ce2]' : 'bg-red-400'
                                 )}
                               />
-                              <span className="truncate max-w-[140px]">
+                              <span className="truncate max-w-[140px] text-[#f4f4f5]">
                                 {record.profileName || 'Default Setup'}
                               </span>
                             </div>
                           </td>
-                          <td className="px-3.5 py-2.5 text-zinc-400 truncate max-w-[120px]">
+                          <td className="px-3.5 py-2.5 text-[#a1a1aa] truncate max-w-[120px] font-[500]">
                             {record.engineName} • {record.iwadName}
                           </td>
-                          <td className="px-3.5 py-2.5 text-zinc-400 font-mono text-[11px]">
+                          <td className="px-3.5 py-2.5 text-[#a1a1aa] font-[500] text-[11px] [font-family:var(--font-geist),Geist,sans-serif]">
                             {formatDuration(record.durationMs)}
                           </td>
-                          <td className="px-3.5 py-2.5 text-zinc-500 text-[11px]" title={formatDate(record.startedAt)}>
+                          <td className="px-3.5 py-2.5 text-[#71717a] text-[11px] font-[500]" title={formatDate(record.startedAt)}>
                             {formatRelativeTime(record.startedAt)}
                           </td>
                           <td className="px-3.5 py-2.5 text-right">
                             <button
                               type="button"
                               onClick={() => handleLaunch(record.profileId)}
-                              className="inline-flex items-center gap-1 rounded bg-[#1c2026] hover:bg-[#dc2626] text-zinc-300 hover:text-white border border-[#2c323d] hover:border-[#dc2626] px-2 py-1 text-[11px] font-medium transition-colors"
+                              className="inline-flex items-center gap-1 rounded-[14px] bg-[#0f0f12] hover:bg-[#0c0c0f] text-[#f4f4f5] hover:text-white border border-[#2d2d34] hover:border-[#3a3a44] px-2 py-1 text-[11px] font-[500] transition-[background-color,color,border-color] duration-[0.001s] ease-[ease] [font-family:var(--font-geist),Geist,sans-serif]"
                             >
                               <Play className="h-2.5 w-2.5 fill-current" />
                               <span>Play</span>
@@ -493,62 +490,58 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Right Column (5 cols): System Assets & Telemetry Overview */}
+        {/* System Status */}
         <div className="lg:col-span-5 space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-zinc-100 tracking-tight">System Status</h2>
+            <h2 className="text-sm font-[500] text-[#f4f4f5] tracking-tight [font-family:var(--font-geist),Geist,sans-serif]">System Status</h2>
             <button
               type="button"
               onClick={handleScan}
               disabled={isScanning}
-              className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-white transition-colors"
+              className="inline-flex items-center gap-1 text-xs text-[#a1a1aa] hover:text-[#f4f4f5] transition-[color] duration-[0.001s] ease-[ease] font-[500] [font-family:var(--font-geist),Geist,sans-serif]"
             >
               <FolderSearch className="w-3 h-3" />
               <span>{isScanning ? 'Scanning...' : 'Scan Folders'}</span>
             </button>
           </div>
 
-          <div className="rounded-lg border border-[#22262d] bg-[#14171c] p-4 space-y-3.5">
-            {/* Port summary row */}
+          <div className="rounded-[12px] border border-[#2d2d34] bg-[#0f0f12] p-4 space-y-3.5 transition-colors duration-[0.001s] ease-[ease]">
             <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 text-zinc-300">
-                <Cpu className="w-4 h-4 text-zinc-400" />
-                <span>Source Ports</span>
+              <div className="flex items-center gap-2 text-[#a1a1aa]">
+                <Cpu className="w-4 h-4 text-[#71717a]" />
+                <span className="font-[500]">Source Ports</span>
               </div>
-              <span className="font-semibold text-zinc-100">
+              <span className="font-[500] text-[#f4f4f5]">
                 {engines.length} detected
               </span>
             </div>
 
-            {/* IWAD summary row */}
             <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 text-zinc-300">
-                <Disc className="w-4 h-4 text-zinc-400" />
-                <span>Base Game IWADs</span>
+              <div className="flex items-center gap-2 text-[#a1a1aa]">
+                <Disc className="w-4 h-4 text-[#71717a]" />
+                <span className="font-[500]">Base Game IWADs</span>
               </div>
-              <span className="font-semibold text-zinc-100">
+              <span className="font-[500] text-[#f4f4f5]">
                 {iwads.length} detected
               </span>
             </div>
 
-            {/* Mod Library summary row */}
             <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 text-zinc-300">
-                <Layers className="w-4 h-4 text-zinc-400" />
-                <span>Mod Catalog</span>
+              <div className="flex items-center gap-2 text-[#a1a1aa]">
+                <Layers className="w-4 h-4 text-[#71717a]" />
+                <span className="font-[500]">Mod Catalog</span>
               </div>
-              <span className="font-semibold text-zinc-100">
+              <span className="font-[500] text-[#f4f4f5]">
                 {mods.length} files ({mods.filter((m) => m.isFavorite).length} starred)
               </span>
             </div>
 
-            {/* Playtime telemetry */}
-            <div className="pt-2.5 border-t border-[#22262d] flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 text-zinc-300">
-                <Clock className="w-4 h-4 text-zinc-400" />
-                <span>Total Playtime</span>
+            <div className="pt-2.5 border-t border-[#2d2d34] flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 text-[#a1a1aa]">
+                <Clock className="w-4 h-4 text-[#71717a]" />
+                <span className="font-[500]">Total Playtime</span>
               </div>
-              <span className="font-mono font-semibold text-emerald-400">
+              <span className="font-[500] text-[#5e7ce2] [font-family:var(--font-geist),Geist,sans-serif]">
                 {formatDuration(historyStats?.totalPlayTimeMs || 0)}
               </span>
             </div>
