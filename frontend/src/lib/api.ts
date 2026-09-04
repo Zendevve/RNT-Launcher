@@ -20,6 +20,9 @@ import type {
   DiagnosticsReport,
   LogEntry,
   IdgamesFile,
+  IdgamesCatalogItem,
+  IdgamesSearchOptions,
+  IdgamesShowcase,
 } from '../types/domain'
 
 interface WailsAppBridge {
@@ -545,6 +548,35 @@ async function mockCall<T>(methodName: string, ...args: unknown[]): Promise<T> {
       }
       return mockMod as T
     }
+    case 'searchidgamescatalog': {
+      return [] as T
+    }
+    case 'getidgamescuratedshowcase': {
+      const empty: IdgamesShowcase = { cacowardClassics: [], top100: [], topRated: [], recentUploads: [] }
+      return empty as T
+    }
+    case 'syncidgameshighwatermark': {
+      return 0 as T
+    }
+    case 'downloadidgamesarchive': {
+      const archiveId = args[0] as number
+      const mockMod: Mod = {
+        id: `mock-mod-${archiveId || Date.now()}`,
+        name: 'Downloaded Mod',
+        path: `C:/Games/Doom/Mods/downloaded-${archiveId}.wad`,
+        format: 'wad',
+        category: 'Megawads',
+        size: 1024 * 1024,
+        modifiedAt: new Date().toISOString(),
+        sha256: 'mock-sha256-hash',
+        lumpCount: 42,
+        structures: ['MAPINFO', 'GRAPHICS'],
+        isFavorite: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+      return mockMod as T
+    }
     default:
       return undefined as T
   }
@@ -651,4 +683,12 @@ export const api = {
     callBackend<IdgamesFile[]>('SearchIdgames', query),
   downloadIdgamesMod: (file: IdgamesFile): Promise<Mod> =>
     callBackend<Mod>('DownloadIdgamesMod', file),
+  searchIdgamesCatalog: (opts: IdgamesSearchOptions): Promise<IdgamesCatalogItem[]> =>
+    callBackend<IdgamesCatalogItem[]>('SearchIdgamesCatalog', opts),
+  getIdgamesShowcase: (): Promise<IdgamesShowcase> =>
+    callBackend<IdgamesShowcase>('GetIdgamesCuratedShowcase'),
+  syncIdgamesWatermark: (): Promise<number> =>
+    callBackend<number>('SyncIdgamesHighWatermark'),
+  downloadIdgamesArchive: (id: number): Promise<Mod> =>
+    callBackend<Mod>('DownloadIdgamesArchive', id),
 }

@@ -429,3 +429,54 @@ export interface IdgamesFile {
   votes: number
   url: string
 }
+
+export interface IdgamesCatalogItem {
+  id: number
+  title: string
+  dir: string
+  filename: string
+  size: number
+  age: number
+  date: string
+  author: string
+  description: string
+  rating: number
+  votes: number
+  url: string
+  isCacoward: boolean
+  cacowardYear: number
+  isTop100: boolean
+  category: string
+  curatorNote: string
+  isInstalled: boolean
+  installedModId: string
+  score: number
+}
+
+export interface IdgamesSearchOptions {
+  query: string
+  cacowardOnly?: boolean
+  top100Only?: boolean
+  category?: string
+  sort?: string
+  limit?: number
+  offset?: number
+}
+
+export interface IdgamesShowcase {
+  cacowardClassics: IdgamesCatalogItem[]
+  top100: IdgamesCatalogItem[]
+  topRated: IdgamesCatalogItem[]
+  recentUploads: IdgamesCatalogItem[]
+}
+
+export interface IdgamesDownloadProgress {
+  archiveId: number
+  filename: string
+  bytesRead: number
+  totalBytes: number
+  percent: number
+  mirrorUrl: string
+  status: string
+  error: string
+}

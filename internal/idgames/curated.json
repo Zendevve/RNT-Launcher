@@ -1,0 +1,362 @@
+[
+  {
+    "id": 19342,
+    "is_cacoward": true,
+    "cacoward_year": 2019,
+    "is_top100": false,
+    "category": "Megawad",
+    "curator_note": "A 32-level masterpiece featuring custom textures by ukiro and an OTEX visual identity."
+  },
+  {
+    "id": 18454,
+    "is_cacoward": true,
+    "cacoward_year": 2016,
+    "is_top100": false,
+    "category": "Megawad",
+    "curator_note": "Psychedelic Mesoamerican sci-fi megawad by skillsaw with vibrant aesthetics."
+  },
+  {
+    "id": 12158,
+    "is_cacoward": true,
+    "cacoward_year": 2003,
+    "is_top100": true,
+    "category": "Megawad",
+    "curator_note": "Erik Alm's seminal 32-level speedwad revolutionizing brisk combat pacing."
+  },
+  {
+    "id": 14197,
+    "is_cacoward": true,
+    "cacoward_year": 2005,
+    "is_top100": true,
+    "category": "Megawad",
+    "curator_note": "The acclaimed sequel to Scythe introducing episodic themes and custom monsters."
+  },
+  {
+    "id": 18073,
+    "is_cacoward": true,
+    "cacoward_year": 2015,
+    "is_top100": false,
+    "category": "Megawad",
+    "curator_note": "Skillsaw's high-octane 32-map opus featuring enhanced weapon behaviors and custom bestiary."
+  },
+  {
+    "id": 18128,
+    "is_cacoward": true,
+    "cacoward_year": 2015,
+    "is_top100": false,
+    "category": "Megawad",
+    "curator_note": "Ribbiks and Dannebubnga's benchmark slaughter-art collaboration."
+  },
+  {
+    "id": 15631,
+    "is_cacoward": true,
+    "cacoward_year": 2009,
+    "is_top100": false,
+    "category": "Megawad",
+    "curator_note": "Insane scale and gothic architectural grandeur pushing source ports to their limits."
+  },
+  {
+    "id": 16999,
+    "is_cacoward": true,
+    "cacoward_year": 2012,
+    "is_top100": false,
+    "category": "Episode",
+    "curator_note": "Groundbreaking vanilla-compatible total visual overhaul set in an alien metropolis."
+  },
+  {
+    "id": 17772,
+    "is_cacoward": true,
+    "cacoward_year": 2014,
+    "is_top100": false,
+    "category": "Episode",
+    "curator_note": "Second chapter of the legendary Back to Saturn X series."
+  },
+  {
+    "id": 19445,
+    "is_cacoward": true,
+    "cacoward_year": 2019,
+    "is_top100": false,
+    "category": "Episode",
+    "curator_note": "John Romero's spiritual fifth episode for original The Ultimate Doom."
+  },
+  {
+    "id": 11751,
+    "is_cacoward": false,
+    "cacoward_year": 0,
+    "is_top100": true,
+    "category": "Megawad",
+    "curator_note": "Iconic Top 100 megawad featuring intricate puzzle combat by Anders Johnsen & Kim Bach."
+  },
+  {
+    "id": 7929,
+    "is_cacoward": false,
+    "cacoward_year": 0,
+    "is_top100": true,
+    "category": "Megawad",
+    "curator_note": "Yonatan Donner and Haggay Niv's definitive early slaughter challenge."
+  },
+  {
+    "id": 12592,
+    "is_cacoward": false,
+    "cacoward_year": 0,
+    "is_top100": true,
+    "category": "Megawad",
+    "curator_note": "The brutal 32-level sequel to Hell Revealed."
+  },
+  {
+    "id": 8879,
+    "is_cacoward": false,
+    "cacoward_year": 0,
+    "is_top100": true,
+    "category": "Megawad",
+    "curator_note": "1997 community megawad celebrated as one of the earliest community projects."
+  },
+  {
+    "id": 5462,
+    "is_cacoward": false,
+    "cacoward_year": 0,
+    "is_top100": true,
+    "category": "Megawad",
+    "curator_note": "Legendary 1995 collaboration by Denis & Thomas Möller."
+  },
+  {
+    "id": 6710,
+    "is_cacoward": false,
+    "cacoward_year": 0,
+    "is_top100": true,
+    "category": "Megawad",
+    "curator_note": "Top 100 masterpiece refining mid-90s co-op and single-player level craftsmanship."
+  },
+  {
+    "id": 10452,
+    "is_cacoward": false,
+    "cacoward_year": 0,
+    "is_top100": true,
+    "category": "Total Conversion",
+    "curator_note": "Classic 1999 superhero total conversion complete with customized Gotham sprites and sound design."
+  },
+  {
+    "id": 13000,
+    "is_cacoward": true,
+    "cacoward_year": 2004,
+    "is_top100": true,
+    "category": "Total Conversion",
+    "curator_note": "Side-scrolling arcade homage built inside the Doom engine."
+  },
+  {
+    "id": 17822,
+    "is_cacoward": true,
+    "cacoward_year": 2014,
+    "is_top100": false,
+    "category": "Total Conversion",
+    "curator_note": "Charming Mario 64 crossover blending platforming hubs with classic gunplay."
+  },
+  {
+    "id": 17409,
+    "is_cacoward": true,
+    "cacoward_year": 2013,
+    "is_top100": false,
+    "category": "Total Conversion",
+    "curator_note": "Swashbuckling pirate-themed total conversion with lush tropical environments."
+  },
+  {
+    "id": 17578,
+    "is_cacoward": true,
+    "cacoward_year": 2013,
+    "is_top100": false,
+    "category": "Megawad",
+    "curator_note": "Cyriak Harris's descending office-block horror descent full of claustrophobic traps."
+  },
+  {
+    "id": 15589,
+    "is_cacoward": true,
+    "cacoward_year": 2008,
+    "is_top100": false,
+    "category": "Megawad",
+    "curator_note": "Official community follow-up to Final Doom's Plutonia Experiment."
+  },
+  {
+    "id": 16035,
+    "is_cacoward": true,
+    "cacoward_year": 2010,
+    "is_top100": false,
+    "category": "Megawad",
+    "curator_note": "High-speed tactical action by Josh Sealy and Darkwave0000."
+  },
+  {
+    "id": 16933,
+    "is_cacoward": true,
+    "cacoward_year": 2012,
+    "is_top100": false,
+    "category": "Megawad",
+    "curator_note": "The fourth installment of the classic Community Chest series."
+  },
+  {
+    "id": 12695,
+    "is_cacoward": true,
+    "cacoward_year": 2004,
+    "is_top100": true,
+    "category": "Episode",
+    "curator_note": "Huy Pham's monumental cathedral level setting a new standard for epic scale."
+  },
+  {
+    "id": 15286,
+    "is_cacoward": true,
+    "cacoward_year": 2008,
+    "is_top100": false,
+    "category": "Episode",
+    "curator_note": "Multifaceted visual wonder spanning Roman, Mayan, and Gothic dimensions."
+  },
+  {
+    "id": 14947,
+    "is_cacoward": true,
+    "cacoward_year": 2007,
+    "is_top100": false,
+    "category": "Episode",
+    "curator_note": "Full ZDoom reimagining of Knee-Deep in the Dead with advanced script logic."
+  },
+  {
+    "id": 19145,
+    "is_cacoward": true,
+    "cacoward_year": 2018,
+    "is_top100": false,
+    "category": "Gameplay",
+    "curator_note": "Versatile weapon overhaul providing tailored loadouts for classic megawads."
+  },
+  {
+    "id": 17957,
+    "is_cacoward": false,
+    "cacoward_year": 0,
+    "is_top100": false,
+    "category": "Gameplay",
+    "curator_note": "Pure aesthetic vanilla sprite and sound enhancement with smooth weapon animations."
+  },
+  {
+    "id": 18451,
+    "is_cacoward": true,
+    "cacoward_year": 2016,
+    "is_top100": false,
+    "category": "Megawad",
+    "curator_note": "Richly detailed showcase of mapping ingenuity from the Japanese Doom community."
+  },
+  {
+    "id": 15873,
+    "is_cacoward": true,
+    "cacoward_year": 2009,
+    "is_top100": false,
+    "category": "Total Conversion",
+    "curator_note": "Post-apocalyptic total conversion with entirely unique hand-drawn sprites and textures."
+  },
+  {
+    "id": 19208,
+    "is_cacoward": true,
+    "cacoward_year": 2018,
+    "is_top100": false,
+    "category": "Total Conversion",
+    "curator_note": "Norse-themed retro shooter TC created using classic vanilla Doom format constraints."
+  },
+  {
+    "id": 19207,
+    "is_cacoward": true,
+    "cacoward_year": 2018,
+    "is_top100": false,
+    "category": "Total Conversion",
+    "curator_note": "Gritty post-apocalyptic roleplaying shooter set in the ruins of Atlanta."
+  },
+  {
+    "id": 19163,
+    "is_cacoward": true,
+    "cacoward_year": 2018,
+    "is_top100": false,
+    "category": "Megawad",
+    "curator_note": "Fast, stylized space-opera action by Korean mapper antares031."
+  },
+  {
+    "id": 19688,
+    "is_cacoward": true,
+    "cacoward_year": 2019,
+    "is_top100": false,
+    "category": "Total Conversion",
+    "curator_note": "Surreal crossover hybrid between Blood and Doom engines."
+  },
+  {
+    "id": 19692,
+    "is_cacoward": true,
+    "cacoward_year": 2019,
+    "is_top100": false,
+    "category": "Megawad",
+    "curator_note": "Authentic anniversary megawad by Darragh Matthew with bespoke puzzles and audio."
+  },
+  {
+    "id": 19702,
+    "is_cacoward": true,
+    "cacoward_year": 2019,
+    "is_top100": false,
+    "category": "Episode",
+    "curator_note": "Atmospheric gothic collaboration by Tarnsman, Pavera, and Ralphis."
+  },
+  {
+    "id": 19705,
+    "is_cacoward": true,
+    "cacoward_year": 2019,
+    "is_top100": false,
+    "category": "Episode",
+    "curator_note": "Surreal, humorous, and challenging combat setpiece compilation."
+  },
+  {
+    "id": 20265,
+    "is_cacoward": true,
+    "cacoward_year": 2021,
+    "is_top100": false,
+    "category": "Episode",
+    "curator_note": "Skillsaw's showcase for the Eternity Engine featuring portals and 3D sloped terrain."
+  },
+  {
+    "id": 20299,
+    "is_cacoward": true,
+    "cacoward_year": 2021,
+    "is_top100": false,
+    "category": "Episode",
+    "curator_note": "Short and sweet atmospheric techbase adventure by Aurelius."
+  },
+  {
+    "id": 20300,
+    "is_cacoward": true,
+    "cacoward_year": 2021,
+    "is_top100": false,
+    "category": "Episode",
+    "curator_note": "Stunning dreamlike fantasy architecture utilizing vibrant pastel palettes."
+  },
+  {
+    "id": 19905,
+    "is_cacoward": true,
+    "cacoward_year": 2020,
+    "is_top100": false,
+    "category": "Episode",
+    "curator_note": "Action-movie punchy episode with customized bullet weapons and relentless pacing."
+  },
+  {
+    "id": 20288,
+    "is_cacoward": true,
+    "cacoward_year": 2021,
+    "is_top100": false,
+    "category": "Megawad",
+    "curator_note": "Mykol's love letter to mid-90s vanilla map design aesthetics."
+  },
+  {
+    "id": 20560,
+    "is_cacoward": true,
+    "cacoward_year": 2022,
+    "is_top100": false,
+    "category": "Megawad",
+    "curator_note": "Compact, challenging episodic missions with clever switch puzzles."
+  },
+  {
+    "id": 20748,
+    "is_cacoward": true,
+    "cacoward_year": 2023,
+    "is_top100": false,
+    "category": "Total Conversion",
+    "curator_note": "Veddge's viral psychological horror masterpiece warping the player's reality."
+  }
+]
