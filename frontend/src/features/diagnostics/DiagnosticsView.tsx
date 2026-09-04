@@ -19,11 +19,12 @@ import {
 import { api } from '../../services/api';
 import { DiagnosticsReport, DiagnosticIssue, LogEntry } from '../../types';
 import { cn } from '../../utils/cn';
+import { Modal } from '../../components/ui/Modal';
+import { Button } from '../../components/ui/Button';
 
 interface DiagnosticsViewProps {
   onNotify?: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
 }
-
 export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onNotify }) => {
   const [report, setReport] = useState<DiagnosticsReport | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -31,6 +32,7 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onNotify }) =>
   const [activeTab, setActiveTab] = useState<'all' | 'errors' | 'warnings' | 'logs'>('all');
   const [logFilter, setLogFilter] = useState('');
   const [repairingId, setRepairingId] = useState<string | null>(null);
+  const [showPruneConfirm, setShowPruneConfirm] = useState(false);
 
   const fetchDiagnostics = useCallback(async () => {
     setIsLoading(true);
@@ -68,10 +70,12 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onNotify }) =>
     }
   };
 
-  const handlePruneAll = async () => {
-    if (!window.confirm('Prune all missing files and clean broken references across your profiles?')) {
-      return;
-    }
+  const handlePruneAll = () => {
+    setShowPruneConfirm(true);
+  };
+
+  const handleConfirmPruneAll = async () => {
+    setShowPruneConfirm(false);
     setIsLoading(true);
     try {
       await api.repairDiagnosticIssue('prune_all_missing', '');
@@ -400,6 +404,27 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onNotify }) =>
           </div>
         )}
       </div>
+
+      <Modal
+        isOpen={showPruneConfirm}
+        onClose={() => setShowPruneConfirm(false)}
+        size="sm"
+        title="Prune Missing Resources?"
+        footer={
+          <div className="flex items-center justify-end gap-3 w-full">
+            <Button variant="ghost" onClick={() => setShowPruneConfirm(false)}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={handleConfirmPruneAll}>
+              Prune
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-xs text-[#a1a1aa] leading-relaxed">
+          Are you sure you want to prune <span className="text-[#f4f4f5] font-medium">all missing files and broken profile references</span>? This action cannot be undone.
+        </p>
+      </Modal>
     </div>
   );
 };

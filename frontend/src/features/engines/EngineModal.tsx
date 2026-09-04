@@ -101,6 +101,7 @@ export const EngineModal: React.FC<EngineModalProps> = ({
   const [executable, setExecutable] = useState('');
   const [family, setFamily] = useState<EngineFamily>('gzdoom');
   const [version, setVersion] = useState('');
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   const [isDetecting, setIsDetecting] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
@@ -110,6 +111,20 @@ export const EngineModal: React.FC<EngineModalProps> = ({
     message: string;
   } | null>(null);
 
+  const isDirty = isEditing && engine
+    ? name !== (engine.name || '') ||
+      executable !== (engine.executable || '') ||
+      family !== (engine.family || 'gzdoom') ||
+      version !== (engine.version || '')
+    : Boolean(name.trim() || executable.trim() || version.trim() || family !== 'gzdoom');
+
+  const handleRequestClose = useCallback(() => {
+    if (isDirty) {
+      setShowDiscardConfirm(true);
+    } else {
+      onClose();
+    }
+  }, [isDirty, onClose]);
   // Initialize or reset form when modal opens or engine prop changes
   useEffect(() => {
     if (isOpen) {
@@ -290,30 +305,42 @@ export const EngineModal: React.FC<EngineModalProps> = ({
   const selectedFamilyMeta = ENGINE_FAMILIES.find((f) => f.id === family);
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded bg-doom-red/20 text-doom-red border border-doom-red/40">
-            <Cpu className="h-4 w-4" />
+    <>
+      <Modal
+        isOpen={isOpen}
+        onClose={handleRequestClose}
+        closeOnBackdrop={!isDirty}
+        title={
+          <div className="flex items-center gap-2.5">
+            <span className="rounded-[8px] bg-[#0c0c0f] border border-[#2d2d34] p-1.5 text-[#ef4444]">
+              <Cpu className="h-4 w-4" />
+            </span>
+            <span>{isEditing ? 'Configure Source Port' : 'Register Source Port'}</span>
           </div>
-          <div>
-            <div className="text-base font-bold tracking-wide text-zinc-100 uppercase">
-              {isEditing ? 'Edit Source Port' : 'Register Source Port'}
-            </div>
-            <div className="text-xs text-doom-muted font-normal">
-              {isEditing
-                ? 'Update executable path, family classification, and version'
-                : 'Add a Doom engine executable (GZDoom, DSDA-Doom, Woof, etc.)'}
-            </div>
+        }
+        description={
+          isEditing
+            ? `Modify settings for "${engine?.name || 'engine'}"`
+            : 'Add a new Doom engine executable to your registry'
+        }
+        footer={
+          <div className="flex items-center justify-end gap-3 w-full">
+            <Button type="button" variant="ghost" onClick={handleRequestClose} disabled={isSaving}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              form="engine-form"
+              variant="primary"
+              isLoading={isSaving}
+              leftIcon={<Cpu className="h-4 w-4" />}
+            >
+              {isEditing ? 'Save Changes' : 'Register Engine'}
+            </Button>
           </div>
-        </div>
-      }
-      size="xl"
-    >
-      <form onSubmit={handleSave} className="space-y-5">
-        {/* Executable Path with Browse Button */}
+        }
+      >
+        <form id="engine-form" onSubmit={handleSave} className="space-y-5">
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-zinc-300 uppercase tracking-wider flex items-center justify-between">
             <span>Executable Path *</span>
@@ -460,21 +487,37 @@ export const EngineModal: React.FC<EngineModalProps> = ({
           </div>
         </div>
 
-        {/* Footer Actions */}
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-doom-border">
-          <Button type="button" variant="ghost" onClick={onClose} disabled={isSaving}>
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            isLoading={isSaving}
-            leftIcon={<Cpu className="h-4 w-4" />}
-          >
-            {isEditing ? 'Save Changes' : 'Register Engine'}
-          </Button>
+        </form>
+      </Modal>
+
+      <Modal
+        isOpen={showDiscardConfirm}
+        onClose={() => setShowDiscardConfirm(false)}
+        size="sm"
+        title="Discard Unsaved Changes?"
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-[#a1a1aa]">
+            You have unsaved changes for{' '}
+            <span className="text-[#f4f4f5] font-medium">{name || 'this source port'}</span>. Are
+            you sure you want to discard them?
+          </p>
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <Button variant="ghost" onClick={() => setShowDiscardConfirm(false)}>
+              Keep Editing
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                setShowDiscardConfirm(false);
+                onClose();
+              }}
+            >
+              Discard Changes
+            </Button>
+          </div>
         </div>
-      </form>
-    </Modal>
+      </Modal>
+    </>
   );
 };

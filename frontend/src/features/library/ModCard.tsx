@@ -9,6 +9,7 @@ import {
 import { Mod, ModFormat, UiDensity } from '../../types';
 import { formatBytes } from '../../utils/formatters';
 import { cn } from '../../utils/cn';
+import { DeleteModConfirmModal } from './DeleteModConfirmModal';
 
 interface ModCardProps {
   mod: Mod;
@@ -17,9 +18,9 @@ interface ModCardProps {
   density?: UiDensity;
   onInspect: (mod: Mod) => void;
   onToggleFavorite: (modId: string) => Promise<void>;
-  onAddToProfile: (mod: Mod) => void;
-  onOpenFolder: (path: string) => Promise<void>;
   onDelete: (modId: string) => Promise<void>;
+  onAddToProfile: (mod: Mod) => void;
+  onOpenFolder?: (path: string) => Promise<void>;
 }
 
 const getFormatBadgeStyle = (format: ModFormat): string => {
@@ -54,8 +55,8 @@ export const ModCard: React.FC<ModCardProps> = ({
 }) => {
   const isCompact = density === 'compact';
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isFavLoading, setIsFavLoading] = useState(false);
-
   const handleFavorite = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsFavLoading(true);
@@ -66,24 +67,25 @@ export const ModCard: React.FC<ModCardProps> = ({
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent) => {
+  const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isDeleting) return;
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = async () => {
     setIsDeleting(true);
-    if (window.confirm(`Delete "${mod.name}" from mod library?`)) {
-      try {
-        await onDelete(mod.id);
-      } finally {
-        setIsDeleting(false);
-      }
-    } else {
+    try {
+      await onDelete(mod.id);
+    } finally {
       setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
   const fileName = mod.path ? mod.path.split(/[\/\\]/).pop() || mod.name : mod.name;
 
   return (
+    <>
     <div
       onClick={() => onInspect(mod)}
       className={cn(
@@ -197,7 +199,7 @@ export const ModCard: React.FC<ModCardProps> = ({
             title="Show in Folder"
             onClick={(e) => {
               e.stopPropagation();
-              onOpenFolder(mod.path);
+              onOpenFolder?.(mod.path);
             }}
             className="rounded p-1 text-zinc-400 hover:bg-[#22262d] hover:text-zinc-200 transition-colors"
           >
@@ -216,5 +218,13 @@ export const ModCard: React.FC<ModCardProps> = ({
         </div>
       </div>
     </div>
+    <DeleteModConfirmModal
+      isOpen={showDeleteConfirm}
+      modName={mod.name}
+      isDeleting={isDeleting}
+      onClose={() => setShowDeleteConfirm(false)}
+      onConfirm={handleConfirmDelete}
+    />
+    </>
   );
 };

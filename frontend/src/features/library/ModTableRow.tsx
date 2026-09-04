@@ -9,7 +9,7 @@ import {
 import { Mod, ModFormat, UiDensity } from '../../types';
 import { formatBytes } from '../../utils/formatters';
 import { cn } from '../../utils/cn';
-
+import { DeleteModConfirmModal } from './DeleteModConfirmModal';
 interface ModTableRowProps {
   mod: Mod;
   usageCount?: number;
@@ -56,8 +56,8 @@ export const ModTableRow: React.FC<ModTableRowProps> = ({
   const cellPadding = isCompact ? 'px-3 py-2' : 'px-4 py-3';
 
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isFavLoading, setIsFavLoading] = useState(false);
-
   const handleFavorite = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsFavLoading(true);
@@ -68,24 +68,25 @@ export const ModTableRow: React.FC<ModTableRowProps> = ({
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent) => {
+  const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isDeleting) return;
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = async () => {
     setIsDeleting(true);
-    if (window.confirm(`Delete "${mod.name}" from mod library?`)) {
-      try {
-        await onDelete(mod.id);
-      } finally {
-        setIsDeleting(false);
-      }
-    } else {
+    try {
+      await onDelete(mod.id);
+    } finally {
       setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
   const fileName = mod.path ? mod.path.split(/[\/\\]/).pop() || mod.name : mod.name;
 
   return (
+    <>
     <tr
       onClick={() => onInspect(mod)}
       className="group border-b border-[#22262d] transition-colors duration-100 hover:bg-[#181c21] cursor-pointer text-xs select-none"
@@ -216,5 +217,19 @@ export const ModTableRow: React.FC<ModTableRowProps> = ({
         </div>
       </td>
     </tr>
+    {showDeleteConfirm && (
+      <tr>
+        <td colSpan={6} className="p-0 border-0">
+          <DeleteModConfirmModal
+            isOpen={showDeleteConfirm}
+            modName={mod.name}
+            isDeleting={isDeleting}
+            onClose={() => setShowDeleteConfirm(false)}
+            onConfirm={handleConfirmDelete}
+          />
+        </td>
+      </tr>
+    )}
+    </>
   );
 };

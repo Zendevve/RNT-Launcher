@@ -53,8 +53,17 @@ export const ImportProfileModal: React.FC<ImportProfileModalProps> = ({
   const [fileContent, setFileContent] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [activeTab, setActiveTab] = useState<'paste' | 'file'>('paste');
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
-  // Existing library references to check matching
+  const isDirty = Boolean(fileContent.trim());
+
+  const handleRequestClose = () => {
+    if (isDirty) {
+      setShowDiscardConfirm(true);
+    } else {
+      onClose();
+    }
+  };
   const [engines, setEngines] = useState<Engine[]>([]);
   const [iwads, setIwads] = useState<IWAD[]>([]);
   const [mods, setMods] = useState<Mod[]>([]);
@@ -318,48 +327,52 @@ export const ImportProfileModal: React.FC<ImportProfileModalProps> = ({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={
-        <span className="flex items-center gap-2">
-          <FileUp className="w-5 h-5 text-doom-red" />
-          {importFormat === 'zdl' ? 'Import .zdl Configuration' : 'Import Profile YAML'}
-        </span>
-      }
-      description={
-        importFormat === 'zdl'
-          ? 'Import a legacy qZDL or ZDL-3 preset configuration directly into a native profile.'
-          : 'Import a portable Doom profile specification conforming to version 1 schema.'
-      }
-      size="2xl"
-      footer={
-        <div className="flex items-center justify-between w-full">
-          <div className="text-xs text-doom-muted">
-            {previewMatching && previewMatching.hasWarnings && (
-              <span className="text-amber-400 font-medium flex items-center gap-1">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                Missing content will be imported with warnings
-              </span>
-            )}
+    <>
+      <Modal
+        isOpen={isOpen}
+        onClose={handleRequestClose}
+        closeOnBackdrop={!isDirty}
+        title={
+          <div className="flex items-center gap-2.5">
+            <span className="rounded-[8px] bg-[#0c0c0f] border border-[#2d2d34] p-1.5 text-[#5e7ce2]">
+              <FileUp className="w-4 h-4" />
+            </span>
+            <span>{importFormat === 'zdl' ? 'Import .zdl Configuration' : 'Import Profile YAML'}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={onClose} disabled={isImporting}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleImport}
-              disabled={!parseResult.data || !!parseResult.error || isImporting}
-              isLoading={isImporting}
-              leftIcon={<FileUp className="w-4 h-4" />}
-            >
-              Import Profile
-            </Button>
+        }
+        description={
+          importFormat === 'zdl'
+            ? 'Import a legacy qZDL or ZDL-3 preset configuration directly into a native profile.'
+            : 'Import a portable Doom profile specification conforming to version 1 schema.'
+        }
+        size="2xl"
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <div className="text-xs text-[#a1a1aa]">
+              {previewMatching && previewMatching.hasWarnings && (
+                <span className="text-amber-400 font-medium flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Missing content will be imported with warnings
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={handleRequestClose} disabled={isImporting}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleImport}
+                disabled={!parseResult.data || !!parseResult.error || isImporting}
+                isLoading={isImporting}
+                leftIcon={<FileUp className="w-4 h-4" />}
+              >
+                Import Profile
+              </Button>
+            </div>
           </div>
-        </div>
-      }
-    >
+        }
+      >
       <div className="flex flex-col gap-4">
         {/* Format Selector */}
         <div className="flex items-center justify-between border-b border-doom-border pb-2">
@@ -539,5 +552,33 @@ export const ImportProfileModal: React.FC<ImportProfileModalProps> = ({
         )}
       </div>
     </Modal>
+
+    <Modal
+      isOpen={showDiscardConfirm}
+      onClose={() => setShowDiscardConfirm(false)}
+      size="sm"
+      title="Discard Imported Content?"
+    >
+      <div className="space-y-3">
+        <p className="text-xs text-[#a1a1aa]">
+          You have unsaved profile import data. Are you sure you want to discard it?
+        </p>
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <Button variant="ghost" onClick={() => setShowDiscardConfirm(false)}>
+            Keep Editing
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              setShowDiscardConfirm(false);
+              onClose();
+            }}
+          >
+            Discard
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  </>
   );
 };

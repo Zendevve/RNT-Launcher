@@ -9,13 +9,12 @@ import {
   Activity,
   Settings,
   ChevronLeft,
-  ChevronRight,
   Flame,
 } from 'lucide-react';
-import { motion, LayoutGroup, useReducedMotion } from 'motion/react';
+import { motion, LayoutGroup, useReducedMotion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { UiDensity } from '../../types';
-import { springDefault } from '../../lib/springs';
+import { springDefault, springSheet } from '../../lib/springs';
 
 export type NavViewId =
   | 'dashboard'
@@ -151,10 +150,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const settingsBadge = !isReady ? 'Setup' : undefined;
 
   return (
-    <aside
+    <motion.aside
+      initial={false}
+      animate={{ width: collapsed ? 56 : isCompact ? 224 : 240 }}
+      transition={shouldReduceMotion ? { duration: 0 } : springSheet}
       className={cn(
-        'h-full bg-[#101010] border-r border-[#2d2d34] flex flex-col justify-between select-none z-30 flex-shrink-0 transition-[width] duration-150',
-        collapsed ? 'w-14' : isCompact ? 'w-56' : 'w-60',
+        'h-full bg-[#101010] border-r border-[#2d2d34] flex flex-col justify-between select-none z-30 flex-shrink-0 overflow-hidden',
         className
       )}
     >
@@ -162,35 +163,48 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="flex flex-col flex-shrink-0">
         <div
           className={cn(
-            'h-12 border-b border-[#2d2d34] flex items-center transition-all',
-            collapsed ? 'justify-center px-2' : 'justify-between px-3'
+            'h-12 border-b border-[#2d2d34] flex items-center px-3 transition-colors overflow-hidden',
+            collapsed ? 'justify-center' : 'justify-between'
           )}
         >
-          {!collapsed ? (
-            <div className="flex items-center gap-2 overflow-hidden">
-              <div className="w-7 h-7 rounded-[8px] bg-[#5e7ce2] flex items-center justify-center flex-shrink-0">
-                <Flame className="w-4 h-4 text-white fill-white/20" />
-              </div>
+          <AnimatePresence initial={false}>
+            {!collapsed && (
+              <motion.div
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: 'auto' }}
+                exit={{ opacity: 0, width: 0 }}
+                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                className="flex items-center gap-2 overflow-hidden min-w-0"
+              >
+                <div className="w-7 h-7 rounded-[8px] bg-[#5e7ce2] flex items-center justify-center flex-shrink-0">
+                  <Flame className="w-4 h-4 text-white fill-white/20" />
+                </div>
 
-              <div className="flex flex-col min-w-0">
-                <span className="font-medium text-xs text-[#f4f4f5] tracking-tight leading-tight truncate" style={{ fontFamily: 'var(--font-sans)' }}>
-                  RNT Launcher
-                </span>
-                <span className="font-medium text-[10px] text-[#a1a1aa] uppercase tracking-[0.08em] leading-tight" style={{ fontFamily: 'var(--font-sans)' }}>
-                  DOOM MOD MANAGER
-                </span>
-              </div>
-            </div>
-          ) : null}
+                <div className="flex flex-col min-w-0 overflow-hidden whitespace-nowrap">
+                  <span className="font-medium text-xs text-[#f4f4f5] tracking-tight leading-tight truncate" style={{ fontFamily: 'var(--font-sans)' }}>
+                    RNT Launcher
+                  </span>
+                  <span className="font-medium text-[10px] text-[#a1a1aa] uppercase tracking-[0.08em] leading-tight" style={{ fontFamily: 'var(--font-sans)' }}>
+                    DOOM MOD MANAGER
+                  </span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {onToggleCollapse && (
             <button
               type="button"
               onClick={onToggleCollapse}
               aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              className="text-zinc-400 hover:text-zinc-200 p-1 rounded hover:bg-white/[0.04] transition-colors"
+              className="text-zinc-400 hover:text-zinc-200 p-1.5 rounded hover:bg-white/[0.04] transition-colors flex-shrink-0"
             >
-              {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+              <motion.div
+                animate={{ rotate: collapsed ? 180 : 0 }}
+                transition={shouldReduceMotion ? { duration: 0 } : springDefault}
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </motion.div>
             </button>
           )}
         </div>
@@ -199,11 +213,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <nav className={cn('flex-1 overflow-y-auto space-y-3', isCompact ? 'p-2' : 'p-2')}>
           {sections.map((section, sIdx) => (
             <div key={section.title || sIdx} className="space-y-1">
-              {!collapsed && section.title && (
-                <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-[#71717a] px-2 pt-2 pb-1" style={{ fontFamily: 'var(--font-sans)' }}>
-                  {section.title}
-                </div>
-              )}
+              <AnimatePresence initial={false}>
+                {!collapsed && section.title && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+                    className="overflow-hidden text-[11px] font-medium uppercase tracking-[0.08em] text-[#71717a] px-2 pt-2 pb-1 whitespace-nowrap"
+                    style={{ fontFamily: 'var(--font-sans)' }}
+                  >
+                    {section.title}
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {section.items.map((item) => {
                 const isActive = item.matchViews
@@ -248,32 +271,44 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         {item.icon}
                       </span>
 
-                      {!collapsed && (
-                        <span
-                          className={cn(
-                            'truncate tracking-tight font-medium',
-                            isActive ? 'text-[#f4f4f5]' : 'text-[#a1a1aa]'
-                          )}
-                        >
-                          {item.label}
-                        </span>
-                      )}
+                      <AnimatePresence initial={false}>
+                        {!collapsed && (
+                          <motion.span
+                            initial={{ opacity: 0, width: 0 }}
+                            animate={{ opacity: 1, width: 'auto' }}
+                            exit={{ opacity: 0, width: 0 }}
+                            transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                            className={cn(
+                              'truncate tracking-tight font-medium overflow-hidden whitespace-nowrap',
+                              isActive ? 'text-[#f4f4f5]' : 'text-[#a1a1aa]'
+                            )}
+                          >
+                            {item.label}
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
                     </div>
 
-                    {!collapsed && hasBadge && (
-                      <span
-                        className={cn(
-                          'font-mono text-[10px] px-1.5 py-0.5 rounded-[8px] relative z-10 flex-shrink-0 font-medium leading-none border',
-                          item.badgeVariant === 'warning'
-                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                            : isActive
-                            ? 'bg-white/[0.08] text-[#f4f4f5] border-white/[0.08]'
-                            : 'bg-[rgba(244,244,245,0.05)] text-[#a1a1aa] border-[#2d2d34]'
-                        )}
-                      >
-                        {item.badge}
-                      </span>
-                    )}
+                    <AnimatePresence initial={false}>
+                      {!collapsed && hasBadge && (
+                        <motion.span
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.8 }}
+                          transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.15 }}
+                          className={cn(
+                            'font-mono text-[10px] px-1.5 py-0.5 rounded-[8px] relative z-10 flex-shrink-0 font-medium leading-none border overflow-hidden whitespace-nowrap',
+                            item.badgeVariant === 'warning'
+                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                              : isActive
+                              ? 'bg-white/[0.08] text-[#f4f4f5] border-white/[0.08]'
+                              : 'bg-[rgba(244,244,245,0.05)] text-[#a1a1aa] border-[#2d2d34]'
+                          )}
+                        >
+                          {item.badge}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
                   </motion.button>
                 );
               })}
@@ -315,15 +350,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span className={cn('flex-shrink-0 transition-colors duration-100', isSettingsActive ? 'text-[#5e7ce2]' : 'text-[#71717a]')}>
               <Settings className="w-4 h-4" />
             </span>
-            {!collapsed && <span className={cn('truncate tracking-tight font-medium', isSettingsActive ? 'text-[#f4f4f5]' : 'text-[#a1a1aa]')}>Settings</span>}
+            <AnimatePresence initial={false}>
+              {!collapsed && (
+                <motion.span
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: 'auto' }}
+                  exit={{ opacity: 0, width: 0 }}
+                  transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                  className={cn('truncate tracking-tight font-medium overflow-hidden whitespace-nowrap', isSettingsActive ? 'text-[#f4f4f5]' : 'text-[#a1a1aa]')}
+                >
+                  Settings
+                </motion.span>
+              )}
+            </AnimatePresence>
           </div>
-          {!collapsed && settingsBadge && (
-            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-[8px] relative z-10 flex-shrink-0 font-medium leading-none bg-amber-500/10 text-amber-400 border border-amber-500/20">
-              {settingsBadge}
-            </span>
-          )}
+          <AnimatePresence initial={false}>
+            {!collapsed && settingsBadge && (
+              <motion.span
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.15 }}
+                className="font-mono text-[10px] px-1.5 py-0.5 rounded-[8px] relative z-10 flex-shrink-0 font-medium leading-none bg-amber-500/10 text-amber-400 border border-amber-500/20 overflow-hidden whitespace-nowrap"
+              >
+                {settingsBadge}
+              </motion.span>
+            )}
+          </AnimatePresence>
         </motion.button>
       </div>
-    </aside>
+    </motion.aside>
   );
 };

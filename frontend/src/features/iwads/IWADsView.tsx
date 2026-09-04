@@ -666,7 +666,7 @@ export const IWADsView: React.FC = () => {
         title="Unlink Base Game IWAD"
         size="sm"
         footer={
-          <>
+          <div className="flex items-center justify-end gap-3 w-full">
             <Button variant="ghost" onClick={() => setIWADToDelete(null)}>
               Cancel
             </Button>
@@ -675,13 +675,13 @@ export const IWADsView: React.FC = () => {
               onClick={handleConfirmDelete}
               isLoading={isDeleting}
             >
-              Delete IWAD
+              Unlink
             </Button>
-          </>
+          </div>
         }
       >
-        <p className="text-xs text-zinc-300 leading-relaxed">
-          Are you sure you want to unlink &quot;{iwadToDelete?.name}&quot;? Profiles referencing this base game will need reassignment before launching.
+        <p className="text-xs text-[#a1a1aa] leading-relaxed">
+          Are you sure you want to unlink <span className="text-[#f4f4f5] font-medium">&ldquo;{iwadToDelete?.name}&rdquo;</span>? Profiles referencing this base game will need reassignment before launching.
         </p>
       </Modal>
     </div>

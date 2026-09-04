@@ -542,7 +542,7 @@ export const HistoryView: React.FC = () => {
         title="Clear Launch History"
         size="sm"
         footer={
-          <>
+          <div className="flex items-center justify-end gap-3 w-full">
             <Button variant="ghost" onClick={() => setIsClearModalOpen(false)}>
               Cancel
             </Button>
@@ -551,13 +551,13 @@ export const HistoryView: React.FC = () => {
               onClick={handleClearHistory}
               isLoading={isClearing}
             >
-              Clear All Records
+              Clear
             </Button>
-          </>
+          </div>
         }
       >
-        <p className="text-xs text-zinc-300 leading-relaxed">
-          Are you sure you want to delete all logged launch session records and telemetry? This action cannot be undone.
+        <p className="text-xs text-[#a1a1aa] leading-relaxed">
+          Are you sure you want to clear <span className="text-[#f4f4f5] font-medium">all launch history records</span>? This action cannot be undone.
         </p>
       </Modal>
     </div>

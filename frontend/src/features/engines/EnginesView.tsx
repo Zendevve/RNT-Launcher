@@ -667,7 +667,7 @@ export const EnginesView: React.FC = () => {
         title="Remove Source Port"
         size="sm"
         footer={
-          <>
+          <div className="flex items-center justify-end gap-3 w-full">
             <Button variant="ghost" onClick={() => setEngineToDelete(null)}>
               Cancel
             </Button>
@@ -676,13 +676,13 @@ export const EnginesView: React.FC = () => {
               onClick={handleConfirmDelete}
               isLoading={isDeleting}
             >
-              Delete Port
+              Remove
             </Button>
-          </>
+          </div>
         }
       >
-        <p className="text-xs text-zinc-300 leading-relaxed">
-          Are you sure you want to remove &quot;{engineToDelete?.name}&quot;? Profiles using this port will require reassignment before launching.
+        <p className="text-xs text-[#a1a1aa] leading-relaxed">
+          Are you sure you want to remove <span className="text-[#f4f4f5] font-medium">&ldquo;{engineToDelete?.name}&rdquo;</span>? Profiles using this port will require reassignment before launching.
         </p>
       </Modal>
     </div>

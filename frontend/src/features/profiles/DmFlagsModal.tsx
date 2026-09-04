@@ -389,8 +389,10 @@ export const DmFlagsModal: React.FC<DmFlagsModalProps> = ({
       onClose={onClose}
       size="4xl"
       title={
-        <div className="flex items-center gap-2 text-doom-text font-bold text-lg">
-          <Sliders className="w-5 h-5 text-doom-accent" />
+        <div className="flex items-center gap-2.5">
+          <span className="rounded-[8px] bg-[#0c0c0f] border border-[#2d2d34] p-1.5 text-[#5e7ce2]">
+            <Sliders className="h-4 w-4" />
+          </span>
           <span>ZDoom Flags & Compatibility Calculator</span>
         </div>
       }
@@ -415,7 +417,7 @@ export const DmFlagsModal: React.FC<DmFlagsModalProps> = ({
             )}
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="secondary" size="md" onClick={onClose}>
+            <Button variant="ghost" size="md" onClick={onClose}>
               Cancel
             </Button>
             <Button variant="primary" size="md" onClick={handleApply}>

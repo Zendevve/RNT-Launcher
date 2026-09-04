@@ -13,8 +13,27 @@ export interface ModalProps {
   description?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '4xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '4xl' | '6xl';
   closeOnBackdrop?: boolean;
+  hideClose?: boolean;
+}
+
+let scrollLockCount = 0;
+
+export function acquireModalScrollLock(): void {
+  if (typeof document === 'undefined') return;
+  scrollLockCount += 1;
+  if (scrollLockCount === 1) {
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+export function releaseModalScrollLock(): void {
+  if (typeof document === 'undefined') return;
+  if (scrollLockCount > 0) scrollLockCount -= 1;
+  if (scrollLockCount === 0) {
+    document.body.style.overflow = 'unset';
+  }
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -26,6 +45,7 @@ export const Modal: React.FC<ModalProps> = ({
   footer,
   size = 'lg',
   closeOnBackdrop = true,
+  hideClose = false,
 }) => {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -37,16 +57,13 @@ export const Modal: React.FC<ModalProps> = ({
   );
 
   useEffect(() => {
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
+    if (!isOpen) return;
+    document.addEventListener('keydown', handleKeyDown);
+    acquireModalScrollLock();
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = 'unset';
+      releaseModalScrollLock();
     };
   }, [isOpen, handleKeyDown]);
 
@@ -57,6 +74,7 @@ export const Modal: React.FC<ModalProps> = ({
     xl: 'max-w-3xl',
     '2xl': 'max-w-4xl',
     '4xl': 'max-w-5xl',
+    '6xl': 'max-w-6xl',
   }[size];
 
   const content = (
@@ -80,39 +98,43 @@ export const Modal: React.FC<ModalProps> = ({
             animate="animate"
             exit="exit"
             className={clsx(
-              'relative w-full bg-[#15181c] border border-white/[0.08] rounded-xl overflow-hidden z-10 flex flex-col max-h-[90vh]',
+              'relative w-full bg-[#0f0f12] border border-[#2d2d34] rounded-[12px] overflow-hidden z-10 flex flex-col max-h-[90vh]',
               sizeClasses
             )}
+            role="dialog"
+            aria-modal="true"
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.07] bg-white/[0.02]">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#2d2d34] bg-[#0c0c0f]">
               <div>
-                <h2 className="text-base font-bold text-white tracking-[-0.015em] uppercase flex items-center gap-2">
+                <h2 className="text-sm font-medium text-[#f4f4f5] tracking-tight flex items-center gap-2">
                   {title}
                 </h2>
                 {description && (
-                  <p className="text-xs text-zinc-400 mt-0.5 tracking-tight">{description}</p>
+                  <p className="text-xs text-[#a1a1aa] mt-0.5 tracking-tight">{description}</p>
                 )}
               </div>
+              {!hideClose && (
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={onClose}
                 aria-label="Close modal"
-                className="text-zinc-400 hover:text-white rounded-md hover:bg-white/[0.08]"
+                className="text-[#71717a] hover:text-[#f4f4f5] rounded-md hover:bg-white/[0.06]"
               >
                 <X className="w-4 h-4" />
               </Button>
+              )}
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6 text-sm text-zinc-300 leading-relaxed">
+            <div className="flex-1 overflow-y-auto p-6 text-sm text-[#a1a1aa] leading-relaxed">
               {children}
             </div>
 
             {/* Footer */}
             {footer && (
-              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/[0.07] bg-black/20">
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#2d2d34] bg-black/20">
                 {footer}
               </div>
             )}

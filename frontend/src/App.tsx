@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { motion, AnimatePresence, useReducedMotion, Variants } from 'motion/react';
 import {
   Sidebar,
   NavViewId,
@@ -37,6 +38,23 @@ function AppContent() {
     else if (type === 'warning') toast.warning(message);
     else toast.info(message);
   };
+  const shouldReduceMotion = useReducedMotion();
+  const pageVariants: Variants = useMemo(
+    () => ({
+      initial: shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: 6 },
+      animate: {
+        opacity: 1,
+        y: 0,
+        transition: shouldReduceMotion
+          ? { duration: 0 }
+          : { duration: 0.18, ease: [0.16, 1, 0.3, 1] as const },
+      },
+      exit: shouldReduceMotion
+        ? { opacity: 0, transition: { duration: 0 } }
+        : { opacity: 0, y: -4, transition: { duration: 0.12, ease: [0.32, 0, 0.67, 0] as const } },
+    }),
+    [shouldReduceMotion]
+  );
   const [activeView, setActiveView] = useState<NavViewId>('dashboard');
   const [density, setDensity] = useState<UiDensity>('compact');
   const [appSettings, setAppSettings] = useState<Settings | null>(null);
@@ -292,6 +310,68 @@ function AppContent() {
       ),
     };
   }, [globalSearchQuery, allMods, allProfiles, allEngines, allIwads]);
+  // Command-palette keyboard nav (query/grouping above unchanged)
+  const [searchActiveIndex, setSearchActiveIndex] = useState(0);
+  useEffect(() => {
+    setSearchActiveIndex(0);
+  }, [globalSearchQuery]);
+  useEffect(() => {
+    if (isSearchModalOpen) {
+      setSearchActiveIndex(0);
+    }
+  }, [isSearchModalOpen]);
+  const searchModOffset = filteredSearch.profiles.length;
+  const searchEngineOffset = searchModOffset + Math.min(filteredSearch.mods.length, 10);
+  const searchIwadOffset = searchEngineOffset + filteredSearch.engines.length;
+  const searchPaletteEntries: { key: string; run: () => void }[] = [
+    ...filteredSearch.profiles.map((p) => ({
+      key: `profile-${p.id}`,
+      run: () => {
+        setSelectedProfileId(p.id);
+        setActiveView('profiles');
+        setIsSearchModalOpen(false);
+      },
+    })),
+    ...filteredSearch.mods.slice(0, 10).map((m) => ({
+      key: `mod-${m.id}`,
+      run: () => {
+        setActiveView('library');
+        setIsSearchModalOpen(false);
+      },
+    })),
+    ...filteredSearch.engines.map((e) => ({
+      key: `engine-${e.id}`,
+      run: () => {
+        setActiveView('engines');
+        setIsSearchModalOpen(false);
+      },
+    })),
+    ...filteredSearch.iwads.map((i) => ({
+      key: `iwad-${i.id}`,
+      run: () => {
+        setActiveView('iwads');
+        setIsSearchModalOpen(false);
+      },
+    })),
+  ];
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSearchActiveIndex((prev) =>
+        searchPaletteEntries.length === 0 ? 0 : (prev + 1) % searchPaletteEntries.length
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSearchActiveIndex((prev) =>
+        searchPaletteEntries.length === 0
+          ? 0
+          : (prev - 1 + searchPaletteEntries.length) % searchPaletteEntries.length
+      );
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      searchPaletteEntries[searchActiveIndex]?.run();
+    }
+  };
 
   const viewTitles: Record<NavViewId, string> = {
     dashboard: 'Dashboard',
@@ -388,48 +468,134 @@ function AppContent() {
         />
         {/* Dynamic View Content - compact density uses 8px rhythm */}
         <main className="flex-1 min-h-0 overflow-hidden relative bg-[#09090b] flex flex-col">
-          {activeView === 'dashboard' && (
-            <DashboardView
-              onNavigateToLibrary={() => setActiveView('library')}
-              onNavigateToProfiles={() => setActiveView('profiles')}
-              onSelectProfile={(profileId) => {
-                setSelectedProfileId(profileId);
-                setActiveView('profiles');
-              }}
-              onCreateProfile={() => {
-                setSelectedProfileId(null);
-                setActiveView('profiles');
-              }}
-            />
-          )}
+          <AnimatePresence mode="wait" initial={false}>
+            {activeView === 'dashboard' && (
+              <motion.div
+                key="dashboard"
+                variants={pageVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                className="flex-1 min-h-0 h-full flex flex-col overflow-hidden"
+              >
+                <DashboardView
+                  onNavigateToLibrary={() => setActiveView('library')}
+                  onNavigateToProfiles={() => setActiveView('profiles')}
+                  onSelectProfile={(profileId) => {
+                    setSelectedProfileId(profileId);
+                    setActiveView('profiles');
+                  }}
+                  onCreateProfile={() => {
+                    setSelectedProfileId(null);
+                    setActiveView('profiles');
+                  }}
+                />
+              </motion.div>
+            )}
 
-          {(activeView === 'profiles' || activeView === 'play') && (
-            <ProfilesView
-              selectedProfileId={selectedProfileId}
-              onSelectProfile={setSelectedProfileId}
-              onNavigateToLibrary={() => setActiveView('library')}
-              onNavigateToSettings={(tab) => {
-                if (tab === 'engines' || tab === 'iwads' || tab === 'history' || tab === 'diagnostics') {
-                  setActiveView(tab as NavViewId);
-                } else {
-                  setActiveView('settings');
-                }
-              }}
-              onScanRequested={handleStartScan}
-            />
-          )}
+            {(activeView === 'profiles' || activeView === 'play') && (
+              <motion.div
+                key="profiles"
+                variants={pageVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                className="flex-1 min-h-0 h-full flex flex-col overflow-hidden"
+              >
+                <ProfilesView
+                  selectedProfileId={selectedProfileId}
+                  onSelectProfile={setSelectedProfileId}
+                  onNavigateToLibrary={() => setActiveView('library')}
+                  onNavigateToSettings={(tab) => {
+                    if (tab === 'engines' || tab === 'iwads' || tab === 'history' || tab === 'diagnostics') {
+                      setActiveView(tab as NavViewId);
+                    } else {
+                      setActiveView('settings');
+                    }
+                  }}
+                  onScanRequested={handleStartScan}
+                />
+              </motion.div>
+            )}
 
-          {(activeView === 'library' || activeView === 'mods') && (
-            <LibraryView onNavigateToDashboard={() => setActiveView('dashboard')} />
-          )}
+            {(activeView === 'library' || activeView === 'mods') && (
+              <motion.div
+                key="library"
+                variants={pageVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                className="flex-1 min-h-0 h-full flex flex-col overflow-hidden"
+              >
+                <LibraryView onNavigateToDashboard={() => setActiveView('dashboard')} />
+              </motion.div>
+            )}
 
-          {activeView === 'engines' && <EnginesView />}
-          {activeView === 'iwads' && <IWADsView />}
-          {activeView === 'history' && <HistoryView />}
-          {activeView === 'diagnostics' && (
-            <DiagnosticsView onNotify={(msg, type) => notify(msg, type)} />
-          )}
-          {activeView === 'settings' && <SettingsView />}
+            {activeView === 'engines' && (
+              <motion.div
+                key="engines"
+                variants={pageVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                className="flex-1 min-h-0 h-full flex flex-col overflow-hidden"
+              >
+                <EnginesView />
+              </motion.div>
+            )}
+
+            {activeView === 'iwads' && (
+              <motion.div
+                key="iwads"
+                variants={pageVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                className="flex-1 min-h-0 h-full flex flex-col overflow-hidden"
+              >
+                <IWADsView />
+              </motion.div>
+            )}
+
+            {activeView === 'history' && (
+              <motion.div
+                key="history"
+                variants={pageVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                className="flex-1 min-h-0 h-full flex flex-col overflow-hidden"
+              >
+                <HistoryView />
+              </motion.div>
+            )}
+
+            {activeView === 'diagnostics' && (
+              <motion.div
+                key="diagnostics"
+                variants={pageVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                className="flex-1 min-h-0 h-full flex flex-col overflow-hidden"
+              >
+                <DiagnosticsView onNotify={(msg, type) => notify(msg, type)} />
+              </motion.div>
+            )}
+
+            {activeView === 'settings' && (
+              <motion.div
+                key="settings"
+                variants={pageVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                className="flex-1 min-h-0 h-full flex flex-col overflow-hidden"
+              >
+                <SettingsView />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </main>
       </div>
       {isSearchModalOpen && (
@@ -442,165 +608,196 @@ function AppContent() {
           title="Global Search"
           size="lg"
         >
-          <div className="space-y-4">
+          <div className="space-y-3">
             <Input
               autoFocus
-              leftIcon={<Search className="w-4 h-4 text-zinc-400" />}
-              placeholder="Search profiles, mods, engines, IWADs..."
+              leftIcon={<Search className="w-4 h-4" />}
+              placeholder="Filter..."
               value={globalSearchQuery}
               onChange={(e) => setGlobalSearchQuery(e.target.value)}
-              className="w-full text-sm py-2.5 bg-[#101317] border border-[#22262d] text-zinc-100 placeholder:text-zinc-500"
+              onKeyDown={handleSearchKeyDown}
             />
-
             <div className="max-h-96 overflow-y-auto space-y-4 pr-1">
               {/* Profiles section */}
               {filteredSearch.profiles.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-mono uppercase text-zinc-400 tracking-wider mb-2 flex items-center gap-1.5">
+                  <h4 className="text-[11px] uppercase text-[#71717a] tracking-wide mb-2 flex items-center gap-1.5">
                     <Crosshair className="w-3.5 h-3.5 text-[#ef4444]" />
                     Profiles ({filteredSearch.profiles.length})
                   </h4>
                   <div className="space-y-1">
-                    {filteredSearch.profiles.map((p) => (
-                      <div
-                        key={p.id}
-                        onClick={() => {
-                          setSelectedProfileId(p.id);
-                          setActiveView('profiles');
-                          setIsSearchModalOpen(false);
-                        }}
-                        className="flex items-center justify-between p-2.5 rounded bg-[#14171a] hover:bg-[#1c2026] hover:border-[#22262d] border border-white/[0.04] cursor-pointer transition-colors"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <Flame className="w-4 h-4 text-[#ef4444]" />
-                          <span className="font-medium text-sm text-zinc-100">
-                            {p.name}
-                          </span>
-                          <span className="text-xs text-zinc-400 font-mono">
-                            {p.engine_name || 'No engine'} • {p.iwad_name || 'No IWAD'}
-                          </span>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            api.launchProfile(p.id);
+                    {filteredSearch.profiles.map((p, idx) => {
+                      const rowIndex = idx;
+                      const isActive = rowIndex === searchActiveIndex;
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => {
+                            setSelectedProfileId(p.id);
+                            setActiveView('profiles');
                             setIsSearchModalOpen(false);
                           }}
-                          className="px-2.5 py-1 text-xs bg-[#5e7ce2] hover:bg-[#4d6bd4] text-[#09090b] font-[600] rounded-[6px] flex items-center gap-1 transition-colors"
+                          onMouseEnter={() => setSearchActiveIndex(rowIndex)}
+                          className={`flex items-center justify-between rounded-[8px] px-3 py-2 hover:bg-[#0c0c0f] hover:border-[#3a3a45] border cursor-pointer transition-colors ${
+                            isActive ? 'bg-[#0c0c0f] border-[#3a3a45]' : 'border-transparent'
+                          }`}
                         >
-                          <Play className="w-3 h-3 fill-current" /> Play
-                        </button>
-                      </div>
-                    ))}
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Badge variant="outline" size="sm">
+                              PROFILE
+                            </Badge>
+                            <Flame className="w-3.5 h-3.5 text-[#ef4444] shrink-0" />
+                            <span className="text-sm text-[#f4f4f5] truncate">{p.name}</span>
+                            <span className="mono-meta text-xs text-[#71717a] truncate">
+                              {p.engine_name || 'No engine'} • {p.iwad_name || 'No IWAD'}
+                            </span>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              api.launchProfile(p.id);
+                              setIsSearchModalOpen(false);
+                            }}
+                            className="px-2.5 py-1 text-xs bg-[#5e7ce2] hover:bg-[#4d6bd4] text-[#09090b] font-[600] rounded-[6px] flex items-center gap-1 transition-colors shrink-0"
+                          >
+                            <Play className="w-3 h-3 fill-current" /> Play
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
-
               {/* Mods section */}
               {filteredSearch.mods.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-mono uppercase text-zinc-400 tracking-wider mb-2 flex items-center gap-1.5">
+                  <h4 className="text-[11px] uppercase text-[#71717a] tracking-wide mb-2 flex items-center gap-1.5">
                     <LibraryIcon className="w-3.5 h-3.5 text-blue-400" />
                     Mods ({filteredSearch.mods.length})
                   </h4>
                   <div className="space-y-1">
-                    {filteredSearch.mods.slice(0, 10).map((m) => (
-                      <div
-                        key={m.id}
-                        onClick={() => {
-                          setActiveView('library');
-                          setIsSearchModalOpen(false);
-                        }}
-                        className="flex items-center justify-between p-2 rounded bg-[#14171a] hover:bg-[#1c2026] hover:border-[#22262d] border border-white/[0.04] cursor-pointer transition-colors"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" size="sm">
-                            {m.format.toUpperCase()}
-                          </Badge>
-                          <span className="text-sm text-zinc-100 font-medium">
-                            {m.name}
-                          </span>
-                          <span className="text-xs text-zinc-400">
-                            {m.category}
+                    {filteredSearch.mods.slice(0, 10).map((m, i) => {
+                      const rowIndex = searchModOffset + i;
+                      const isActive = rowIndex === searchActiveIndex;
+                      return (
+                        <div
+                          key={m.id}
+                          onClick={() => {
+                            setActiveView('library');
+                            setIsSearchModalOpen(false);
+                          }}
+                          onMouseEnter={() => setSearchActiveIndex(rowIndex)}
+                          className={`flex items-center justify-between gap-3 rounded-[8px] px-3 py-2 hover:bg-[#0c0c0f] hover:border-[#3a3a45] border cursor-pointer transition-colors ${
+                            isActive ? 'bg-[#0c0c0f] border-[#3a3a45]' : 'border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Badge variant="outline" size="sm">
+                              {m.format.toUpperCase()}
+                            </Badge>
+                            <span className="text-sm text-[#f4f4f5] truncate">{m.name}</span>
+                            <span className="mono-meta text-xs text-[#71717a] truncate">
+                              {m.category}
+                            </span>
+                          </div>
+                          <span className="mono-meta text-xs text-[#71717a] truncate max-w-xs shrink-0">
+                            {m.path}
                           </span>
                         </div>
-                        <span className="text-xs font-mono text-zinc-400 truncate max-w-xs">
-                          {m.path}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
-
               {/* Engines section */}
               {filteredSearch.engines.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-mono uppercase text-zinc-400 tracking-wider mb-2 flex items-center gap-1.5">
+                  <h4 className="text-[11px] uppercase text-[#71717a] tracking-wide mb-2 flex items-center gap-1.5">
                     <Cpu className="w-3.5 h-3.5 text-amber-400" />
                     Engines ({filteredSearch.engines.length})
                   </h4>
                   <div className="space-y-1">
-                    {filteredSearch.engines.map((e) => (
-                      <div
-                        key={e.id}
-                        onClick={() => {
-                          setActiveView('engines');
-                          setIsSearchModalOpen(false);
-                        }}
-                        className="flex items-center justify-between p-2 rounded bg-[#14171a] hover:bg-[#1c2026] hover:border-[#22262d] border border-white/[0.04] cursor-pointer transition-colors"
-                      >
-                        <span className="text-sm font-medium text-zinc-100">
-                          {e.name}
-                        </span>
-                        <span className="text-xs text-zinc-400 font-mono">
-                          {e.version || 'Unknown'} ({e.family})
-                        </span>
-                      </div>
-                    ))}
+                    {filteredSearch.engines.map((e, i) => {
+                      const rowIndex = searchEngineOffset + i;
+                      const isActive = rowIndex === searchActiveIndex;
+                      return (
+                        <div
+                          key={e.id}
+                          onClick={() => {
+                            setActiveView('engines');
+                            setIsSearchModalOpen(false);
+                          }}
+                          onMouseEnter={() => setSearchActiveIndex(rowIndex)}
+                          className={`flex items-center justify-between gap-3 rounded-[8px] px-3 py-2 hover:bg-[#0c0c0f] hover:border-[#3a3a45] border cursor-pointer transition-colors ${
+                            isActive ? 'bg-[#0c0c0f] border-[#3a3a45]' : 'border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Badge variant="outline" size="sm">
+                              {e.family.toUpperCase()}
+                            </Badge>
+                            <span className="text-sm text-[#f4f4f5] truncate">{e.name}</span>
+                          </div>
+                          <span className="mono-meta text-xs text-[#71717a] truncate shrink-0">
+                            {e.version || 'Unknown'} ({e.family})
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
-
               {/* IWADs section */}
               {filteredSearch.iwads.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-mono uppercase text-zinc-400 tracking-wider mb-2 flex items-center gap-1.5">
+                  <h4 className="text-[11px] uppercase text-[#71717a] tracking-wide mb-2 flex items-center gap-1.5">
                     <Disc className="w-3.5 h-3.5 text-emerald-400" />
                     IWADs ({filteredSearch.iwads.length})
                   </h4>
                   <div className="space-y-1">
-                    {filteredSearch.iwads.map((i) => (
-                      <div
-                        key={i.id}
-                        onClick={() => {
-                          setActiveView('iwads');
-                          setIsSearchModalOpen(false);
-                        }}
-                        className="flex items-center justify-between p-2 rounded bg-[#14171a] hover:bg-[#1c2026] hover:border-[#22262d] border border-white/[0.04] cursor-pointer transition-colors"
-                      >
-                        <span className="text-sm font-medium text-zinc-100">
-                          {i.name}
-                        </span>
-                        <span className="text-xs text-zinc-400 font-mono">
-                          {i.type.toUpperCase()} ({i.lump_count} lumps)
-                        </span>
-                      </div>
-                    ))}
+                    {filteredSearch.iwads.map((i, idx) => {
+                      const rowIndex = searchIwadOffset + idx;
+                      const isActive = rowIndex === searchActiveIndex;
+                      return (
+                        <div
+                          key={i.id}
+                          onClick={() => {
+                            setActiveView('iwads');
+                            setIsSearchModalOpen(false);
+                          }}
+                          onMouseEnter={() => setSearchActiveIndex(rowIndex)}
+                          className={`flex items-center justify-between gap-3 rounded-[8px] px-3 py-2 hover:bg-[#0c0c0f] hover:border-[#3a3a45] border cursor-pointer transition-colors ${
+                            isActive ? 'bg-[#0c0c0f] border-[#3a3a45]' : 'border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Badge variant="outline" size="sm">
+                              {i.type.toUpperCase()}
+                            </Badge>
+                            <span className="text-sm text-[#f4f4f5] truncate">{i.name}</span>
+                          </div>
+                          <span className="mono-meta text-xs text-[#71717a] truncate shrink-0">
+                            {i.type.toUpperCase()} ({i.lump_count} lumps)
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
-
-              {/* Empty search */}
+              {/* Empty state */}
               {globalSearchQuery.trim() &&
                 filteredSearch.profiles.length === 0 &&
                 filteredSearch.mods.length === 0 &&
                 filteredSearch.engines.length === 0 &&
                 filteredSearch.iwads.length === 0 && (
-                  <div className="text-center py-8 text-zinc-400">
-                    No results found for &ldquo;{globalSearchQuery}&rdquo;
+                  <div className="text-center py-8 text-[13px] text-[#71717a]">
+                    No results for &ldquo;{globalSearchQuery}&rdquo;
                   </div>
                 )}
+            </div>
+            <div className="flex items-center gap-2 border-t border-[#2d2d34] pt-2.5 text-[11px] text-[#71717a]">
+              <span>↑↓ navigate · Enter open · Esc close</span>
             </div>
           </div>
         </Modal>

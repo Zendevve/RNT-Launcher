@@ -10,18 +10,25 @@ import {
   Disc,
   Layers,
   Clock,
-  CheckCircle2,
-  XCircle,
   AlertTriangle,
   Loader2,
   ChevronDown,
   Sliders,
 } from 'lucide-react';
-import { Profile, Mod, IWAD, Engine, LaunchRecord, HistoryStats, Settings } from '../../types';
+import {
+  Profile,
+  Mod,
+  IWAD,
+  Engine,
+  LaunchRecord,
+  HistoryStats,
+  Settings,
+} from '../../types';
 import { api } from '../../services/api';
+import { formatDuration, formatDate, formatRelativeTime } from '../../utils/formatters';
 import { RecentProfileCard } from './RecentProfileCard';
-import { formatDuration, formatRelativeTime, formatDate } from '../../utils/formatters';
 import { cn } from '../../utils/cn';
+import { useToast } from '../../components/ui/Toast';
 
 interface DashboardViewProps {
   onNavigateToLibrary?: () => void;
@@ -48,16 +55,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [isLaunchingHero, setIsLaunchingHero] = useState(false);
   const [selectedHeroProfileId, setSelectedHeroProfileId] = useState<string>('');
 
-  const [notification, setNotification] = useState<{
-    type: 'success' | 'error' | 'info';
-    message: string;
-  } | null>(null);
+  const toast = useToast();
 
   const showNotification = (type: 'success' | 'error' | 'info', message: string) => {
-    setNotification({ type, message });
-    setTimeout(() => {
-      setNotification(null);
-    }, 3500);
+    if (type === 'success') {
+      toast.success(message);
+    } else if (type === 'error') {
+      toast.error(message);
+    } else {
+      toast.info(message);
+    }
   };
 
   const loadDashboardData = useCallback(async () => {
@@ -193,23 +200,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       )}
     >
       {/* Notification — Slate card 12px, 0.001s ease */}
-      {notification && (
-        <div
-          className={cn(
-            'fixed bottom-6 right-8 z-50 flex items-center gap-2.5 rounded-[12px] border px-4 py-2.5 text-xs font-[500] shadow-lg transition-[background-color,border-color,color] duration-[0.001s] ease-[ease] [font-family:var(--font-geist),Geist,sans-serif]',
-            notification.type === 'success'
-              ? 'border-[#2d2d34] bg-[#0f0f12] text-[#f4f4f5]'
-              : notification.type === 'error'
-              ? 'border-[#2d2d34] bg-[#0f0f12] text-[#f4f4f5]'
-              : 'border-[#2d2d34] bg-[#0f0f12] text-[#a1a1aa]'
-          )}
-        >
-          {notification.type === 'success' && <CheckCircle2 className="h-4 w-4 text-[#5e7ce2] shrink-0" />}
-          {notification.type === 'error' && <XCircle className="h-4 w-4 text-red-400 shrink-0" />}
-          {notification.type === 'info' && <Clock className="h-4 w-4 text-[#5e7ce2] shrink-0" />}
-          <span>{notification.message}</span>
-        </div>
-      )}
+
 
       {/* HERO SECTION — Slate */}
       {hasAssets ? (

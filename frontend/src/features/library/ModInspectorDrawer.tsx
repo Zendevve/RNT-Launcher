@@ -15,11 +15,14 @@ import {
   MinusCircle,
   ExternalLink,
 } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mod, FileInfo, ModFormat } from '../../types';
 import { api } from '../../services/api';
 import { formatBytes, formatDate } from '../../utils/formatters';
-
+import { drawerVariants, scrimVariants } from '../../lib/springs';
+import { acquireModalScrollLock, releaseModalScrollLock } from '../../components/ui/Modal';
+import { Button } from '../../components/ui/Button';
 interface ModInspectorDrawerProps {
   mod: Mod | null;
   isOpen: boolean;
@@ -79,6 +82,21 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!isOpen) return;
+    acquireModalScrollLock();
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      releaseModalScrollLock();
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
     if (!isOpen || !mod) {
       setFileInfo(null);
       setArtwork(null);
@@ -124,37 +142,37 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
   const detectedStructures = fileInfo?.structures || mod?.structures || [];
   const detectedMaps = fileInfo?.maps || [];
 
-  return (
+  const content = (
     <AnimatePresence>
       {isOpen && mod && (
         <div className="fixed inset-0 z-50 flex justify-end overflow-hidden select-none">
           {/* Backdrop click to close */}
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-[2px]"
+            variants={scrimVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm"
             onClick={onClose}
           />
 
           {/* Slide-over Drawer Panel */}
           <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="relative z-10 flex h-full w-full max-w-xl flex-col border-l border-[#22262d] bg-[#14171c] text-zinc-200 shadow-2xl"
+            variants={drawerVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="relative z-10 flex h-full w-full max-w-xl flex-col border-l border-[#2d2d34] bg-[#0f0f12] text-[#a1a1aa] shadow-2xl"
           >
             {/* Drawer Header */}
-            <div className="flex items-center justify-between border-b border-[#22262d] px-6 py-4 bg-[#14171c]">
+            <div className="flex items-center justify-between border-b border-[#2d2d34] px-6 py-4 bg-[#0c0c0f]">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="rounded p-2 bg-[#1b1f26] text-zinc-300 border border-[#22262d] shrink-0">
+                <div className="rounded-[8px] p-2 bg-[#0c0c0f] text-[#5e7ce2] border border-[#2d2d34] shrink-0">
                   <FileCode className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <h2 className="text-base font-semibold text-zinc-100 truncate" title={mod.name}>
+                    <h2 className="text-sm font-medium text-[#f4f4f5] tracking-tight truncate" title={mod.name}>
                       {mod.name}
                     </h2>
                     <span
@@ -165,7 +183,7 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
                       {mod.format.toUpperCase()}
                     </span>
                   </div>
-                  <p className="text-xs text-zinc-400 font-normal truncate mt-0.5">
+                  <p className="text-xs text-[#71717a] font-normal truncate mt-0.5">
                     {mod.category || 'General Mod'}
                   </p>
                 </div>
@@ -176,19 +194,21 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
                   type="button"
                   title={mod.isFavorite ? 'Remove Favorite' : 'Add to Favorites'}
                   onClick={() => onToggleFavorite(mod.id)}
-                  className="rounded p-1.5 text-zinc-400 hover:bg-[#1b1f26] hover:text-amber-400 transition-colors"
+                  className="rounded-[6px] p-1.5 text-[#71717a] hover:bg-white/[0.06] hover:text-amber-400 transition-colors"
                 >
                   <Star
                     className={`h-4 w-4 ${mod.isFavorite ? 'fill-amber-400 text-amber-400' : ''}`}
                   />
                 </button>
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={onClose}
-                  className="rounded p-1.5 text-zinc-400 hover:bg-[#1b1f26] hover:text-zinc-200 transition-colors"
+                  aria-label="Close drawer"
+                  className="text-[#71717a] hover:text-[#f4f4f5] rounded-md hover:bg-white/[0.06]"
                 >
-                  <X className="h-5 w-5" />
-                </button>
+                  <X className="w-4 h-4" />
+                </Button>
               </div>
             </div>
 
@@ -384,35 +404,29 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
             </div>
 
             {/* Drawer Bottom Actions */}
-            <div className="flex items-center justify-between border-t border-[#22262d] px-6 py-4 bg-[#14171c]">
-              <button
-                type="button"
+            <div className="flex items-center justify-between border-t border-[#2d2d34] px-6 py-4 bg-black/20">
+              <Button
+                variant="danger"
                 onClick={() => onDelete(mod.id)}
-                className="inline-flex items-center gap-1.5 rounded border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors"
+                leftIcon={<Trash2 className="h-3.5 w-3.5" />}
               >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span>Delete Mod</span>
-              </button>
+                Delete Mod
+              </Button>
 
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="rounded px-3 py-1.5 text-xs font-medium text-zinc-400 hover:bg-[#1b1f26] hover:text-zinc-200 transition-colors"
-                >
+                <Button variant="ghost" onClick={onClose}>
                   Close
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="primary"
                   onClick={() => {
                     onAddToProfile(mod);
                     onClose();
                   }}
-                  className="inline-flex items-center gap-1.5 rounded bg-[#10b981]/15 hover:bg-[#10b981]/25 text-[#86efac] border border-[#10b981]/30 px-3 py-1.5 text-xs font-medium transition-colors"
+                  leftIcon={<Plus className="h-3.5 w-3.5" />}
                 >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>+ Add to Setup</span>
-                </button>
+                  Add to Setup
+                </Button>
               </div>
             </div>
           </motion.div>
@@ -420,4 +434,6 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
       )}
     </AnimatePresence>
   );
+
+  return typeof document !== 'undefined' ? createPortal(content, document.body) : content;
 };

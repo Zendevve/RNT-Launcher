@@ -293,7 +293,14 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
       <Modal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        title="Create Preset Setup"
+        title={
+          <div className="flex items-center gap-2.5">
+            <span className="rounded-[8px] bg-[#0c0c0f] border border-[#2d2d34] p-1.5 text-[#5e7ce2]">
+              <Layers className="h-4 w-4" />
+            </span>
+            <span>Create Preset Setup</span>
+          </div>
+        }
         size="md"
         footer={
           <>

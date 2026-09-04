@@ -7,8 +7,6 @@ import {
   FolderSearch,
   Star,
   Layers,
-  CheckCircle2,
-  XCircle,
   Filter,
   Globe,
   UploadCloud,
@@ -22,6 +20,8 @@ import { ModTableRow } from './ModTableRow';
 import { ModInspectorDrawer } from './ModInspectorDrawer';
 import { AddModModal } from './AddModModal';
 import { IdgamesSearchModal } from './IdgamesSearchModal';
+import { Modal } from '../../components/ui/Modal';
+import { useToast } from '../../components/ui/Toast';
 
 interface LibraryViewProps {
   onNavigateToDashboard?: () => void;
@@ -82,17 +82,17 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
   // Drag-and-drop state
   const [isWindowDragging, setIsWindowDragging] = useState(false);
 
-  // Inline notifications toast
-  const [notification, setNotification] = useState<{
-    type: 'success' | 'error' | 'info';
-    message: string;
-  } | null>(null);
+  // Toast notification
+  const toast = useToast();
 
   const showNotification = (type: 'success' | 'error' | 'info', message: string) => {
-    setNotification({ type, message });
-    setTimeout(() => {
-      setNotification(null);
-    }, 3500);
+    if (type === 'success') {
+      toast.success(message);
+    } else if (type === 'error') {
+      toast.error(message);
+    } else {
+      toast.info(message);
+    }
   };
 
   // Initial data loading
@@ -337,21 +337,6 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
       )}
 
       {/* Notification Toast */}
-      {notification && (
-        <div
-          className={`fixed bottom-6 right-8 z-50 flex items-center gap-2.5 rounded-lg border px-4 py-2.5 text-xs font-medium shadow-lg transition-all duration-150 ${
-            notification.type === 'success'
-              ? 'border-emerald-500/30 bg-[#122419] text-emerald-200'
-              : notification.type === 'error'
-              ? 'border-red-500/30 bg-[#2b1416] text-red-200'
-              : 'border-blue-500/30 bg-[#132232] text-blue-200'
-          }`}
-        >
-          {notification.type === 'success' && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />}
-          {notification.type === 'error' && <XCircle className="h-4 w-4 shrink-0 text-red-400" />}
-          <span>{notification.message}</span>
-        </div>
-      )}
 
       {/* TIER 1 TOOLBAR: Search & Primary Action Controls (44px) */}
       <div className="border-b border-[#22262d] bg-[#14171c] px-6 py-2.5 flex items-center justify-between gap-4 shrink-0">
@@ -619,67 +604,53 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
       />
 
       {/* Add to Preset Selection Modal */}
-      {modForProfileAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-          <div className="w-full max-w-md rounded-lg border border-[#22262d] bg-[#14171c] p-5 text-zinc-100 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-[#22262d] pb-3">
-              <div>
-                <h3 className="text-sm font-semibold text-zinc-100">
-                  Add Mod to Preset Setup
-                </h3>
-                <p className="mt-0.5 truncate text-xs text-emerald-400 font-mono" title={modForProfileAdd.name}>
-                  {modForProfileAdd.name}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setModForProfileAdd(null)}
-                className="rounded p-1 text-zinc-400 hover:text-white transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
+      <Modal
+        isOpen={!!modForProfileAdd}
+        onClose={() => setModForProfileAdd(null)}
+        size="sm"
+        title="Add Mod to Preset Setup"
+        description={modForProfileAdd ? `Adding "${modForProfileAdd.name}" to a preset setup` : undefined}
+      >
+        <div className="max-h-64 overflow-y-auto space-y-1.5 -mx-2 px-2">
+          {profiles.length === 0 ? (
+            <div className="p-4 text-center text-xs text-[#71717a]">
+              No preset setups exist yet. Create a setup first in Profiles.
             </div>
-
-            <div className="mt-4 max-h-64 overflow-y-auto space-y-1.5 pr-1">
-              {profiles.length === 0 ? (
-                <div className="p-4 text-center text-xs text-zinc-500">
-                  No preset setups exist yet. Create a setup first in Profiles.
-                </div>
-              ) : (
-                profiles.map((prof) => {
-                  const alreadyInProfile = prof.mods?.some((m) => m.modId === modForProfileAdd.id);
-                  return (
-                    <button
-                      key={prof.id}
-                      type="button"
-                      onClick={() => handleAddModToProfile(prof.id)}
-                      className="w-full flex items-center justify-between rounded-md border border-[#22262d] bg-[#181c22] p-3 text-left transition-colors hover:border-[#2f3540] hover:bg-[#1e232b]"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs font-semibold text-zinc-200 truncate">
-                          {prof.name}
-                        </div>
-                        <div className="mt-0.5 text-[11px] text-zinc-500 font-mono truncate">
-                          {prof.engineName || 'No Port'} • {prof.iwadName || 'No IWAD'}
-                        </div>
-                      </div>
-                      {alreadyInProfile ? (
-                        <span className="rounded bg-emerald-950/40 px-2 py-0.5 text-[10px] text-emerald-400 border border-emerald-800/40 shrink-0 ml-2">
-                          In Setup
-                        </span>
-                      ) : (
-                        <span className="rounded-[6px] bg-[#2d2d34] hover:bg-[#5e7ce2] hover:text-[#09090b] px-2 py-0.5 text-[10px] text-zinc-300 font-[500] shrink-0 ml-2 transition-colors">
-                          + Add
-                        </span>
-                      )}
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
+          ) : (
+            profiles.map((prof) => {
+              const alreadyInProfile = modForProfileAdd
+                ? prof.mods?.some((m) => m.modId === modForProfileAdd.id)
+                : false;
+              return (
+                <button
+                  key={prof.id}
+                  type="button"
+                  onClick={() => handleAddModToProfile(prof.id)}
+                  className="w-full flex items-center justify-between rounded-[8px] border border-transparent hover:border-[#3a3a45] bg-[#0c0c0f]/60 hover:bg-[#0c0c0f] p-3 text-left transition-colors cursor-pointer"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-medium text-[#f4f4f5] truncate">
+                      {prof.name}
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-[#71717a] truncate">
+                      {prof.engineName || 'No Port'} • {prof.iwadName || 'No IWAD'}
+                    </div>
+                  </div>
+                  {alreadyInProfile ? (
+                    <span className="rounded-[6px] bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-400 border border-emerald-500/20 shrink-0 ml-2">
+                      In Setup
+                    </span>
+                  ) : (
+                    <span className="rounded-[6px] bg-[#2d2d34] hover:bg-[#5e7ce2] hover:text-[#09090b] px-2 py-0.5 text-[10px] text-[#f4f4f5] font-medium shrink-0 ml-2 transition-colors">
+                      + Add
+                    </span>
+                  )}
+                </button>
+              );
+            })
+          )}
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

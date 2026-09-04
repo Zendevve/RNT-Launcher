@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  X,
   FolderOpen,
   UploadCloud,
   FilePlus,
@@ -10,7 +9,9 @@ import {
 } from 'lucide-react';
 import { Mod, ModCategory } from '../../types';
 import { api } from '../../services/api';
-
+import { Modal } from '../../components/ui/Modal';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
 interface AddModModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -41,7 +42,6 @@ export const AddModModal: React.FC<AddModModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  if (!isOpen) return null;
 
   const handleBrowseFile = async () => {
     try {
@@ -97,130 +97,123 @@ export const AddModModal: React.FC<AddModModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs">
-      <div className="w-full max-w-lg rounded-lg border border-doom-border bg-doom-surface text-doom-text shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-doom-border px-6 py-4 bg-doom-card/80">
-          <div className="flex items-center gap-2.5">
-            <FilePlus className="h-5 w-5 text-doom-red" />
-            <h2 className="font-mono text-base font-bold uppercase tracking-wider text-white">
-              Add Mod to Library
-            </h2>
-          </div>
-          <button
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      size="lg"
+      title={
+        <div className="flex items-center gap-2.5">
+          <span className="rounded-[8px] bg-[#0c0c0f] border border-[#2d2d34] p-1.5 text-[#5e7ce2]">
+            <FilePlus className="h-4 w-4" />
+          </span>
+          <span>Add Mod to Library</span>
+        </div>
+      }
+      footer={
+        <div className="flex items-center justify-end gap-3 w-full">
+          <Button
             type="button"
+            variant="ghost"
             onClick={onClose}
-            className="rounded p-1 text-doom-muted hover:bg-doom-surface hover:text-white transition-colors"
+            disabled={isLoading}
           >
-            <X className="h-5 w-5" />
-          </button>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="add-mod-form"
+            variant="primary"
+            disabled={isLoading || !filePath.trim()}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Inspecting...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-4 w-4" />
+                <span>Import Mod</span>
+              </>
+            )}
+          </Button>
+        </div>
+      }
+    >
+      <form id="add-mod-form" onSubmit={handleImport} className="space-y-5">
+        {errorMessage && (
+          <div className="flex items-start gap-2.5 rounded-[8px] border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
+        {/* Drag & Drop Box */}
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragOver(true);
+          }}
+          onDragLeave={() => setIsDragOver(false)}
+          onDrop={handleDrop}
+          className={`flex flex-col items-center justify-center rounded-[8px] border-2 border-dashed p-6 transition-all duration-200 ${
+            isDragOver
+              ? 'border-[#5e7ce2] bg-[#5e7ce2]/10'
+              : 'border-[#2d2d34] bg-[#0c0c0f]/50 hover:border-[#3a3a45]'
+          }`}
+        >
+          <UploadCloud className="h-8 w-8 text-[#71717a] mb-2" />
+          <p className="text-xs font-medium text-[#f4f4f5]">
+            {'Drag & Drop Doom Mod File Here'}
+          </p>
+          <p className="mt-1 text-[11px] text-[#71717a]">
+            Supports .WAD, .PK3, .PK7, .IPK3, .ZIP, .DEH, .BEX
+          </p>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleImport} className="p-6 space-y-5">
-          {errorMessage && (
-            <div className="flex items-start gap-2.5 rounded border border-doom-red/40 bg-doom-red/10 p-3 text-xs font-mono text-doom-red-bright">
-              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
-
-          {/* Drag & Drop Box */}
-          <div
-            onDragOver={(e) => {
-              e.preventDefault();
-              setIsDragOver(true);
-            }}
-            onDragLeave={() => setIsDragOver(false)}
-            onDrop={handleDrop}
-            className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 transition-all duration-200 ${
-              isDragOver
-                ? 'border-doom-red bg-doom-red/5'
-                : 'border-doom-border/80 bg-doom-card/30 hover:border-doom-border-bright'
-            }`}
-          >
-            <UploadCloud className="h-8 w-8 text-doom-muted mb-2" />
-            <p className="font-mono text-xs font-semibold text-doom-text">
-              {'Drag & Drop Doom Mod File Here'}
-            </p>
-            <p className="mt-1 text-[11px] font-mono text-doom-muted">
-              Supports .WAD, .PK3, .PK7, .IPK3, .ZIP, .DEH, .BEX
-            </p>
-          </div>
-
-          {/* File Path Input */}
-          <div>
-            <label className="block font-mono text-xs font-semibold uppercase tracking-wider text-doom-muted mb-1.5">
-              File Path
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={filePath}
-                onChange={(e) => setFilePath(e.target.value)}
-                placeholder="e.g. D:/Doom/Mods/brutalv21.pk3"
-                className="flex-1 rounded border border-doom-border bg-doom-card px-3 py-2 font-mono text-xs text-doom-text placeholder-doom-muted/50 focus:border-doom-red focus:outline-hidden"
-              />
-              <button
-                type="button"
-                onClick={handleBrowseFile}
-                className="inline-flex items-center gap-1.5 rounded border border-doom-border bg-doom-card px-3.5 py-2 font-mono text-xs text-doom-text hover:bg-doom-surface hover:border-doom-border-bright transition-colors"
-              >
-                <FolderOpen className="h-3.5 w-3.5 text-doom-cyan" />
-                <span>Browse...</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Category Selector */}
-          <div>
-            <label className="block font-mono text-xs font-semibold uppercase tracking-wider text-doom-muted mb-1.5">
-              Category
-            </label>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value as ModCategory)}
-              className="w-full rounded border border-doom-border bg-doom-card px-3 py-2 font-mono text-xs text-doom-text focus:border-doom-red focus:outline-hidden"
-            >
-              {CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Footer Actions */}
-          <div className="pt-3 border-t border-doom-border flex items-center justify-end gap-3">
-            <button
+        {/* File Path Input */}
+        <div>
+          <label className="block text-xs font-medium text-[#a1a1aa] mb-1.5">
+            File Path
+          </label>
+          <div className="flex gap-2">
+            <Input
+              type="text"
+              value={filePath}
+              onChange={(e) => setFilePath(e.target.value)}
+              placeholder="e.g. D:/Doom/Mods/brutalv21.pk3"
+              className="flex-1"
+            />
+            <Button
               type="button"
-              onClick={onClose}
-              disabled={isLoading}
-              className="rounded px-4 py-2 font-mono text-xs text-doom-muted hover:text-white"
+              variant="secondary"
+              onClick={handleBrowseFile}
+              className="shrink-0"
             >
-              Cancel
-            </button>
-
-            <button
-              type="submit"
-              disabled={isLoading || !filePath.trim()}
-              className="inline-flex items-center gap-2 rounded bg-doom-red px-5 py-2 font-mono text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-doom-red/20 transition-colors hover:bg-doom-red-bright disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span>Inspecting...</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  <span>Import Mod</span>
-                </>
-              )}
-            </button>
+              <FolderOpen className="h-4 w-4 text-[#5e7ce2]" />
+              <span>Browse...</span>
+            </Button>
           </div>
-        </form>
-      </div>
-    </div>
+        </div>
+
+        {/* Category Selector */}
+        <div>
+          <label className="block text-xs font-medium text-[#a1a1aa] mb-1.5">
+            Category
+          </label>
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value as ModCategory)}
+            className="w-full rounded-[8px] border border-[#2d2d34] bg-[#0c0c0f] px-3 py-2 text-xs text-[#f4f4f5] focus:border-[#5e7ce2] focus:outline-hidden"
+          >
+            {CATEGORIES.map((cat) => (
+              <option key={cat} value={cat} className="bg-[#0c0c0f] text-[#f4f4f5]">
+                {cat}
+              </option>
+            ))}
+          </select>
+        </div>
+      </form>
+    </Modal>
   );
 };

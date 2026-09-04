@@ -20,6 +20,8 @@ import {
 import { IdgamesFile, Mod } from '../../types';
 import { api } from '../../services/api';
 import { formatBytes } from '../../utils/formatters';
+import { Modal } from '../../components/ui/Modal';
+import { Badge } from '../../components/ui/Badge';
 
 export interface IdgamesSearchModalProps {
   isOpen: boolean;
@@ -147,41 +149,25 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
     });
   }, [results, sortOption]);
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-xs">
-      <div className="flex h-[88vh] w-full max-w-6xl flex-col rounded-lg border border-doom-border bg-doom-bg text-doom-text shadow-2xl overflow-hidden">
-        {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-doom-border/80 bg-doom-surface px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded bg-doom-red/20 text-doom-red border border-doom-red/40">
-              <Globe className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="font-mono text-base font-black uppercase tracking-wider text-doom-text">
-                  /IDGAMES ARCHIVE SEARCH
-                </h2>
-                <span className="rounded bg-doom-card px-2 py-0.5 font-mono text-[10px] font-bold text-doom-muted border border-doom-border">
-                  DOOMWORLD
-                </span>
-              </div>
-              <p className="font-mono text-xs text-doom-muted">
-                Zero-account search, direct mirror download, and instant library import
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close modal"
-            className="rounded p-1.5 text-doom-muted transition-colors hover:bg-doom-card hover:text-doom-text"
-          >
-            <X className="h-5 w-5" />
-          </button>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      size="6xl"
+      title={
+        <div className="flex items-center gap-2.5">
+          <span className="rounded-[8px] bg-[#0c0c0f] border border-[#2d2d34] p-1.5 text-[#5e7ce2]">
+            <Globe className="h-4 w-4" />
+          </span>
+          <span>/idgames Archive Search</span>
+          <Badge variant="outline" size="sm" className="ml-1 text-[10px]">
+            Doomworld
+          </Badge>
         </div>
+      }
+      description="Zero-account search, direct mirror download, and instant library import"
+    >
+      <div className="flex h-[75vh] w-full flex-col -m-6 overflow-hidden">
 
         {/* Search & Filter Bar */}
         <div className="border-b border-doom-border bg-doom-surface/60 px-6 py-3.5">
@@ -586,6 +572,6 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
