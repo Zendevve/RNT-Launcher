@@ -16,6 +16,7 @@ export interface ModalProps {
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '4xl' | '6xl';
   closeOnBackdrop?: boolean;
   hideClose?: boolean;
+  contentClassName?: string;
 }
 
 let scrollLockCount = 0;
@@ -46,6 +47,7 @@ export const Modal: React.FC<ModalProps> = ({
   size = 'lg',
   closeOnBackdrop = true,
   hideClose = false,
+  contentClassName,
 }) => {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -128,7 +130,12 @@ export const Modal: React.FC<ModalProps> = ({
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6 text-sm text-[#a1a1aa] leading-relaxed">
+            <div
+              className={clsx(
+                'flex-1 text-sm text-[#a1a1aa] leading-relaxed',
+                contentClassName ?? 'overflow-y-auto p-6'
+              )}
+            >
               {children}
             </div>
 

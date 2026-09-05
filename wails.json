@@ -1,7 +1,7 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
   "name": "rnt-launcher",
-  "outputfilename": "rnt-launcher",
+  "outputfilename": "rnt-launcher-v0.1.3-build.20260905.1",
   "frontend:install": "npm install",
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
@@ -13,7 +13,7 @@
   "info": {
     "companyName": "RNT",
     "productName": "RNT Launcher",
-    "productVersion": "0.1.2",
+    "productVersion": "0.1.3",
     "copyright": "Copyright 2025 RNT",
     "comments": "Modern cross-platform Doom Mod Manager and Launcher"
   }

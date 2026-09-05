@@ -494,6 +494,7 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       size="6xl"
+      contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
       title={
         <div className="flex items-center gap-2.5">
           <span className="rounded-[8px] bg-[#0c0c0f] border border-[#2d2d34] p-1.5 text-[#5e7ce2]">
@@ -507,7 +508,7 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
       }
       description="Zero-account search, direct mirror download, and instant library import"
     >
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex h-[80vh] w-full flex-col overflow-hidden">
         {/* Search & Filter Bar */}
         <div className="border-b border-doom-border bg-doom-surface/60 px-6 py-3.5">
           <form onSubmit={handleSubmit} className="flex gap-3">
@@ -953,7 +954,7 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
                     <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-doom-muted">
                       Description
                     </span>
-                    <div className="rounded border border-doom-border bg-doom-card p-3 font-mono text-xs text-doom-muted whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto">
+                    <div className="rounded border border-doom-border bg-doom-card p-3 font-mono text-xs text-doom-muted whitespace-pre-wrap leading-relaxed">
                       {selectedFile.description}
                     </div>
                   </div>
