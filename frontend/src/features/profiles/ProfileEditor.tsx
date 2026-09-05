@@ -2,8 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import clsx from 'clsx';
 import {
   Play,
-  CheckCircle2,
-  AlertTriangle,
+  RotateCw,
   Copy,
   Download,
   Trash2,
@@ -13,11 +12,15 @@ import {
   FolderOpen,
   FolderLock,
   Terminal,
-  ChevronDown,
-  ChevronUp,
-  Save,
   Layers,
   Sliders,
+  FileText,
+  Plus,
+  FileUp,
+  Search,
+  LayoutGrid,
+  MoreHorizontal,
+  Edit2,
 } from 'lucide-react';
 import {
   Profile,
@@ -30,28 +33,38 @@ import {
 import { api } from '../../services/api';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { Badge } from '../../components/ui/Badge';
+import { Modal } from '../../components/ui/Modal';
 import { useToast } from '../../components/ui/Toast';
 import { LoadOrderList } from './LoadOrderList';
 import { ValidationBanner } from './ValidationBanner';
 import { SelectModsModal } from './SelectModsModal';
 import { DmFlagsModal } from './DmFlagsModal';
+import { RecentProfileCard } from '../dashboard/RecentProfileCard';
+
 export interface ProfileEditorProps {
   profile: Profile;
+  profiles: Profile[];
   engines: Engine[];
   iwads: IWAD[];
-  onProfileChange: (updatedProfile: Profile) => void;
-  onProfileDeleted: (deletedProfileId: string) => void;
-  onProfileDuplicated: (duplicatedProfile: Profile) => void;
+  onProfileChange: (updated: Profile) => void;
+  onProfileDeleted: (profileId: string) => void;
+  onProfileDuplicated: (duplicated: Profile) => void;
+  onSelectProfile: (profileId: string) => void;
+  onCreateProfileClick?: () => void;
+  onImportClick?: () => void;
 }
 
 export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   profile,
+  profiles,
   engines,
   iwads,
   onProfileChange,
   onProfileDeleted,
   onProfileDuplicated,
+  onSelectProfile,
+  onCreateProfileClick,
+  onImportClick,
 }) => {
   const toast = useToast();
 
@@ -73,18 +86,32 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   const [workingDir, setWorkingDir] = useState(profile.workingDir || '');
   const [isFavorite, setIsFavorite] = useState(profile.isFavorite || false);
 
-  // Available profiles list for base mixin selector
-  const [availableProfiles, setAvailableProfiles] = useState<Profile[]>([]);
-  const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
+  // Sub-Tab state: 'mods' | 'parameters' | 'all-presets' | 'details'
+  const [activeTab, setActiveTab] = useState<'mods' | 'parameters' | 'all-presets' | 'details'>('mods');
+  const [presetSearchFilter, setPresetSearchFilter] = useState('');
+  const [isActionsOpen, setIsActionsOpen] = useState(false);
+  const actionsMenuRef = React.useRef<HTMLDivElement | null>(null);
 
-  // Advanced section accordion
-  const [isAdvancedOpen, setIsAdvancedOpen] = useState(
-    Boolean(profile.workingDir || (profile.arguments && profile.arguments.length > 0))
-  );
-
-  // Mod selection modal
+  useEffect(() => {
+    const handleOutside = (e: MouseEvent) => {
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target as Node)) {
+        setIsActionsOpen(false);
+      }
+    };
+    if (isActionsOpen) {
+      document.addEventListener('mousedown', handleOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+    };
+  }, [isActionsOpen]);
+  // Modals state
   const [isSelectModsOpen, setIsSelectModsOpen] = useState(false);
   const [isDmFlagsOpen, setIsDmFlagsOpen] = useState(false);
+  const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+  const [renameName, setRenameName] = useState(profile.name);
+  const [isRenaming, setIsRenaming] = useState(false);
+
   // Validation state
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [isValidating, setIsValidating] = useState(false);
@@ -96,26 +123,10 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  // Fetch available profiles for parent mixin dropdown
-  const loadProfiles = useCallback(async () => {
-    setIsLoadingProfiles(true);
-    try {
-      const list = await api.listProfiles();
-      setAvailableProfiles(list || []);
-    } catch (err) {
-      console.error('Failed to load profiles for base mixin selector:', err);
-    } finally {
-      setIsLoadingProfiles(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadProfiles();
-  }, [loadProfiles]);
-
   // Update local state when incoming profile prop changes
   useEffect(() => {
     setName(profile.name);
+    setRenameName(profile.name);
     setDescription(profile.description || '');
     setEngineId(profile.engineId || '');
     setIwadId(profile.iwadId || '');
@@ -141,19 +152,18 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
 
   // Eligible parent profiles (exclude self to prevent cyclic dependency)
   const eligibleParentProfiles = useMemo(() => {
-    return availableProfiles.filter((p) => p.id !== profile.id);
-  }, [availableProfiles, profile.id]);
+    return profiles.filter((p) => p.id !== profile.id);
+  }, [profiles, profile.id]);
 
   // Currently selected parent profile object
   const selectedParentProfile = useMemo(() => {
     if (!parentProfileId) return null;
-    return availableProfiles.find((p) => p.id === parentProfileId) || null;
-  }, [availableProfiles, parentProfileId]);
+    return profiles.find((p) => p.id === parentProfileId) || null;
+  }, [profiles, parentProfileId]);
 
   // Split arguments into tokens for visual badge display
   const parsedArguments = useMemo(() => {
     if (!argumentsText.trim()) return [];
-    // Match tokens respecting quotes or spaces
     const regex = /[^\s"']+|"([^"]*)"|'([^']*)'/g;
     const tokens: string[] = [];
     let match;
@@ -182,68 +192,46 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
     runValidation();
   }, [
     profile.id,
-    profile.mods,
     profile.engineId,
     profile.iwadId,
+    profile.mods,
     profile.parentProfileId,
-    profile.parent_profile_id,
     runValidation,
   ]);
 
-  // Save changes to profile
-  const handleSave = async (overrides?: Partial<Profile>) => {
-    const selectedEngine = engines.find((e) => e.id === (overrides?.engineId ?? engineId));
-    const selectedIWAD = iwads.find((w) => w.id === (overrides?.iwadId ?? iwadId));
-
-    const nextParentProfileId =
-      overrides?.parentProfileId !== undefined
-        ? overrides.parentProfileId
-        : overrides?.parent_profile_id !== undefined
-        ? overrides.parent_profile_id
-        : parentProfileId;
-
-    const nextIsolateSaves =
-      overrides?.isolateSaves !== undefined
-        ? overrides.isolateSaves
-        : overrides?.isolate_saves !== undefined
-        ? overrides.isolate_saves
-        : isolateSaves;
-
-    const updated: Profile = {
+  // Unified save handler
+  const handleSave = async (overrideData?: Partial<Profile>) => {
+    setIsSaving(true);
+    const updatedProfile: Profile = {
       ...profile,
-      name: overrides?.name ?? name,
-      description: overrides?.description ?? description,
-      engineId: overrides?.engineId ?? engineId,
-      engineName: selectedEngine?.name ?? '',
-      iwadId: overrides?.iwadId ?? iwadId,
-      iwadName: selectedIWAD?.name ?? '',
-      parentProfileId: nextParentProfileId,
-      parent_profile_id: nextParentProfileId,
-      isolateSaves: nextIsolateSaves,
-      isolate_saves: nextIsolateSaves,
-      mods: overrides?.mods ?? mods,
-      arguments: overrides?.arguments ?? parsedArguments,
-      workingDir: overrides?.workingDir ?? workingDir,
-      isFavorite: overrides?.isFavorite ?? isFavorite,
-      updatedAt: new Date().toISOString(),
+      name: name.trim() || 'Untitled Preset',
+      description: description.trim(),
+      engineId,
+      engineName: engines.find((e) => e.id === engineId)?.name || '',
+      iwadId,
+      iwadName: iwads.find((w) => w.id === iwadId)?.name || '',
+      parentProfileId: parentProfileId || undefined,
+      isolateSaves,
+      mods,
+      arguments: parsedArguments,
+      workingDir: workingDir.trim(),
+      isFavorite,
+      ...overrideData,
     };
 
-    setIsSaving(true);
     try {
-      await api.updateProfile(updated);
-      onProfileChange(updated);
+      await api.updateProfile(updatedProfile);
       setHasUnsavedChanges(false);
-      // Re-validate saved profile
-      await runValidation();
+      onProfileChange(updatedProfile);
+      runValidation();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to save profile';
+      const msg = err instanceof Error ? err.message : 'Failed to save preset';
       toast.error('Save Error', msg);
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Field change handlers with dirty detection
   const handleNameChange = (val: string) => {
     setName(val);
     setHasUnsavedChanges(true);
@@ -268,24 +256,18 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
 
   const handleParentProfileSelect = (newParentId: string) => {
     setParentProfileId(newParentId);
-    handleSave({
-      parentProfileId: newParentId,
-      parent_profile_id: newParentId,
-    });
+    handleSave({ parentProfileId: newParentId });
   };
 
   const handleToggleIsolateSaves = (checked: boolean) => {
     setIsolateSaves(checked);
-    handleSave({
-      isolateSaves: checked,
-      isolate_saves: checked,
-    });
+    handleSave({ isolateSaves: checked });
   };
 
   const handleOpenSaveFolder = async () => {
     try {
       await api.openProfileSaveFolder(profile.id);
-      toast.info('Save Folder', 'Opened profile saves folder in file explorer');
+      toast.info('Save Folder', 'Opened preset saves folder in file explorer');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to open save folder';
       toast.error('Save Folder Error', msg);
@@ -298,7 +280,6 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
     try {
       await api.toggleProfileFavorite(profile.id);
       onProfileChange({ ...profile, isFavorite: next });
-      toast.info(next ? 'Added to favorites' : 'Removed from favorites');
     } catch (err) {
       console.error('Failed to toggle favorite:', err);
     }
@@ -322,15 +303,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   const handleToggleMod = (modId: string, enabled: boolean) => {
     const updated = mods.map((m) => (m.modId === modId ? { ...m, enabled } : m));
     setMods(updated);
-    api
-      .toggleProfileMod(profile.id, modId, enabled)
-      .then(() => {
-        handleSave({ mods: updated });
-      })
-      .catch((err) => {
-        console.error('Failed to toggle mod:', err);
-        handleSave({ mods: updated });
-      });
+    handleSave({ mods: updated });
   };
 
   const handleRemoveMod = (modId: string) => {
@@ -338,48 +311,7 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
       .filter((m) => m.modId !== modId)
       .map((m, idx) => ({ ...m, order: idx }));
     setMods(updated);
-    api
-      .removeModFromProfile(profile.id, modId)
-      .then(() => {
-        handleSave({ mods: updated });
-        toast.info('Mod removed from load order');
-      })
-      .catch((err) => {
-        console.error('Failed to remove mod:', err);
-        handleSave({ mods: updated });
-      });
-  };
-
-  const handleAddMods = async (selectedMods: Mod[]) => {
-    const startIndex = mods.length;
-    const newProfileMods: ProfileMod[] = selectedMods.map((m, idx) => ({
-      id: `${profile.id}-${m.id}`,
-      profileId: profile.id,
-      modId: m.id,
-      modName: m.name,
-      modPath: m.path,
-      modFormat: m.format,
-      enabled: true,
-      order: startIndex + idx,
-    }));
-
-    const combined = [...mods, ...newProfileMods];
-    setMods(combined);
-
-    // Call backend for each mod added
-    try {
-      for (const m of selectedMods) {
-        await api.addModToProfile(profile.id, m.id);
-      }
-      await handleSave({ mods: combined });
-      toast.success(
-        'Mods Added',
-        `Added ${selectedMods.length} mod(s) to ${profile.name}`
-      );
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to add mods';
-      toast.error('Add Mods Error', msg);
-    }
+    handleSave({ mods: updated });
   };
 
   const handleToggleAllMods = (enabled: boolean) => {
@@ -391,37 +323,35 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   const handleClearAllMods = () => {
     setMods([]);
     handleSave({ mods: [] });
-    toast.info('Cleared all mods from profile');
   };
 
-  const handleApplyDmFlags = (newTokens: string[]) => {
-    const currentTokens = argumentsText.trim() ? argumentsText.trim().split(/\s+/) : [];
-    const filtered: string[] = [];
-    for (let i = 0; i < currentTokens.length; i++) {
-      const tok = currentTokens[i];
-      if (tok === '+set' && i + 1 < currentTokens.length) {
-        const next = currentTokens[i + 1].toLowerCase();
-        if (['dmflags', 'dmflags2', 'compatflags', 'compatflags2'].includes(next)) {
-          i += 2;
-          continue;
-        }
-      }
-      filtered.push(tok);
-    }
-    const combinedTokens = [...filtered, ...newTokens];
-    const combinedStr = combinedTokens.join(' ');
-    setArgumentsText(combinedStr);
-    handleSave({ arguments: combinedTokens });
-    toast.success('Flags Applied', 'Updated profile custom launch arguments');
+  const handleAddMods = (selectedMods: Mod[]) => {
+    const currentMaxOrder = mods.length;
+    const newProfileMods: ProfileMod[] = selectedMods.map((sm, idx) => ({
+      id: `${profile.id}-${sm.id}-${Date.now()}-${idx}`,
+      profileId: profile.id,
+      modId: sm.id,
+      modName: sm.name,
+      modFormat: sm.format,
+      modPath: sm.path,
+      order: currentMaxOrder + idx,
+      enabled: true,
+    }));
+    const updated = [...mods, ...newProfileMods];
+    setMods(updated);
+    handleSave({ mods: updated });
+    setIsSelectModsOpen(false);
+  };
+
+  const handleApplyDmFlags = (newArgs: string[]) => {
+    setArgumentsText(newArgs.join(' '));
+    handleSave({ arguments: newArgs });
   };
 
   // Browse Directory for Working Dir
   const handleBrowseWorkingDir = async () => {
     try {
-      const selected = await api.openDirectoryDialog(
-        'Select Working Directory',
-        workingDir
-      );
+      const selected = await api.openDirectoryDialog('Select Working Directory', workingDir);
       if (selected) {
         setWorkingDir(selected);
         handleSave({ workingDir: selected });
@@ -435,15 +365,43 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   const handleExportYAML = async () => {
     try {
       const yamlStr = await api.exportProfileYAML(profile.id);
-      // Copy to clipboard
       await navigator.clipboard.writeText(yamlStr);
-      toast.success(
-        'YAML Exported',
-        'Profile specification copied to clipboard!'
-      );
+      toast.success('YAML Exported', 'Preset specification copied to clipboard');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Export failed';
       toast.error('Export Failed', msg);
+    }
+  };
+
+  // Rename Profile
+  const handleOpenRename = () => {
+    setRenameName(profile.name);
+    setIsRenameModalOpen(true);
+  };
+
+  const handleConfirmRename = async () => {
+    const trimmed = renameName.trim();
+    if (!trimmed || trimmed === profile.name) {
+      setIsRenameModalOpen(false);
+      return;
+    }
+    setIsRenaming(true);
+    try {
+      const updated: Profile = {
+        ...profile,
+        name: trimmed,
+      };
+      await api.updateProfile(updated);
+      setName(trimmed);
+      setHasUnsavedChanges(false);
+      onProfileChange(updated);
+      toast.success('Preset Renamed', `Renamed to "${trimmed}"`);
+      setIsRenameModalOpen(false);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to rename preset';
+      toast.error('Rename Failed', msg);
+    } finally {
+      setIsRenaming(false);
     }
   };
 
@@ -451,9 +409,9 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   const handleDuplicate = async () => {
     try {
       const newName = `${profile.name} (Copy)`;
-      const duplicated = await api.duplicateProfile(profile.id, newName);
-      toast.success('Profile Duplicated', `Created "${newName}"`);
-      onProfileDuplicated(duplicated);
+      const dup = await api.duplicateProfile(profile.id, newName);
+      toast.success('Preset Duplicated', `Created "${dup.name}"`);
+      onProfileDuplicated(dup);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Duplicate failed';
       toast.error('Duplicate Failed', msg);
@@ -461,30 +419,25 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   };
 
   // Delete Profile
-  const handleDelete = async () => {
-    if (
-      window.confirm(
-        `Are you sure you want to delete profile "${profile.name}"? This action cannot be undone.`
-      )
-    ) {
-      try {
-        await api.deleteProfile(profile.id);
-        toast.info('Profile Deleted', `Deleted "${profile.name}"`);
-        onProfileDeleted(profile.id);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Delete failed';
-        toast.error('Delete Failed', msg);
-      }
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const handleDelete = () => {
+    setShowDeleteConfirm(true);
+  };
+  const handleConfirmDelete = async () => {
+    setShowDeleteConfirm(false);
+    try {
+      await api.deleteProfile(profile.id);
+      toast.info('Preset Deleted', `Deleted "${profile.name}"`);
+      onProfileDeleted(profile.id);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Delete failed';
+      toast.error('Delete Failed', msg);
     }
   };
-
   // Launch Game Execution
   const handleLaunch = async () => {
     if (validation?.status === 'CANNOT_LAUNCH') {
-      toast.error(
-        'Cannot Launch',
-        'Please resolve pre-launch validation errors before launching.'
-      );
+      toast.error('Cannot Launch', 'Please resolve pre-launch validation errors before launching.');
       return;
     }
 
@@ -498,13 +451,10 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
           `Session finished successfully (${Math.round((record.durationMs || 0) / 1000)}s).`
         );
       } else {
-        toast.warning(
-          'Game Exited',
-          `Process exited with code ${record.exitCode ?? 0}`
-        );
+        toast.warning('Game Exited', `Process exited with code ${record.exitCode ?? 0}`);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to launch profile';
+      const msg = err instanceof Error ? err.message : 'Failed to launch preset';
       toast.error('Launch Failed', msg);
     } finally {
       setIsLaunching(false);
@@ -514,516 +464,426 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   const selectedEngineObj = engines.find((e) => e.id === engineId);
   const selectedIWADObj = iwads.find((w) => w.id === iwadId);
 
+  // Status chip renderer
+  const renderReadinessStatus = () => {
+    if (isValidating) {
+      return (
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-medium bg-[#14171c] border border-[#22262d] text-zinc-400 select-none">
+          <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-pulse" />
+          <span>Checking</span>
+        </div>
+      );
+    }
+
+    if (!validation || validation.status === 'READY') {
+      return (
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-medium bg-emerald-950/40 border border-emerald-800/40 text-emerald-400 select-none">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+          <span>Ready to Play</span>
+        </div>
+      );
+    }
+
+    if (validation.status === 'READY_WITH_WARNINGS') {
+      return (
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-medium bg-amber-950/40 border border-amber-800/40 text-amber-400 select-none">
+          <span className="text-[10px] leading-none">▲</span>
+          <span>Warnings</span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-medium bg-red-950/40 border border-red-800/40 text-red-400 select-none">
+        <span className="text-[10px] leading-none">✖</span>
+        <span>Cannot Launch</span>
+      </div>
+    );
+  };
+
+  const hasConfiguredOptions = Boolean(
+    workingDir ||
+    (parsedArguments && parsedArguments.length > 0) ||
+    isolateSaves ||
+    parentProfileId
+  );
+
+  // Filtered profiles for "All Presets" tab
+  const filteredAllProfiles = useMemo(() => {
+    if (!presetSearchFilter.trim()) return profiles;
+    const q = presetSearchFilter.toLowerCase();
+    return profiles.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        (p.engineName && p.engineName.toLowerCase().includes(q)) ||
+        (p.iwadName && p.iwadName.toLowerCase().includes(q))
+    );
+  }, [profiles, presetSearchFilter]);
+
   return (
-    <div className="flex flex-col h-full overflow-y-auto p-6 gap-6 bg-doom-bg">
-      {/* Top Action Cockpit Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-doom-border">
-        {/* Profile Identity & Title */}
-        <div className="flex items-start gap-3 min-w-0">
+    <div className="flex flex-col h-full w-full overflow-hidden bg-[#0c0e12] select-none text-zinc-100">
+      {/* 1. Streamlined Single Control Deck (44px) */}
+      <div className="px-5 py-2 bg-[#0e0e11] border-b border-[#2d2d34] flex items-center justify-between gap-3 shrink-0 flex-wrap">
+        {/* Left cluster: Preset Picker + Favorite + Inline Port + Inline IWAD + Status */}
+        <div className="flex items-center gap-2 min-w-0 flex-wrap">
+          <div className="flex items-center gap-1.5 bg-[#141418] border border-[#2d2d34] rounded-[8px] px-2.5 py-1 text-xs">
+            <span className="text-[#71717a] font-medium text-[11px]">Preset:</span>
+            <select
+              value={profile.id}
+              onChange={(e) => onSelectProfile(e.target.value)}
+              aria-label="Select active preset"
+              className="bg-transparent text-[#f4f4f5] font-medium cursor-pointer focus:outline-none max-w-[180px] sm:max-w-[220px] truncate"
+            >
+              {profiles.map((p) => (
+                <option key={p.id} value={p.id} className="bg-[#141418] text-[#f4f4f5]">
+                  {p.isFavorite ? '★ ' : ''}{p.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleOpenRename}
+              className="p-1 rounded-[6px] text-[#71717a] hover:text-[#5e7ce2] hover:bg-white/[0.04] transition-colors shrink-0"
+              title={`Rename "${profile.name}"`}
+            >
+              <Edit2 className="w-3 h-3" />
+            </button>
+          </div>
+
           <button
             type="button"
             onClick={handleFavoriteToggle}
-            className="p-1 rounded text-zinc-600 hover:text-amber-400 focus:outline-none transition-colors mt-1"
+            className="p-1 rounded-[6px] text-[#71717a] hover:text-amber-400 hover:bg-white/[0.04] transition-colors shrink-0"
             title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
           >
-            <Star
-              className={clsx(
-                'w-6 h-6 transition-all',
-                isFavorite
-                  ? 'text-amber-400 fill-amber-400 scale-110 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]'
-                  : 'hover:scale-105'
-              )}
-            />
+            <Star className={clsx('w-3.5 h-3.5', isFavorite ? 'fill-amber-400 text-amber-400' : 'text-[#71717a]')} />
           </button>
 
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-3">
-              <input
+          <div className="h-4 w-px bg-[#2d2d34] mx-0.5" />
+
+          <div className="flex items-center gap-1.5 bg-[#141418] border border-[#2d2d34] px-2.5 py-1 rounded-[8px] text-xs">
+            <Cpu className="w-3.5 h-3.5 text-[#71717a] shrink-0" />
+            <span className="text-[#71717a] font-medium text-[11px]">Port:</span>
+            <select
+              value={engineId}
+              onChange={(e) => handleEngineSelect(e.target.value)}
+              aria-label="Select Source Port"
+              className="bg-transparent text-[#f4f4f5] text-xs font-medium cursor-pointer focus:outline-none max-w-[130px] truncate"
+            >
+              <option value="">-- Port --</option>
+              {engines.map((eng) => (
+                <option key={eng.id} value={eng.id} className="bg-[#141418] text-[#f4f4f5]">
+                  {eng.name} {eng.version ? `v${eng.version}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-1.5 bg-[#141418] border border-[#2d2d34] px-2.5 py-1 rounded-[8px] text-xs">
+            <Disc className="w-3.5 h-3.5 text-[#71717a] shrink-0" />
+            <span className="text-[#71717a] font-medium text-[11px]">IWAD:</span>
+            <select
+              value={iwadId}
+              onChange={(e) => handleIWADSelect(e.target.value)}
+              aria-label="Select Base IWAD"
+              className="bg-transparent text-[#f4f4f5] text-xs font-medium cursor-pointer focus:outline-none max-w-[130px] truncate"
+            >
+              <option value="">-- IWAD --</option>
+              {iwads.map((iwad) => (
+                <option key={iwad.id} value={iwad.id} className="bg-[#141418] text-[#f4f4f5]">
+                  {iwad.name} ({iwad.type.toUpperCase()})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {renderReadinessStatus()}
+
+          {hasUnsavedChanges && (
+            <button
+              type="button"
+              onClick={() => handleSave()}
+              disabled={isSaving}
+              className="text-[11px] text-[#5e7ce2] hover:underline font-medium px-2 py-0.5 rounded bg-[rgba(94,124,226,0.1)] border border-[#5e7ce2]/30 transition-colors"
+            >
+              Save
+            </button>
+          )}
+        </div>
+
+        {/* Right cluster: + New, Import, Overflow Menu [⋯] */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {onCreateProfileClick && (
+            <button
+              type="button"
+              onClick={onCreateProfileClick}
+              className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-[8px] bg-[#141418] hover:bg-[#1a1a20] border border-[#2d2d34] text-[#f4f4f5] transition-colors"
+              title="Create a new setup"
+            >
+              <Plus className="w-3.5 h-3.5 text-[#5e7ce2]" />
+              <span>New</span>
+            </button>
+          )}
+
+          {onImportClick && (
+            <button
+              type="button"
+              onClick={onImportClick}
+              className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-[8px] bg-[#141418] hover:bg-[#1a1a20] border border-[#2d2d34] text-[#a1a1aa] hover:text-[#f4f4f5] transition-colors"
+              title="Import YAML or .zdl preset"
+            >
+              <FileUp className="w-3.5 h-3.5" />
+              <span>Import</span>
+            </button>
+          )}
+
+          {/* Launch Play Action */}
+          <button
+            type="button"
+            onClick={handleLaunch}
+            disabled={isLaunching || validation?.status === 'CANNOT_LAUNCH'}
+            className={clsx(
+              'h-7 px-3.5 font-[600] text-xs uppercase tracking-wider rounded-[8px] transition-colors flex items-center gap-1.5 text-[#09090b] select-none',
+              validation?.status === 'CANNOT_LAUNCH'
+                ? 'bg-[#141418] text-[#71717a] cursor-not-allowed border border-[#2d2d34]'
+                : 'bg-[#5e7ce2] hover:bg-[#4d6bd4] active:bg-[#435ec0] shadow-sm'
+            )}
+          >
+            {isLaunching ? (
+              <>
+                <RotateCw className="w-3 h-3 animate-spin text-current" />
+                <span>Starting...</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-3 h-3 fill-current" />
+                <span>Play</span>
+              </>
+            )}
+          </button>
+
+          {/* Overflow Menu for secondary actions (Validate, Export, Duplicate, Delete) */}
+          <div className="relative" ref={actionsMenuRef}>
+            <button
+              type="button"
+              onClick={() => setIsActionsOpen(!isActionsOpen)}
+              className="p-1.5 rounded-[8px] bg-[#141418] hover:bg-[#1a1a20] border border-[#2d2d34] text-[#a1a1aa] hover:text-[#f4f4f5] transition-colors"
+              title="Preset actions"
+            >
+              <MoreHorizontal className="w-3.5 h-3.5" />
+            </button>
+            {isActionsOpen && (
+              <div className="absolute right-0 top-full mt-1 w-44 rounded-[8px] bg-[#0c0c0f] border border-[#2d2d34] shadow-xl py-1 z-30 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsActionsOpen(false);
+                    runValidation();
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.05)] flex items-center gap-2"
+                >
+                  <RotateCw className={clsx('w-3.5 h-3.5 text-[#71717a]', isValidating && 'animate-spin')} />
+                  <span>Validate Setup</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsActionsOpen(false);
+                    handleExportYAML();
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.05)] flex items-center gap-2"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#71717a]" />
+                  <span>Export YAML</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsActionsOpen(false);
+                    handleOpenRename();
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.05)] flex items-center gap-2"
+                >
+                  <Edit2 className="w-3.5 h-3.5 text-[#71717a]" />
+                  <span>Rename Preset</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsActionsOpen(false);
+                    handleDuplicate();
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.05)] flex items-center gap-2"
+                >
+                  <Copy className="w-3.5 h-3.5 text-[#71717a]" />
+                  <span>Duplicate Preset</span>
+                </button>
+                <div className="my-1 border-t border-[#2d2d34]" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsActionsOpen(false);
+                    handleDelete();
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-red-400 hover:bg-red-950/30 flex items-center gap-2"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Preset</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Sub-Tab Navigation Bar with Inline Mod Count & Path Hint (36px) */}
+      <div className="h-9 px-5 bg-[#09090b] border-b border-[#2d2d34] flex items-center justify-between gap-3 shrink-0">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab('mods')}
+            className={clsx(
+              'px-2.5 py-1 text-xs font-medium rounded-[6px] transition-colors flex items-center gap-1.5',
+              activeTab === 'mods'
+                ? 'bg-[rgba(244,244,245,0.08)] text-[#f4f4f5]'
+                : 'text-[#71717a] hover:text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.03)]'
+            )}
+          >
+            <Layers className="w-3.5 h-3.5 text-[#71717a]" />
+            <span>Mod Load Order</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[rgba(244,244,245,0.05)] text-[#a1a1aa]">
+              {mods.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('parameters')}
+            className={clsx(
+              'px-2.5 py-1 text-xs font-medium rounded-[6px] transition-colors flex items-center gap-1.5',
+              activeTab === 'parameters'
+                ? 'bg-[rgba(244,244,245,0.08)] text-[#f4f4f5]'
+                : 'text-[#71717a] hover:text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.03)]'
+            )}
+          >
+            <Sliders className="w-3.5 h-3.5 text-[#71717a]" />
+            <span>Launch Parameters</span>
+            {hasConfiguredOptions && (
+              <span className="w-1.5 h-1.5 rounded-full bg-[#5e7ce2]" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('all-presets')}
+            className={clsx(
+              'px-2.5 py-1 text-xs font-medium rounded-[6px] transition-colors flex items-center gap-1.5',
+              activeTab === 'all-presets'
+                ? 'bg-[rgba(244,244,245,0.08)] text-[#f4f4f5]'
+                : 'text-[#71717a] hover:text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.03)]'
+            )}
+          >
+            <LayoutGrid className="w-3.5 h-3.5 text-[#71717a]" />
+            <span>All Presets</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[rgba(244,244,245,0.05)] text-[#a1a1aa]">
+              {profiles.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('details')}
+            className={clsx(
+              'px-2.5 py-1 text-xs font-medium rounded-[6px] transition-colors flex items-center gap-1.5',
+              activeTab === 'details'
+                ? 'bg-[rgba(244,244,245,0.08)] text-[#f4f4f5]'
+                : 'text-[#71717a] hover:text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.03)]'
+            )}
+          >
+            <FileText className="w-3.5 h-3.5 text-[#71717a]" />
+            <span>Details & Notes</span>
+          </button>
+        </div>
+
+        {/* Subtle Path hint on right */}
+        <div className="hidden xl:flex items-center gap-2 text-[11px] font-mono text-[#71717a] truncate max-w-sm">
+          {selectedEngineObj && <span className="truncate">{selectedEngineObj.name}</span>}
+          {selectedEngineObj && selectedIWADObj && <span>•</span>}
+          {selectedIWADObj && <span className="truncate">{selectedIWADObj.name}</span>}
+        </div>
+      </div>
+
+      {/* 3. Main Full-Width Tab Content Viewport */}
+      <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+        {/* TAB 1: MOD LOAD ORDER (100% Full Screen Width & Height!) */}
+        {activeTab === 'mods' && (
+          <div className="flex-1 flex flex-col min-h-0 p-6 overflow-hidden gap-3">
+            {/* Parent Profile Inheritance Notice */}
+            {selectedParentProfile && (
+              <div className="p-2.5 rounded-md bg-[#101826] border border-blue-900/40 flex items-center justify-between gap-3 text-blue-300 text-xs shrink-0">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-blue-400 shrink-0" />
+                  <span>
+                    Base Mixin Active: <strong>{selectedParentProfile.name}</strong> (Inheriting {selectedParentProfile.mods?.length || 0} mod(s) from parent)
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-950/60 border border-blue-800/40 text-blue-300">
+                  INHERITED
+                </span>
+              </div>
+            )}
+
+            <LoadOrderList
+              mods={mods}
+              onReorder={handleModsReorder}
+              onToggle={handleToggleMod}
+              onRemove={handleRemoveMod}
+              onAddModsClick={() => setIsSelectModsOpen(true)}
+              onToggleAll={handleToggleAllMods}
+              onClearAll={handleClearAllMods}
+            />
+          </div>
+        )}
+
+        {/* TAB 2: LAUNCH PARAMETERS & ISOLATION */}
+        {activeTab === 'parameters' && (
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 max-w-3xl">
+            {/* Preset Name Edit */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-zinc-200 uppercase tracking-wider block">
+                Preset Name
+              </label>
+              <Input
                 type="text"
                 value={name}
                 onChange={(e) => handleNameChange(e.target.value)}
                 onBlur={() => hasUnsavedChanges && handleSave()}
-                placeholder="Profile Name"
-                className="text-2xl font-extrabold tracking-wide text-doom-text bg-transparent border-b border-transparent hover:border-doom-border focus:border-doom-red focus:outline-none transition-colors px-1 py-0.5 max-w-lg"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.currentTarget.blur();
+                    if (hasUnsavedChanges) handleSave();
+                  }
+                }}
+                placeholder="Preset Name"
+                className="bg-[#14171c] border-[#22262d] text-zinc-100"
               />
-              {hasUnsavedChanges && (
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => handleSave()}
-                  isLoading={isSaving}
-                  leftIcon={<Save className="w-3.5 h-3.5 text-amber-400" />}
-                  className="text-amber-400 hover:bg-amber-950/30"
-                >
-                  Save
-                </Button>
-              )}
-            </div>
-            <input
-              type="text"
-              value={description}
-              onChange={(e) => handleDescriptionChange(e.target.value)}
-              onBlur={() => hasUnsavedChanges && handleSave()}
-              placeholder="Add profile description or notes..."
-              className="text-xs text-doom-muted bg-transparent border-b border-transparent hover:border-doom-border focus:border-doom-red focus:outline-none transition-colors px-1 py-0.5 w-full max-w-xl mt-0.5 placeholder-zinc-700"
-            />
-          </div>
-        </div>
-
-        {/* Primary Action Toolbar */}
-        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-          {/* Validate Button */}
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={runValidation}
-            isLoading={isValidating}
-            leftIcon={<CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-          >
-            Validate
-          </Button>
-
-          {/* Export YAML */}
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={handleExportYAML}
-            leftIcon={<Download className="w-4 h-4 text-doom-muted" />}
-            title="Export profile as YAML specification"
-          >
-            Export YAML
-          </Button>
-
-          {/* Duplicate Profile */}
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={handleDuplicate}
-            leftIcon={<Copy className="w-4 h-4 text-doom-muted" />}
-            title="Duplicate profile"
-          >
-            Duplicate
-          </Button>
-
-          {/* Delete Profile */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleDelete}
-            title="Delete profile"
-            className="text-doom-muted hover:text-red-400 hover:bg-red-950/30"
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
-
-          {/* Prominent Blood Red PLAY Launch Button */}
-          <Button
-            variant={
-              validation?.status === 'CANNOT_LAUNCH'
-                ? 'secondary'
-                : validation?.status === 'READY_WITH_WARNINGS'
-                ? 'primary'
-                : 'primary'
-            }
-            size="lg"
-            onClick={handleLaunch}
-            disabled={isLaunching || validation?.status === 'CANNOT_LAUNCH'}
-            isLoading={isLaunching}
-            leftIcon={
-              !isLaunching && (
-                <Play className="w-5 h-5 fill-current transition-transform group-hover:scale-110" />
-              )
-            }
-            className={clsx(
-              'px-6 font-bold uppercase tracking-wider text-base shadow-xl transition-all',
-              validation?.status === 'CANNOT_LAUNCH'
-                ? 'opacity-40 cursor-not-allowed border-zinc-700 bg-zinc-900 text-zinc-500'
-                : validation?.status === 'READY_WITH_WARNINGS'
-                ? 'bg-gradient-to-r from-amber-700 via-red-600 to-doom-red hover:from-amber-600 hover:to-red-500 text-white shadow-amber-950/50'
-                : 'bg-gradient-to-r from-red-800 via-doom-red to-red-600 hover:from-red-700 hover:to-red-500 text-white shadow-red-950/60 ring-1 ring-red-500/50'
-            )}
-          >
-            {isLaunching
-              ? 'RUNNING...'
-              : validation?.status === 'CANNOT_LAUNCH'
-              ? 'CANNOT LAUNCH'
-              : validation?.status === 'READY_WITH_WARNINGS'
-              ? 'PLAY ANYWAY'
-              : 'PLAY'}
-          </Button>
-        </div>
-      </div>
-
-      {/* Validation Status Banner */}
-      <ValidationBanner
-        validation={validation}
-        isValidating={isValidating}
-        onValidate={runValidation}
-      />
-
-      {/* Core Setup Grid: Source Port Engine & Base Game IWAD */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Engine Selector Card */}
-        <div className="p-4 rounded-lg border border-doom-border bg-doom-card flex flex-col gap-3 shadow-sm">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-bold uppercase tracking-wider text-doom-text flex items-center gap-2">
-              <Cpu className="w-4 h-4 text-doom-red" />
-              Source Port Engine
-            </label>
-            {selectedEngineObj && (
-              <Badge variant="cyan" size="xs">
-                {selectedEngineObj.family}
-              </Badge>
-            )}
-          </div>
-
-          <select
-            value={engineId}
-            onChange={(e) => handleEngineSelect(e.target.value)}
-            className="w-full bg-doom-surface border border-doom-border rounded px-3 py-2.5 text-sm text-doom-text focus:outline-none focus:ring-1 focus:ring-doom-red focus:border-doom-red font-medium"
-          >
-            <option value="">-- Select Doom Engine --</option>
-            {engines.map((eng) => (
-              <option key={eng.id} value={eng.id}>
-                {eng.name} {eng.version ? `(${eng.version})` : ''} - [{eng.family}]
-              </option>
-            ))}
-          </select>
-
-          {selectedEngineObj ? (
-            <div className="flex flex-col gap-1 text-xs text-doom-muted font-mono bg-doom-surface/60 p-2.5 rounded border border-doom-border/60">
-              <div className="flex items-center justify-between">
-                <span className="text-doom-text font-semibold">{selectedEngineObj.name}</span>
-                {selectedEngineObj.version && (
-                  <span className="text-[11px] text-zinc-400">v{selectedEngineObj.version}</span>
-                )}
-              </div>
-              <span className="truncate text-[11px] text-zinc-500" title={selectedEngineObj.executable}>
-                {selectedEngineObj.executable}
-              </span>
-            </div>
-          ) : (
-            <div className="text-xs text-amber-400/90 flex items-center gap-1.5 p-2 rounded bg-amber-950/20 border border-amber-800/40">
-              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-              <span>No engine selected. Game cannot launch without a source port.</span>
-            </div>
-          )}
-        </div>
-
-        {/* IWAD Selector Card */}
-        <div className="p-4 rounded-lg border border-doom-border bg-doom-card flex flex-col gap-3 shadow-sm">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-bold uppercase tracking-wider text-doom-text flex items-center gap-2">
-              <Disc className="w-4 h-4 text-doom-red" />
-              Base Game IWAD
-            </label>
-            {selectedIWADObj && (
-              <Badge variant="blue" size="xs">
-                {selectedIWADObj.type}
-              </Badge>
-            )}
-          </div>
-
-          <select
-            value={iwadId}
-            onChange={(e) => handleIWADSelect(e.target.value)}
-            className="w-full bg-doom-surface border border-doom-border rounded px-3 py-2.5 text-sm text-doom-text focus:outline-none focus:ring-1 focus:ring-doom-red focus:border-doom-red font-medium"
-          >
-            <option value="">-- Select Game IWAD --</option>
-            {iwads.map((iwad) => (
-              <option key={iwad.id} value={iwad.id}>
-                {iwad.name} ({iwad.type.toUpperCase()}) - {iwad.lumpCount} lumps
-              </option>
-            ))}
-          </select>
-
-          {selectedIWADObj ? (
-            <div className="flex flex-col gap-1 text-xs text-doom-muted font-mono bg-doom-surface/60 p-2.5 rounded border border-doom-border/60">
-              <div className="flex items-center justify-between">
-                <span className="text-doom-text font-semibold">{selectedIWADObj.name}</span>
-                <span className="text-[11px] text-zinc-400">{selectedIWADObj.lumpCount} lumps</span>
-              </div>
-              <span className="truncate text-[11px] text-zinc-500" title={selectedIWADObj.path}>
-                {selectedIWADObj.path}
-              </span>
-            </div>
-          ) : (
-            <div className="text-xs text-amber-400/90 flex items-center gap-1.5 p-2 rounded bg-amber-950/20 border border-amber-800/40">
-              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-              <span>No IWAD selected. Game requires DOOM2.WAD, DOOM.WAD, or compatible IWAD.</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Profile Configuration Card: Base Mixin / Parent Profile & Savegame Isolation */}
-      <div className="p-4 rounded-lg border border-doom-border bg-doom-card flex flex-col gap-4 shadow-sm">
-        <div className="flex items-center justify-between border-b border-doom-border/60 pb-2.5">
-          <div className="flex items-center gap-2">
-            <Sliders className="w-4 h-4 text-doom-red" />
-            <span className="text-xs font-bold uppercase tracking-wider text-doom-text">
-              Profile Configuration
-            </span>
-          </div>
-          {isolateSaves && (
-            <Badge variant="amber" size="xs">
-              ISOLATED SAVES
-            </Badge>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Base Mixin / Parent Profile Selector */}
-          <div className="flex flex-col gap-2.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold uppercase tracking-wider text-doom-text flex items-center gap-2">
-                <Layers className="w-4 h-4 text-doom-red" />
-                Base Mixin / Parent Profile
-              </label>
-              {selectedParentProfile && (
-                <Badge variant="cyan" size="xs">
-                  INHERITING
-                </Badge>
-              )}
             </div>
 
-            <select
-              value={parentProfileId}
-              onChange={(e) => handleParentProfileSelect(e.target.value)}
-              disabled={isLoadingProfiles}
-              className="w-full bg-doom-surface border border-doom-border rounded px-3 py-2.5 text-sm text-doom-text focus:outline-none focus:ring-1 focus:ring-doom-red focus:border-doom-red font-medium disabled:opacity-50"
-            >
-              <option value="">None (Standalone Profile)</option>
-              {eligibleParentProfiles.map((p) => {
-                const modCount = p.mods?.filter((m) => m.enabled).length ?? p.mods?.length ?? 0;
-                return (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({modCount} mod{modCount !== 1 ? 's' : ''})
-                  </option>
-                );
-              })}
-            </select>
-
-            {selectedParentProfile ? (
-              <div className="flex flex-col gap-1 text-xs text-doom-muted font-mono bg-doom-surface/60 p-2.5 rounded border border-doom-border/60">
-                <div className="flex items-center justify-between">
-                  <span className="text-doom-text font-semibold">
-                    Parent: {selectedParentProfile.name}
-                  </span>
-                  <span className="text-[11px] text-cyan-400">
-                    {selectedParentProfile.mods?.filter((m) => m.enabled).length ?? 0} active base mod(s)
-                  </span>
-                </div>
-                <span className="text-[11px] text-zinc-400 truncate">
-                  Inherited mods are loaded automatically before profile-specific mods.
-                </span>
-              </div>
-            ) : (
-              <p className="text-[11px] text-zinc-500">
-                Optionally select a base profile to inherit mods, engines, or gameplay mutators.
-              </p>
-            )}
-          </div>
-
-          {/* Isolated Savegame Management */}
-          <div className="flex flex-col gap-2.5 justify-between">
-            <div>
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold uppercase tracking-wider text-doom-text flex items-center gap-2">
-                  <FolderLock className="w-4 h-4 text-doom-red" />
-                  Save Game Isolation
-                </label>
-              </div>
-
-              <div className="flex items-center justify-between gap-3 mt-2 bg-doom-surface/40 p-3 rounded border border-doom-border/60">
-                <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={isolateSaves}
-                    onChange={(e) => handleToggleIsolateSaves(e.target.checked)}
-                    className="w-4 h-4 rounded border-zinc-700 bg-doom-surface text-doom-red focus:ring-doom-red focus:ring-offset-doom-bg cursor-pointer accent-red-600"
-                  />
-                  <span className="text-sm font-semibold text-doom-text">
-                    Isolate Save Games
-                  </span>
-                </label>
-
-                {isolateSaves && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={handleOpenSaveFolder}
-                    leftIcon={<FolderOpen className="w-3.5 h-3.5 text-amber-400" />}
-                    title="Open profile save directory in file explorer"
-                  >
-                    Open Saves Folder
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            <p className="text-xs text-doom-muted leading-relaxed">
-              Stores savegames in a dedicated folder (data/saves/{profile.id || '&lt;id&gt;'}) preventing state corruption between complex mod configurations.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Mod Load Order Management Section */}
-      <div className="p-4 rounded-lg border border-doom-border bg-doom-card flex flex-col gap-4 shadow-sm">
-        {/* If Parent Profile is selected: Informational Banner */}
-        {selectedParentProfile && (
-          <div className="p-3.5 rounded-md bg-cyan-950/25 border border-cyan-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-cyan-200 shadow-sm">
-            <div className="flex items-start gap-3">
-              <Layers className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
-              <div className="flex flex-col gap-0.5">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-bold uppercase tracking-wider text-cyan-300">
-                    Base Mixin Active: {selectedParentProfile.name}
-                  </span>
-                  <Badge variant="cyan" size="xs">
-                    INHERITED
-                  </Badge>
-                </div>
-                <p className="text-xs text-cyan-200/80">
-                  Inheriting {selectedParentProfile.mods?.length || 0} mod(s) from parent profile. Inherited base mods load first before local profile mods.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <Badge variant="cyan" size="xs">
-                {selectedParentProfile.mods?.filter((m) => m.enabled).length || 0} Active Inherited Mod(s)
-              </Badge>
-            </div>
-          </div>
-        )}
-
-        {/* Distinct Visual Group: Inherited Mods List (if parent profile selected and has mods) */}
-        {selectedParentProfile && selectedParentProfile.mods && selectedParentProfile.mods.length > 0 && (
-          <div className="flex flex-col gap-2 p-3 rounded-md bg-doom-surface/40 border border-cyan-900/30">
-            <div className="flex items-center justify-between pb-1.5 border-b border-doom-border/40">
-              <div className="flex items-center gap-2">
-                <Layers className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="text-xs font-bold uppercase tracking-wider text-cyan-300">
-                  Inherited Base Mods ({selectedParentProfile.mods.length})
-                </span>
-              </div>
-              <span className="text-[11px] font-mono text-zinc-500">
-                Source: {selectedParentProfile.name}
-              </span>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              {selectedParentProfile.mods.map((mod, idx) => (
-                <div
-                  key={mod.id || `inherited-${idx}`}
-                  className="flex items-center gap-3 px-3.5 py-2.5 rounded bg-doom-card/80 border border-cyan-900/30 text-xs"
-                >
-                  <div className="flex items-center justify-center w-5 h-5 rounded bg-cyan-950/40 text-[10px] font-mono font-bold text-cyan-400 shrink-0 border border-cyan-800/40">
-                    B{idx + 1}
-                  </div>
-                  <div className="flex-1 min-w-0 flex items-center gap-2">
-                    <span className="font-semibold text-doom-text truncate" title={mod.modName}>
-                      {mod.modName}
-                    </span>
-                    <Badge variant="cyan" size="xs">
-                      Inherited
-                    </Badge>
-                    <Badge variant={mod.modFormat || 'wad'} size="xs">
-                      {mod.modFormat || 'MOD'}
-                    </Badge>
-                    {!mod.enabled && (
-                      <Badge variant="muted" size="xs">
-                        Disabled in Base
-                      </Badge>
-                    )}
-                  </div>
-                  {mod.modPath && (
-                    <span className="text-[11px] font-mono text-zinc-500 truncate max-w-xs hidden sm:inline" title={mod.modPath}>
-                      {mod.modPath}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Profile Specific Load Order Header when Parent Profile is selected */}
-        {selectedParentProfile && (
-          <div className="flex items-center justify-between pt-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-doom-text flex items-center gap-2">
-              Profile-Specific Mod Load Order
-            </span>
-            <Badge variant="muted" size="xs">
-              {mods.length} Local Mod{mods.length !== 1 ? 's' : ''}
-            </Badge>
-          </div>
-        )}
-
-        <LoadOrderList
-          mods={mods}
-          onReorder={handleModsReorder}
-          onToggle={handleToggleMod}
-          onRemove={handleRemoveMod}
-          onAddModsClick={() => setIsSelectModsOpen(true)}
-          onToggleAll={handleToggleAllMods}
-          onClearAll={handleClearAllMods}
-        />
-      </div>
-
-      {/* Advanced Configuration Accordion */}
-      <div className="rounded-lg border border-doom-border bg-doom-card/50 overflow-hidden shadow-sm">
-        <button
-          type="button"
-          onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
-          className="w-full flex items-center justify-between px-4 py-3 bg-doom-card hover:bg-zinc-800/60 transition-colors text-left"
-        >
-          <div className="flex items-center gap-2">
-            <Terminal className="w-4 h-4 text-doom-muted" />
-            <span className="text-xs font-bold uppercase tracking-wider text-doom-text">
-              Advanced Configuration
-            </span>
-            {(workingDir || parsedArguments.length > 0) && (
-              <Badge variant="muted" size="xs">
-                Configured
-              </Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-2 text-doom-muted">
-            <span className="text-xs">
-              {isAdvancedOpen ? 'Collapse' : 'Expand'}
-            </span>
-            {isAdvancedOpen ? (
-              <ChevronUp className="w-4 h-4" />
-            ) : (
-              <ChevronDown className="w-4 h-4" />
-            )}
-          </div>
-        </button>
-
-        {isAdvancedOpen && (
-          <div className="p-4 border-t border-doom-border flex flex-col gap-4 bg-doom-surface/40 animate-in slide-in-from-top-1 duration-150">
             {/* Custom Launch Arguments */}
-            <div className="flex flex-col gap-1.5">
+            <div className="space-y-2 pt-4 border-t border-[#22262d]">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-doom-text">
-                  Custom Launch Arguments
+                <label className="text-xs font-semibold text-zinc-200 uppercase tracking-wider flex items-center gap-2">
+                  <Terminal className="w-3.5 h-3.5 text-zinc-400" />
+                  <span>Custom Launch Arguments</span>
                 </label>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="secondary"
-                    size="xs"
-                    onClick={() => setIsDmFlagsOpen(true)}
-                    leftIcon={<Sliders className="w-3 h-3 text-cyan-400" />}
-                  >
-                    ZDoom Flag Calculator
-                  </Button>
-                  <span className="text-[11px] font-mono text-doom-muted font-normal">
-                    e.g. -skill 4 -warp MAP01 +sv_cheats 1
-                  </span>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsDmFlagsOpen(true)}
+                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors font-medium flex items-center gap-1"
+                >
+                  <Sliders className="w-3 h-3" />
+                  <span>ZDoom Flag Calculator</span>
+                </button>
               </div>
               <Input
                 type="text"
@@ -1033,18 +893,17 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
                   setHasUnsavedChanges(true);
                 }}
                 onBlur={() => handleSave({ arguments: parsedArguments })}
-                placeholder="-skill 4 -warp 01"
-                leftIcon={<Terminal className="w-4 h-4" />}
+                placeholder="-skill 4 -warp MAP01 +sv_cheats 1"
+                leftIcon={<Terminal className="w-3.5 h-3.5 text-zinc-500" />}
+                className="font-mono text-xs bg-[#14171c] border-[#22262d]"
               />
-
-              {/* Parsed Token Badges */}
               {parsedArguments.length > 0 && (
                 <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                  <span className="text-[11px] font-mono text-doom-muted">Parsed tokens:</span>
+                  <span className="text-[11px] font-mono text-zinc-500">Tokens:</span>
                   {parsedArguments.map((tok, idx) => (
                     <span
                       key={idx}
-                      className="text-[11px] font-mono px-2 py-0.5 rounded bg-doom-surface border border-doom-border text-cyan-300 font-semibold"
+                      className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#171b22] border border-[#22262d] text-zinc-300"
                     >
                       {tok}
                     </span>
@@ -1053,14 +912,52 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
               )}
             </div>
 
+            {/* Save Game Isolation */}
+            <div className="space-y-2 pt-4 border-t border-[#22262d]">
+              <label className="text-xs font-semibold text-zinc-200 uppercase tracking-wider flex items-center gap-2">
+                <FolderLock className="w-3.5 h-3.5 text-amber-400" />
+                <span>Save Game Isolation</span>
+              </label>
+              <div className="flex items-center justify-between gap-3 bg-[#14171c] p-3 rounded-lg border border-[#22262d]">
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isolateSaves}
+                    onChange={(e) => handleToggleIsolateSaves(e.target.checked)}
+                    className="w-4 h-4 rounded border-[#2d2d34] bg-[#09090b] text-[#5e7ce2] focus:ring-[#5e7ce2] cursor-pointer accent-[#5e7ce2]"
+                  />
+                  <span className="text-xs font-medium text-zinc-200">
+                    Store savegames in dedicated folder for this preset
+                  </span>
+                </label>
+
+                {isolateSaves && (
+                  <button
+                    type="button"
+                    onClick={handleOpenSaveFolder}
+                    className="inline-flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white px-2.5 py-1 rounded bg-[#1a1f28] border border-[#22262d] transition-colors"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Open Saves</span>
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px] text-zinc-500">
+                Prevents save state corruption between complex mod configurations.
+              </p>
+            </div>
+
             {/* Custom Working Directory */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-doom-text flex items-center justify-between">
-                <span>Custom Working Directory</span>
-                <span className="text-[11px] text-doom-muted font-normal">
+            <div className="space-y-2 pt-4 border-t border-[#22262d]">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-zinc-200 uppercase tracking-wider flex items-center gap-2">
+                  <FolderOpen className="w-3.5 h-3.5 text-zinc-400" />
+                  <span>Custom Working Directory</span>
+                </label>
+                <span className="text-[11px] text-zinc-500 font-normal">
                   Leave blank to use engine default directory
                 </span>
-              </label>
+              </div>
               <div className="flex items-center gap-2">
                 <div className="flex-1">
                   <Input
@@ -1071,17 +968,19 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
                       setHasUnsavedChanges(true);
                     }}
                     onBlur={() => handleSave({ workingDir })}
-                    placeholder="Defaults to engine directory if unset"
-                    leftIcon={<FolderOpen className="w-4 h-4" />}
+                    placeholder="Defaults to engine executable directory"
+                    leftIcon={<FolderOpen className="w-3.5 h-3.5 text-zinc-500" />}
+                    className="font-mono text-xs bg-[#14171c] border-[#22262d]"
                   />
                 </div>
                 <Button
                   variant="secondary"
-                  size="md"
+                  size="sm"
                   onClick={handleBrowseWorkingDir}
-                  leftIcon={<FolderOpen className="w-4 h-4 text-doom-red" />}
+                  leftIcon={<FolderOpen className="w-3.5 h-3.5 text-zinc-400" />}
+                  className="text-xs h-9 bg-[#181f26] border-[#22262d] text-zinc-300"
                 >
-                  Browse...
+                  Browse
                 </Button>
                 {workingDir && (
                   <Button
@@ -1091,12 +990,163 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
                       setWorkingDir('');
                       handleSave({ workingDir: '' });
                     }}
-                    className="text-doom-muted hover:text-doom-text text-xs"
+                    className="text-zinc-500 hover:text-zinc-300 text-xs h-9"
                   >
                     Clear
                   </Button>
                 )}
               </div>
+            </div>
+
+            {/* Base Mixin / Parent Profile Selector */}
+            <div className="space-y-2 pt-4 border-t border-[#22262d]">
+              <label className="text-xs font-semibold text-zinc-200 uppercase tracking-wider flex items-center gap-2">
+                <Layers className="w-3.5 h-3.5 text-blue-400" />
+                <span>Base Mixin / Parent Profile</span>
+              </label>
+              <select
+                value={parentProfileId}
+                onChange={(e) => handleParentProfileSelect(e.target.value)}
+                className="w-full bg-[#14171c] border border-[#22262d] rounded-lg px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-zinc-500 font-medium"
+              >
+                <option value="">None (Standalone Preset)</option>
+                {eligibleParentProfiles.map((p) => {
+                  const modCount = p.mods?.filter((m) => m.enabled).length ?? p.mods?.length ?? 0;
+                  return (
+                    <option key={p.id} value={p.id} className="bg-[#14171c] text-zinc-100">
+                      {p.name} ({modCount} mod{modCount !== 1 ? 's' : ''})
+                    </option>
+                  );
+                })}
+              </select>
+              <p className="text-[11px] text-zinc-500">
+                Optionally inherit baseline mods or engine settings from another profile.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: ALL PRESETS GALLERY OVERVIEW */}
+        {activeTab === 'all-presets' && (
+          <div className="flex-1 overflow-y-auto p-6 space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="relative flex items-center max-w-sm w-full">
+                <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 pointer-events-none" />
+                <input
+                  type="text"
+                  value={presetSearchFilter}
+                  onChange={(e) => setPresetSearchFilter(e.target.value)}
+                  placeholder="Filter presets..."
+                  className="w-full bg-[#14171c] border border-[#22262d] rounded-md pl-9 pr-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
+                />
+              </div>
+
+              {onCreateProfileClick && (
+                <button
+                  type="button"
+                  onClick={onCreateProfileClick}
+                  className="inline-flex items-center gap-1.5 rounded-[8px] bg-[#5e7ce2] hover:bg-[#4d6bd4] px-3.5 py-1.5 text-xs font-[600] text-[#09090b] transition-colors shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>New Setup</span>
+                </button>
+              )}
+            </div>
+
+            {filteredAllProfiles.length === 0 ? (
+              <div className="p-8 text-center text-xs text-zinc-500 border border-dashed border-[#22262d] rounded-lg">
+                No presets found matching &quot;{presetSearchFilter}&quot;
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredAllProfiles.map((p) => (
+                  <RecentProfileCard
+                    key={p.id}
+                    profile={p}
+                    onLaunch={async (id) => {
+                      onSelectProfile(id);
+                      try {
+                        await api.launchProfile(id);
+                      } catch (err) {
+                        console.error('Launch failed', err);
+                      }
+                    }}
+                    onToggleFavorite={async (id) => {
+                      await api.toggleProfileFavorite(id);
+                      onProfileChange({ ...p, isFavorite: !p.isFavorite });
+                    }}
+                    onSelectProfile={(id) => {
+                      onSelectProfile(id);
+                      setActiveTab('mods');
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 4: DETAILS & NOTES & VALIDATION */}
+        {activeTab === 'details' && (
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 max-w-3xl">
+            {/* Preset Name */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-zinc-200 uppercase tracking-wider block">
+                Preset Name
+              </label>
+              <Input
+                type="text"
+                value={name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                onBlur={() => hasUnsavedChanges && handleSave()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.currentTarget.blur();
+                    if (hasUnsavedChanges) handleSave();
+                  }
+                }}
+                placeholder="Preset Name"
+                className="bg-[#14171c] border-[#22262d] text-zinc-100"
+              />
+            </div>
+
+            {/* Description Notes */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-zinc-200 uppercase tracking-wider block">
+                Preset Description & Notes
+              </label>
+              <textarea
+                value={description}
+                onChange={(e) => handleDescriptionChange(e.target.value)}
+                onBlur={() => hasUnsavedChanges && handleSave()}
+                rows={4}
+                placeholder="Add notes about gameplay mods, difficulty recommendations, or compatibility..."
+                className="w-full bg-[#14171c] border border-[#22262d] rounded-lg p-3 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 resize-none font-normal"
+              />
+            </div>
+
+            {/* Validation Breakdown */}
+            <div className="space-y-2 pt-4 border-t border-[#22262d]">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-zinc-200 uppercase tracking-wider block">
+                  Pre-Flight Validation Check
+                </label>
+                <button
+                  type="button"
+                  onClick={runValidation}
+                  disabled={isValidating}
+                  className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors flex items-center gap-1"
+                >
+                  <RotateCw className={clsx('w-3 h-3', isValidating && 'animate-spin')} />
+                  <span>Re-check</span>
+                </button>
+              </div>
+
+              <ValidationBanner
+                validation={validation}
+                isValidating={isValidating}
+                onValidate={runValidation}
+              />
             </div>
           </div>
         )}
@@ -1117,6 +1167,80 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
         existingArgs={parsedArguments}
         onApply={handleApplyDmFlags}
       />
+
+      {/* Rename Preset Modal */}
+      <Modal
+        isOpen={isRenameModalOpen}
+        onClose={() => setIsRenameModalOpen(false)}
+        title={
+          <div className="flex items-center gap-2.5">
+            <span className="rounded-[8px] bg-[#0c0c0f] border border-[#2d2d34] p-1.5 text-[#5e7ce2]">
+              <Edit2 className="h-4 w-4" />
+            </span>
+            <span>Rename Preset</span>
+          </div>
+        }
+        description="Enter a new display name for this configuration preset."
+        size="sm"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsRenameModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={!renameName.trim() || isRenaming}
+              isLoading={isRenaming}
+              onClick={handleConfirmRename}
+            >
+              Save Name
+            </Button>
+          </div>
+        }
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleConfirmRename();
+          }}
+          className="space-y-4"
+        >
+          <Input
+            autoFocus
+            label="Preset Name"
+            value={renameName}
+            onChange={(e) => setRenameName(e.target.value)}
+            placeholder="e.g. Brutal Doom + Metal Soundtrack"
+            className="bg-[#14171c] border-[#22262d] text-zinc-100"
+          />
+        </form>
+      </Modal>
+      {/* Canonical Danger Delete Modal */}
+      <Modal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        size="sm"
+        title="Delete Preset Setup?"
+        footer={
+          <div className="flex items-center justify-end gap-3 w-full">
+            <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={handleConfirmDelete}>
+              Delete
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-xs text-[#a1a1aa]">
+          Are you sure you want to delete <span className="text-[#f4f4f5] font-medium">&ldquo;{profile.name}&rdquo;</span>? This action cannot be undone.
+        </p>
+      </Modal>
     </div>
   );
 };

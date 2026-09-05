@@ -30,9 +30,8 @@ The Doom launcher ecosystem spans four distinct architectural generations:
 - **Arachnotron**: QML-based visual launcher with profile inheritance and GZDoom netplay controls, but tightly coupled to ZDoom command dialects.
 - **DoomRunner**: The premier cross-platform C++/Qt preset orchestrator with granular engine CLI trait adaptation and bitfield calculators, but lacks rich asset browsing and has entered maintenance-only mode.
 - **DoomLauncher**: The undisputed gold standard for Windows library management with full `/idgames` scraping, savegame swapping, and level stat parsing, but locked to Windows/.NET WinForms.
-- **RNT Launcher**: Fuses the rich library management of DoomLauncher with the portable preset-driven workflow of DoomRunner, modernized through a pure-Go/Wails cross-platform architecture, pre-flight validation rules, and high-density industrial ergonomics.
-
----
+- **RNT Launcher**: Fuses the rich library management of DoomLauncher with the portable preset-driven workflow of DoomRunner. Built upon the brand promise:
+  > *"Beautifully simple. Designed from the very start to be as visually minimal and space efficient as possible. No cluttered interface. Fast and lightweight opens practically instantly, and switching is just as quick, all while having low memory and CPU usage. Fully-featured minimalism doesn't have to be a compromise. Configurable features a myriad of configurable preferences to ensure the best experience for as many people as possible. Supports all common formats."*
 
 ## 2. In-Depth Competitor Breakdown
 
@@ -131,6 +130,9 @@ The Doom launcher ecosystem spans four distinct architectural generations:
 | **Desktop Bridge / Native Layer** | Wails v2 (Webview) | Win32 / .NET Runtime | Native Qt Widgets | Native Qt Widgets | Qt Quick Scene Graph | Native Qt Widgets |
 | **CGO / Native Dependency** | **Zero CGO** (Pure Go) | Required (.NET CLR) | C++ Toolchain | C++ Toolchain | C++ Toolchain | C++ Toolchain |
 | **Supported Platforms** | **Win, Linux, macOS** | Windows Only | **Win, Linux, macOS** | **Win, Linux, macOS** | Linux, Windows | Linux, Windows |
+| **UI Density Modes** | **Compact & Comfortable** | Fixed Windows DPI | Utilitarian Grid | Fixed Layout | Fixed QML | Fixed Multi-tab |
+| **Supported Mod Formats** | **WAD, PK3, PK7, IPK3, ZIP, DEH, BEX** | WAD, PK3, ZIP | WAD, PK3, 7Z, DEH | WAD, PK3, DEH | WAD, PK3 | WAD, PK3, DEH |
+| **Format Visibility Controls** | **Granular Multi-select** | None | None | None | None | None |
 | **Data Persistence Engine** | Embedded SQLite (WAL) | Embedded SQLite (WAL) | JSON (`options.json`) | INI (`zdl.ini`, `.zdl`) | Hierarchical JSON | INI (`SavedConfigs`) |
 | **Pre-Flight Validation Engine** | **5-Rule Pre-flight Suite** | Partial (check on run) | Engine binary verify | Manual verify | None | Missing-selection alert |
 | **Binary Lump Parsing** | **WAD Magic, Lumps, Maps** | **Full (PLAYPAL, ARGB)** | WAD & PK3 Headers | Minimal / MD5 | None | None |
@@ -146,7 +148,6 @@ The Doom launcher ecosystem spans four distinct architectural generations:
 | **In-Game Savegame Management** | Planned / Roadmap | **Full SQLite Storage** | Path overrides only | None | Basic `-loadgame` | None |
 | **Online Repository Integration** | Planned / Roadmap | **Full /idgames Client** | None | None | None | None |
 | **DOSBox Execution Setup** | None | Launch feature args | Custom arguments | Manual | None | **Automated Scripting** |
-
 ---
 
 ## 4. Distinct Competitive Advantages of RNT Launcher
@@ -167,10 +168,9 @@ The Doom launcher ecosystem spans four distinct architectural generations:
    - *The Problem in Other Launchers*: Profiles in DoomRunner (`options.json`), Arachnotron (`profiles.json`), and DoomLauncher (`DoomLauncher.sqlite`) are tightly coupled to local absolute filesystem paths, making them non-transferable across different machines or OS environments.
    - *RNT Launcher Advantage*: Implements a standardized YAML v1 schema that resolves dependencies locally by asset ID, name, or filename, generating diagnostic reports for missing content upon import.
 
-5. **Modern Reactive Ergonomics & Desktop Polish**
-   - *The Problem in Other Launchers*: Legacy launchers rely on dense, utilitarian Qt/WinForms table controls or modal dialog sequences that cause interaction fatigue.
-   - *RNT Launcher Advantage*: Modern React 18 + Tailwind CSS interface featuring spotlight search (`Ctrl+K`), visual drag-and-drop load ordering, keyboard navigation (`↑`/`↓`), real-time scan progress banners, and instant 1-click launch shortcuts (`Ctrl+Enter`).
-
+5. **Modern Reactive Ergonomics, UI Density & Desktop Polish**
+   - *The Problem in Other Launchers*: Legacy launchers rely on dense, utilitarian Qt/WinForms table controls or modal dialog sequences that cause interaction fatigue and consume bloated screen real estate.
+   - *RNT Launcher Advantage*: Modern React 18 + Tailwind CSS interface featuring spotlight search (`Ctrl+K`), visual drag-and-drop load ordering, keyboard navigation (`↑`/`↓`), real-time scan progress banners, customizable UI density modes (`Compact` default vs `Comfortable`), and instant 1-click launch shortcuts (`Ctrl+Enter`).
 ---
 
 ## 5. Strategic Roadmap & Architectural Opportunities

@@ -10,41 +10,37 @@ import {
   Trash2,
   RotateCw,
   Hash,
-  Layers,
-  HardDrive,
   LayoutGrid,
-  List,
-  ShieldAlert,
-  FileCode,
+  List as ListIcon,
+  X,
+  FolderSearch,
 } from 'lucide-react';
 import { IWAD, IWADType } from '../../types';
 import { api } from '../../services/api';
 import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { useToast } from '../../components/ui/Toast';
 import { IWADModal } from './IWADModal';
-import { formatBytes, formatDate } from '../../utils/formatters';
+import { formatBytes } from '../../utils/formatters';
 
 const TYPE_FILTER_TABS: { id: string; label: string; types?: IWADType[] }[] = [
   { id: 'all', label: 'All IWADs' },
   { id: 'doom2', label: 'Doom II', types: ['doom2'] },
   { id: 'doom', label: 'Ultimate DOOM', types: ['doom'] },
-  { id: 'finaldoom', label: 'Final Doom (TNT/Plutonia)', types: ['tnt', 'plutonia'] },
+  { id: 'finaldoom', label: 'Final Doom', types: ['tnt', 'plutonia'] },
   { id: 'heretic-hexen', label: 'Heretic / Hexen', types: ['heretic', 'hexen'] },
   { id: 'strife', label: 'Strife', types: ['strife'] },
-  { id: 'freedoom', label: 'Freedoom', types: ['freedoom', 'freedoom2'] },
+  { id: 'freedoom', label: 'FreeDoom', types: ['freedoom', 'freedoom2'] },
   { id: 'other', label: 'Other', types: ['other', 'unknown'] },
 ];
 
 export const IWADsView: React.FC = () => {
   const toast = useToast();
-
   const [iwads, setIWADs] = useState<IWAD[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTypeTab, setActiveTypeTab] = useState('all');
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -110,15 +106,28 @@ export const IWADsView: React.FC = () => {
     }
   };
 
+  // Quick scan trigger
+  const handleScanFolders = async () => {
+    try {
+      toast.info('Scanning Folders', 'Searching configured folders for game IWADs...');
+      await api.startScan();
+      setTimeout(() => {
+        loadIWADs();
+      }, 3000);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Scan failed';
+      toast.error('Scan Error', message);
+    }
+  };
+
   // Delete IWAD
   const handleConfirmDelete = async () => {
     if (!iwadToDelete) return;
-
     setIsDeleting(true);
     try {
       await api.deleteIWAD(iwadToDelete.id);
-      setIWADs((prev) => prev.filter((w) => w.id !== iwadToDelete.id));
       toast.success('IWAD Removed', `"${iwadToDelete.name}" was unlinked.`);
+      setIWADs((prev) => prev.filter((w) => w.id !== iwadToDelete.id));
       setIWADToDelete(null);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to delete IWAD';
@@ -138,7 +147,6 @@ export const IWADsView: React.FC = () => {
           return false;
         }
       }
-
       // Search Query filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -148,7 +156,6 @@ export const IWADsView: React.FC = () => {
         const matchesHash = iwad.sha256 ? iwad.sha256.toLowerCase().includes(q) : false;
         return matchesName || matchesType || matchesPath || matchesHash;
       }
-
       return true;
     });
   }, [iwads, activeTypeTab, searchQuery]);
@@ -163,27 +170,25 @@ export const IWADsView: React.FC = () => {
   }, [iwads]);
 
   // Type badge color mappings
-  const getTypeBadgeStyles = (type: IWADType) => {
+  const getTypeBadgeStyle = (type: IWADType) => {
     switch (type) {
       case 'doom':
-        return 'bg-red-950/60 text-red-300 border-red-600/50';
+        return 'bg-red-950/40 text-red-300 border-red-800/30';
       case 'doom2':
-        return 'bg-amber-950/60 text-amber-300 border-amber-600/50';
+        return 'bg-amber-950/40 text-amber-300 border-amber-800/30';
       case 'tnt':
-        return 'bg-emerald-950/60 text-emerald-300 border-emerald-600/50';
       case 'plutonia':
-        return 'bg-cyan-950/60 text-cyan-300 border-cyan-600/50';
+        return 'bg-emerald-950/40 text-emerald-300 border-emerald-800/30';
       case 'heretic':
-        return 'bg-purple-950/60 text-purple-300 border-purple-600/50';
       case 'hexen':
-        return 'bg-indigo-950/60 text-indigo-300 border-indigo-600/50';
+        return 'bg-purple-950/40 text-purple-300 border-purple-800/30';
       case 'strife':
-        return 'bg-rose-950/60 text-rose-300 border-rose-600/50';
+        return 'bg-rose-950/40 text-rose-300 border-rose-800/30';
       case 'freedoom':
       case 'freedoom2':
-        return 'bg-blue-950/60 text-blue-300 border-blue-600/50';
+        return 'bg-blue-950/40 text-blue-300 border-blue-800/30';
       default:
-        return 'bg-zinc-800 text-zinc-300 border-zinc-600';
+        return 'bg-white/[0.04] text-zinc-300 border-white/[0.08]';
     }
   };
 
@@ -193,456 +198,450 @@ export const IWADsView: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-doom-bg text-doom-text">
-      {/* Header Bar */}
-      <div className="border-b border-doom-border bg-doom-surface px-8 py-5">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-doom-amber/20 text-doom-amber border border-doom-amber/40 shadow-inner">
-                <Disc className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-xl font-black uppercase tracking-wider text-zinc-100">
-                    Base Game IWADs
-                  </h1>
-                  <span className="rounded-full bg-doom-card px-2.5 py-0.5 text-xs font-mono font-semibold text-doom-muted border border-doom-border">
-                    {iwads.length} Registered
-                  </span>
-                </div>
-                <p className="text-xs text-doom-muted mt-0.5">
-                  Manage core game data archives (DOOM, DOOM II, TNT, Plutonia, Heretic, Hexen, Strife, FreeDoom)
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex items-center gap-3">
-            {/* View Mode Toggle */}
-            <div className="flex items-center rounded border border-doom-border bg-doom-card p-0.5">
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded transition-colors ${
-                  viewMode === 'grid'
-                    ? 'bg-zinc-800 text-zinc-100 shadow-sm'
-                    : 'text-zinc-400 hover:text-zinc-200'
-                }`}
-                title="Grid Cards View"
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setViewMode('table')}
-                className={`p-1.5 rounded transition-colors ${
-                  viewMode === 'table'
-                    ? 'bg-zinc-800 text-zinc-100 shadow-sm'
-                    : 'text-zinc-400 hover:text-zinc-200'
-                }`}
-                title="Compact Table View"
-              >
-                <List className="h-4 w-4" />
-              </button>
-            </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={loadIWADs}
-              isLoading={isLoading}
-              leftIcon={<RotateCw className="h-3.5 w-3.5" />}
+    <div className="flex-1 flex flex-col h-full w-full overflow-hidden bg-[#0c0e12] text-zinc-100 select-none">
+      {/* TIER 1 TOOLBAR: Search & Primary Actions (44px) */}
+      <div className="border-b border-[#22262d] bg-[#14171c] px-6 py-2.5 flex items-center justify-between gap-4 shrink-0">
+        {/* Left: Search input */}
+        <div className="relative flex items-center flex-1 max-w-md">
+          <Search className="absolute left-3 h-3.5 w-3.5 text-zinc-500 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search IWADs by title, type, file path..."
+            className="w-full rounded-md border border-[#22262d] bg-[#0c0e12] pl-9 pr-8 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-zinc-500 focus:outline-hidden transition-colors font-normal"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors"
+              title="Clear search"
             >
-              Refresh
-            </Button>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => {
-                setSelectedIWAD(null);
-                setIsModalOpen(true);
-              }}
-              leftIcon={<Plus className="h-4 w-4" />}
-            >
-              Add IWAD
-            </Button>
-          </div>
+              <X className="w-3 h-3" />
+            </button>
+          )}
         </div>
 
-        {/* Filter and Search Bar */}
-        <div className="mt-5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-          {/* Game Type Filter Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            {TYPE_FILTER_TABS.map((tab) => {
-              let count = 0;
-              if (tab.id === 'all') {
-                count = iwads.length;
-              } else if (tab.types) {
-                count = iwads.filter((w) => tab.types?.includes(w.type)).length;
-              }
-              const isActive = activeTypeTab === tab.id;
-
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTypeTab(tab.id)}
-                  className={`flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 rounded text-xs font-medium transition-all ${
-                    isActive
-                      ? 'bg-doom-amber text-zinc-950 font-bold shadow-md shadow-amber-950/40'
-                      : 'bg-doom-card hover:bg-zinc-800 text-zinc-300 border border-doom-border'
-                  }`}
-                >
-                  <span>{tab.label}</span>
-                  {count > 0 && (
-                    <span
-                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-semibold ${
-                        isActive ? 'bg-black/30 text-zinc-950' : 'bg-zinc-900 text-doom-muted'
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+        {/* Right: Table/Grid switcher, Scan, + Add IWAD */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Table vs Grid View Toggle */}
+          <div className="flex items-center rounded border border-[#22262d] bg-[#0c0e10] p-0.5">
+            <button
+              type="button"
+              title="Table View (Dense)"
+              onClick={() => setViewMode('table')}
+              className={`rounded px-2 py-1 flex items-center gap-1.5 text-xs transition-colors ${
+                viewMode === 'table'
+                  ? 'bg-[#1b1f26] text-zinc-100 font-medium'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              <ListIcon className="h-3.5 w-3.5" />
+              <span>Table</span>
+            </button>
+            <button
+              type="button"
+              title="Grid Cards View"
+              onClick={() => setViewMode('grid')}
+              className={`rounded px-2 py-1 flex items-center gap-1.5 text-xs transition-colors ${
+                viewMode === 'grid'
+                  ? 'bg-[#1b1f26] text-zinc-100 font-medium'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              <span>Grid</span>
+            </button>
           </div>
 
-          {/* Search Input */}
-          <div className="w-full md:w-72">
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search IWADs by name, type, path..."
-              leftIcon={<Search className="h-4 w-4 text-doom-muted" />}
-              className="text-xs"
-            />
-          </div>
+          <div className="h-4 w-px bg-[#22262d]" />
+
+          <button
+            type="button"
+            onClick={handleScanFolders}
+            className="inline-flex items-center gap-1.5 rounded border border-[#22262d] bg-[#181c21] hover:bg-[#1f242e] px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white transition-colors"
+          >
+            <FolderSearch className="h-3.5 w-3.5 text-zinc-400" />
+            <span>Scan Folders</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedIWAD(null);
+              setIsModalOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 rounded-[8px] bg-[#5e7ce2] hover:bg-[#4d6bd4] px-3.5 py-1.5 text-xs font-[600] text-[#09090b] transition-colors shadow-xs"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>Add Base IWAD</span>
+          </button>
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
-        {/* Quick Stats Strip */}
-        {iwads.length > 0 && (
-          <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-3.5 rounded-lg border border-doom-border bg-doom-surface/60 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <Disc className="h-4 w-4 text-doom-amber" />
-                <span className="text-xs text-doom-muted">Total IWADs</span>
-              </div>
-              <span className="font-mono text-sm font-bold text-zinc-100">{iwads.length}</span>
-            </div>
+      {/* TIER 2 TOOLBAR: Type Filter Pills & Metrics (38px) */}
+      <div className="border-b border-[#22262d] bg-[#101317] px-6 py-2 flex items-center justify-between gap-4 shrink-0 flex-wrap">
+        {/* Left: Type filter pills */}
+        <div className="flex items-center gap-1 overflow-x-auto py-0.5">
+          {TYPE_FILTER_TABS.map((tab) => {
+            let count = 0;
+            if (tab.id === 'all') {
+              count = iwads.length;
+            } else if (tab.types) {
+              count = iwads.filter((w) => tab.types?.includes(w.type)).length;
+            }
+            const isActive = activeTypeTab === tab.id;
 
-            <div className="p-3.5 rounded-lg border border-doom-border bg-doom-surface/60 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <HardDrive className="h-4 w-4 text-doom-cyan" />
-                <span className="text-xs text-doom-muted">Total Disk Space</span>
-              </div>
-              <span className="font-mono text-sm font-bold text-zinc-100">
-                {formatBytes(totalDiskSize)}
-              </span>
-            </div>
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTypeTab(tab.id)}
+                className={`inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded text-xs font-medium transition-colors select-none ${
+                  isActive
+                    ? 'bg-[#1c2026] text-zinc-100 border border-[#2c323d]'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]'
+                }`}
+              >
+                <span>{tab.label}</span>
+                {count > 0 && (
+                  <span className="text-[10px] font-mono text-zinc-500">
+                    ({count})
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
 
-            <div className="p-3.5 rounded-lg border border-doom-border bg-doom-surface/60 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <Layers className="h-4 w-4 text-doom-green" />
-                <span className="text-xs text-doom-muted">Total Indexed Lumps</span>
-              </div>
-              <span className="font-mono text-sm font-bold text-zinc-100">
-                {totalLumpCount.toLocaleString()}
-              </span>
-            </div>
-          </div>
-        )}
+        {/* Right: Aggregate metrics & Count badge */}
+        <div className="flex items-center gap-3 shrink-0 text-xs">
+          {totalDiskSize > 0 && (
+            <span className="text-zinc-500 font-mono text-[11px] hidden md:inline">
+              {formatBytes(totalDiskSize)} • {totalLumpCount.toLocaleString()} lumps
+            </span>
+          )}
+          <span className="font-mono text-[11px] text-zinc-400 bg-[#14171c] border border-[#22262d] px-2.5 py-1 rounded">
+            {filteredIWADs.length} of {iwads.length} IWADs
+          </span>
+        </div>
+      </div>
 
+      {/* MAIN CONTENT VIEWPORT */}
+      <div className="flex-1 overflow-y-auto p-6">
         {isLoading ? (
-          <div className="flex h-64 flex-col items-center justify-center gap-3">
-            <RotateCw className="h-8 w-8 animate-spin text-doom-amber" />
-            <span className="text-sm font-medium text-doom-muted">Reading registered IWADs...</span>
+          <div className="flex h-64 flex-col items-center justify-center gap-3 text-zinc-500">
+            <RotateCw className="h-6 w-6 animate-spin" />
+            <span className="text-xs">Reading registered IWADs...</span>
           </div>
         ) : filteredIWADs.length === 0 ? (
           /* Empty State */
-          <div className="flex min-h-[380px] flex-col items-center justify-center rounded-xl border border-dashed border-doom-border bg-doom-surface/40 p-8 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-900 border border-doom-border text-zinc-500 mb-4">
-              <Disc className="h-8 w-8" />
-            </div>
+          <div className="flex min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed border-[#22262d] bg-[#14171c]/40 p-8 text-center">
+            <Disc className="h-10 w-10 text-zinc-600 mb-3" />
             {iwads.length === 0 ? (
               <>
-                <h3 className="text-lg font-bold text-zinc-200">No Base Game IWADs Registered</h3>
-                <p className="mt-1 max-w-md text-xs text-doom-muted">
-                  A base game IWAD (such as DOOM2.WAD, DOOM.WAD, TNT.WAD, or FreeDoom) contains the core
-                  game resources necessary to execute mods and profiles.
+                <h3 className="text-sm font-semibold text-zinc-200">No Base Game IWADs Registered</h3>
+                <p className="mt-1 max-w-md text-xs text-zinc-400 leading-relaxed">
+                  A base game IWAD (such as DOOM2.WAD, DOOM.WAD, TNT.WAD, or FreeDoom) provides the core game resources required to run source ports and mods.
                 </p>
-                <div className="mt-6 flex items-center gap-3">
-                  <Button
-                    variant="primary"
-                    size="md"
+                <div className="mt-4 flex items-center gap-3">
+                  <button
+                    type="button"
                     onClick={() => {
                       setSelectedIWAD(null);
                       setIsModalOpen(true);
                     }}
-                    leftIcon={<Plus className="h-4 w-4" />}
+                    className="inline-flex items-center gap-1.5 rounded-[8px] bg-[#5e7ce2] hover:bg-[#4d6bd4] px-4 py-1.5 text-xs font-[600] text-[#09090b] transition-colors"
                   >
-                    Register Your First IWAD
-                  </Button>
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Add Base IWAD</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleScanFolders}
+                    className="inline-flex items-center gap-1.5 rounded border border-[#22262d] bg-[#181c21] hover:bg-[#1f242e] px-4 py-1.5 text-xs font-medium text-zinc-300 hover:text-white transition-colors"
+                  >
+                    <FolderSearch className="h-3.5 w-3.5 text-zinc-400" />
+                    <span>Auto-Detect</span>
+                  </button>
                 </div>
               </>
             ) : (
               <>
-                <h3 className="text-base font-semibold text-zinc-200">No matching IWADs found</h3>
-                <p className="mt-1 text-xs text-doom-muted">
-                  Try clearing your search query or switching to &ldquo;All IWADs&rdquo;.
+                <h3 className="text-sm font-semibold text-zinc-200">No matching IWADs found</h3>
+                <p className="mt-1 text-xs text-zinc-400">
+                  Try clearing your search query or switching to All IWADs.
                 </p>
                 <Button
                   variant="outline"
-                  size="sm"
+                  size="xs"
+                  className="mt-4"
                   onClick={() => {
                     setSearchQuery('');
                     setActiveTypeTab('all');
                   }}
-                  className="mt-4"
                 >
                   Clear Filters
                 </Button>
               </>
             )}
           </div>
-        ) : viewMode === 'grid' ? (
-          /* Grid View of IWAD Cards */
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-            {filteredIWADs.map((iwad) => {
-              const filename = getCanonicalFilename(iwad.path);
+        ) : viewMode === 'table' ? (
+          /* Default: Clean Desktop Table View */
+          <div className="overflow-hidden rounded-lg border border-[#22262d] bg-[#14171c]">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-[#22262d] bg-[#101317] text-[11px] font-semibold text-zinc-400 select-none">
+                    <th className="px-4 py-2.5">Base IWAD</th>
+                    <th className="px-4 py-2.5">Game Type</th>
+                    <th className="px-4 py-2.5">File Name</th>
+                    <th className="px-4 py-2.5">Size</th>
+                    <th className="px-4 py-2.5">Lumps</th>
+                    <th className="px-4 py-2.5">File Path</th>
+                    <th className="px-4 py-2.5">SHA-256</th>
+                    <th className="px-4 py-2.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#1e2229]">
+                  {filteredIWADs.map((iwad) => {
+                    const filename = getCanonicalFilename(iwad.path);
 
-              return (
-                <div
-                  key={iwad.id}
-                  className="group flex flex-col justify-between rounded-lg border border-doom-border bg-doom-card hover:border-doom-border-bright transition-all duration-200 shadow-sm hover:shadow-lg hover:shadow-black/40"
-                >
-                  {/* Card Header */}
-                  <div className="p-5 pb-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <h3 className="font-bold text-base text-zinc-100 truncate group-hover:text-doom-amber transition-colors">
+                    return (
+                      <tr
+                        key={iwad.id}
+                        className="hover:bg-[#181c22] transition-colors duration-100 group"
+                      >
+                        {/* Title */}
+                        <td className="px-4 py-2.5 font-semibold text-zinc-100">
                           {iwad.name}
-                        </h3>
-                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        </td>
+
+                        {/* Game Type */}
+                        <td className="px-4 py-2.5">
                           <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-bold uppercase border ${getTypeBadgeStyles(
+                            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono uppercase border ${getTypeBadgeStyle(
                               iwad.type
                             )}`}
                           >
                             {iwad.type}
                           </span>
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono bg-zinc-800 text-zinc-300 border border-zinc-700">
-                            {filename}
-                          </span>
-                        </div>
-                      </div>
+                        </td>
 
-                      {/* Card Header Action Icons */}
-                      <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => {
-                            setSelectedIWAD(iwad);
-                            setIsModalOpen(true);
-                          }}
-                          className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
-                          title="Edit IWAD Details"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => setIWADToDelete(iwad)}
-                          className="p-1.5 rounded hover:bg-red-950/60 text-zinc-400 hover:text-red-400 transition-colors"
-                          title="Delete IWAD"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
+                        {/* File Name */}
+                        <td className="px-4 py-2.5 font-mono text-zinc-300">
+                          {filename}
+                        </td>
 
-                    {/* Metadata summary (Lumps, Size, Hash) */}
-                    <div className="mt-4 grid grid-cols-2 gap-2 p-2.5 rounded bg-doom-surface/80 border border-doom-border text-xs">
-                      <div>
-                        <span className="text-[10px] text-doom-muted uppercase tracking-wider block">
-                          Indexed Lumps
-                        </span>
-                        <span className="font-mono text-zinc-200 font-semibold">
-                          {iwad.lumpCount ? iwad.lumpCount.toLocaleString() : '—'}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-doom-muted uppercase tracking-wider block">
-                          File Size
-                        </span>
-                        <span className="font-mono text-zinc-200 font-semibold">
+                        {/* Size */}
+                        <td className="px-4 py-2.5 font-mono text-zinc-400">
                           {formatBytes(iwad.size)}
-                        </span>
-                      </div>
-                    </div>
+                        </td>
 
-                    {/* Path & SHA-256 information */}
-                    <div className="mt-3 space-y-1.5">
-                      {/* Path row */}
-                      <div className="p-2 rounded bg-zinc-900/60 border border-zinc-800 text-xs flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <FileCode className="h-3.5 w-3.5 text-doom-muted shrink-0" />
-                          <span className="font-mono text-[11px] text-zinc-400 truncate" title={iwad.path}>
-                            {iwad.path}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            onClick={() => handleCopyPath(iwad)}
-                            className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
-                            title="Copy Path"
-                          >
-                            {copiedPathId === iwad.id ? (
-                              <Check className="h-3.5 w-3.5 text-emerald-400" />
-                            ) : (
-                              <Copy className="h-3.5 w-3.5" />
-                            )}
-                          </button>
-                          <button
-                            onClick={() => handleOpenFolder(iwad)}
-                            className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-doom-amber transition-colors"
-                            title="Open in Explorer"
-                          >
-                            <FolderOpen className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
+                        {/* Lump Count */}
+                        <td className="px-4 py-2.5 font-mono text-zinc-400">
+                          {iwad.lumpCount ? iwad.lumpCount.toLocaleString() : '-'}
+                        </td>
 
-                      {/* SHA-256 row */}
-                      {iwad.sha256 && (
-                        <div className="px-2 py-1 rounded bg-zinc-900/30 text-[10px] font-mono text-zinc-500 flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5 truncate">
-                            <Hash className="h-3 w-3 shrink-0" />
-                            <span className="truncate">
-                              {iwad.sha256.slice(0, 16)}...{iwad.sha256.slice(-8)}
+                        {/* Path with Copy and Open Folder */}
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-2 max-w-xs">
+                            <span
+                              className="font-mono text-xs text-zinc-400 truncate hover:text-zinc-200 transition-colors"
+                              title={iwad.path}
+                            >
+                              {iwad.path}
                             </span>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyPath(iwad)}
+                              className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors shrink-0"
+                              title="Copy File Path"
+                            >
+                              {copiedPathId === iwad.id ? (
+                                <Check className="h-3.5 w-3.5 text-emerald-400" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenFolder(iwad)}
+                              className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors shrink-0"
+                              title="Open in Explorer"
+                            >
+                              <FolderOpen className="h-3.5 w-3.5" />
+                            </button>
                           </div>
-                          <button
-                            onClick={() => handleCopyHash(iwad)}
-                            className="p-0.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors shrink-0"
-                            title="Copy Full SHA-256 Hash"
-                          >
-                            {copiedHashId === iwad.id ? (
-                              <Check className="h-3 w-3 text-emerald-400" />
-                            ) : (
-                              <Copy className="h-3 w-3" />
-                            )}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                        </td>
 
-                  {/* Card Footer */}
-                  <div className="px-5 py-3 bg-doom-surface/50 border-t border-doom-border/80 flex items-center justify-between gap-2 text-xs">
-                    <span className="text-[11px] text-doom-muted">
-                      {iwad.updatedAt ? `Updated ${formatDate(iwad.updatedAt)}` : 'Ready'}
-                    </span>
-                    <Button
-                      variant="secondary"
-                      size="xs"
-                      onClick={() => {
-                        setSelectedIWAD(iwad);
-                        setIsModalOpen(true);
-                      }}
-                      leftIcon={<Edit2 className="h-3.5 w-3.5" />}
-                    >
-                      Edit
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
+                        {/* SHA-256 Checksum */}
+                        <td className="px-4 py-2.5">
+                          {iwad.sha256 ? (
+                            <div className="flex items-center gap-1.5 font-mono text-[11px] text-zinc-500">
+                              <span className="truncate max-w-[90px]" title={iwad.sha256}>
+                                {iwad.sha256.slice(0, 8)}...
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyHash(iwad)}
+                                className="p-1 rounded text-zinc-500 hover:text-zinc-300 transition-colors"
+                                title="Copy SHA-256 Checksum"
+                              >
+                                {copiedHashId === iwad.id ? (
+                                  <Check className="h-3 w-3 text-emerald-400" />
+                                ) : (
+                                  <Hash className="h-3 w-3" />
+                                )}
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-zinc-600 font-mono text-[11px]">-</span>
+                          )}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-4 py-2.5 text-right">
+                          <div className="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedIWAD(iwad);
+                                setIsModalOpen(true);
+                              }}
+                              title="Edit IWAD"
+                              className="p-1.5 rounded text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIWADToDelete(iwad)}
+                              title="Delete IWAD"
+                              className="p-1.5 rounded text-zinc-400 hover:text-red-400 hover:bg-red-950/30 transition-colors"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : (
-          /* Table View of IWADs */
-          <div className="overflow-hidden rounded-lg border border-doom-border bg-doom-surface/40 shadow-sm">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-doom-border bg-doom-surface text-zinc-400 uppercase tracking-wider font-semibold">
-                <tr>
-                  <th className="py-3 px-4">Title & Type</th>
-                  <th className="py-3 px-4">Filename</th>
-                  <th className="py-3 px-4">Lumps</th>
-                  <th className="py-3 px-4">Size</th>
-                  <th className="py-3 px-4">Path</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-doom-border/60">
-                {filteredIWADs.map((iwad) => {
-                  const filename = getCanonicalFilename(iwad.path);
+          /* Grid View Toggle */
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filteredIWADs.map((iwad) => (
+              <div
+                key={iwad.id}
+                className="group flex flex-col justify-between rounded-lg border border-[#22262d] bg-[#14171c] hover:bg-[#181c22] transition-colors duration-100 p-4 select-none"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-semibold text-sm text-zinc-100 truncate group-hover:text-white">
+                        {iwad.name}
+                      </h3>
 
-                  return (
-                    <tr key={iwad.id} className="hover:bg-zinc-800/40 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`px-1.5 py-0.2 rounded text-[10px] font-mono font-bold uppercase border ${getTypeBadgeStyles(
-                              iwad.type
-                            )}`}
-                          >
-                            {iwad.type}
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-medium uppercase border ${getTypeBadgeStyle(
+                            iwad.type
+                          )}`}
+                        >
+                          {iwad.type}
+                        </span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono bg-[#181c21] text-zinc-400 border border-[#22262d]">
+                          {formatBytes(iwad.size)}
+                        </span>
+                        {iwad.lumpCount && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono bg-[#181c21] text-zinc-400 border border-[#22262d]">
+                            {iwad.lumpCount.toLocaleString()} lumps
                           </span>
-                          <span className="font-semibold text-zinc-100">{iwad.name}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 font-mono text-zinc-300">{filename}</td>
-                      <td className="py-3 px-4 font-mono text-zinc-400">
-                        {iwad.lumpCount ? iwad.lumpCount.toLocaleString() : '—'}
-                      </td>
-                      <td className="py-3 px-4 font-mono text-zinc-400">{formatBytes(iwad.size)}</td>
-                      <td className="py-3 px-4 font-mono text-zinc-500 max-w-xs truncate" title={iwad.path}>
-                        {iwad.path}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => handleCopyPath(iwad)}
-                            className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
-                            title="Copy Path"
-                          >
-                            {copiedPathId === iwad.id ? (
-                              <Check className="h-3.5 w-3.5 text-emerald-400" />
-                            ) : (
-                              <Copy className="h-3.5 w-3.5" />
-                            )}
-                          </button>
-                          <button
-                            onClick={() => handleOpenFolder(iwad)}
-                            className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-doom-amber transition-colors"
-                            title="Open in Explorer"
-                          >
-                            <FolderOpen className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedIWAD(iwad);
-                              setIsModalOpen(true);
-                            }}
-                            className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
-                            title="Edit"
-                          >
-                            <Edit2 className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => setIWADToDelete(iwad)}
-                            className="p-1 rounded hover:bg-red-950/60 text-zinc-400 hover:text-red-400 transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-0.5 opacity-80 group-hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedIWAD(iwad);
+                          setIsModalOpen(true);
+                        }}
+                        className="p-1.5 rounded text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors"
+                        title="Edit IWAD"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIWADToDelete(iwad)}
+                        className="p-1.5 rounded text-zinc-400 hover:text-red-400 hover:bg-red-950/30 transition-colors"
+                        title="Delete IWAD"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Path Row */}
+                  <div className="mt-3.5 p-2 rounded bg-[#0c0e12] border border-[#22262d] flex items-center justify-between gap-2">
+                    <span
+                      className="font-mono text-xs text-zinc-400 truncate"
+                      title={iwad.path}
+                    >
+                      {iwad.path}
+                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleCopyPath(iwad)}
+                        className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors"
+                        title="Copy Path"
+                      >
+                        {copiedPathId === iwad.id ? (
+                          <Check className="h-3.5 w-3.5 text-emerald-400" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenFolder(iwad)}
+                        className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors"
+                        title="Open in Explorer"
+                      >
+                        <FolderOpen className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card Footer: Checksum */}
+                {iwad.sha256 && (
+                  <div className="mt-3.5 pt-3 border-t border-[#22262d] flex items-center justify-between text-xs text-zinc-500 font-mono">
+                    <div className="flex items-center gap-1 truncate">
+                      <Hash className="h-3 w-3 text-zinc-600 shrink-0" />
+                      <span className="truncate text-[11px]" title={iwad.sha256}>
+                        {iwad.sha256.slice(0, 16)}...{iwad.sha256.slice(-8)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyHash(iwad)}
+                      className="text-zinc-400 hover:text-zinc-200 text-[11px] transition-colors"
+                    >
+                      {copiedHashId === iwad.id ? 'Copied' : 'Copy Hash'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -664,41 +663,26 @@ export const IWADsView: React.FC = () => {
       <Modal
         isOpen={Boolean(iwadToDelete)}
         onClose={() => setIWADToDelete(null)}
-        title={
-          <div className="flex items-center gap-2 text-red-400 font-bold uppercase tracking-wider">
-            <ShieldAlert className="h-5 w-5" />
-            <span>Remove Base Game IWAD</span>
-          </div>
-        }
+        title="Unlink Base Game IWAD"
         size="sm"
-      >
-        <div className="space-y-4">
-          <p className="text-xs text-zinc-300">
-            Are you sure you want to remove <strong className="text-white">&ldquo;{iwadToDelete?.name}&rdquo;</strong> from your registered base games?
-          </p>
-          <div className="p-3 bg-red-950/30 border border-red-900/50 rounded text-xs text-red-300">
-            This will only unlink the file from RNT Launcher. The original .WAD file on your disk will NOT be deleted.
-          </div>
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-doom-border">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIWADToDelete(null)}
-              disabled={isDeleting}
-            >
+        footer={
+          <div className="flex items-center justify-end gap-3 w-full">
+            <Button variant="ghost" onClick={() => setIWADToDelete(null)}>
               Cancel
             </Button>
             <Button
               variant="danger"
-              size="sm"
               onClick={handleConfirmDelete}
               isLoading={isDeleting}
-              leftIcon={<Trash2 className="h-4 w-4" />}
             >
-              Remove IWAD
+              Unlink
             </Button>
           </div>
-        </div>
+        }
+      >
+        <p className="text-xs text-[#a1a1aa] leading-relaxed">
+          Are you sure you want to unlink <span className="text-[#f4f4f5] font-medium">&ldquo;{iwadToDelete?.name}&rdquo;</span>? Profiles referencing this base game will need reassignment before launching.
+        </p>
       </Modal>
     </div>
   );

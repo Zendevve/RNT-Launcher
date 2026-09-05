@@ -1,0 +1,730 @@
+{
+  "version": 1,
+  "refs_audited": 5,
+  "features": [
+    {
+      "id": "archive-landmark-detection",
+      "category": "parsing",
+      "weight": 2,
+      "critical": true,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/filesystem/archive.go",
+        "internal/filesystem/inspector.go",
+        "internal/filesystem/archive.go:34-230"
+      ],
+      "notes": "RNT archive-inspection covers ZIP/PK3 landmark detection (ZSCRIPT, DECORATE, MAPINFO, SNDINFO, TEXTURES, GLDEFS) without extraction."
+    },
+    {
+      "id": "automatic-backups",
+      "category": "storage",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "missing",
+      "rnt_evidence": [
+        "internal/database/db.go",
+        "internal/database/schema.go"
+      ],
+      "notes": "RNT uses single SQLite WAL file with no automatic daily backup rotation (DoomLauncher automatic_backups gap). No backup pruning/scheduling."
+    },
+    {
+      "id": "bitfield-calculator-dmflags",
+      "category": "launch",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/domain/dmflags.go",
+        "frontend/src/features/profiles/DmFlagsModal.tsx"
+      ],
+      "notes": "RNT ships DoomRunner parity dmflags modal (DMFlags 29, DMFlags2 24, CompatFlags 30, CompatFlags2 9) with bitwise compute/parse and wiki tooltips."
+    },
+    {
+      "id": "category-library",
+      "category": "library",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/filesystem/inspector.go:DetermineCategory",
+        "frontend/src/features/library/LibraryView.tsx",
+        "internal/database/repositories.go:modRepo"
+      ],
+      "notes": "RNT library-views + scanner DetermineCategory heuristic provides category tabs (Gameplay/Maps/Megawads) and single primary category per mod (partial multi-tag deferred)."
+    },
+    {
+      "id": "common-resources-bin",
+      "category": "management",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "missing",
+      "rnt_evidence": [
+        "internal/database/repositories.go",
+        "internal/profiles/service.go"
+      ],
+      "notes": "RNT has no dedicated common-resources-bin separating high-res textures/soundfonts from gameplay PWADs (RocketLauncher2 differentiator)."
+    },
+    {
+      "id": "demo-management",
+      "category": "telemetry",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "missing",
+      "rnt_evidence": [
+        "internal/launcher/launcher.go",
+        "internal/history/service.go"
+      ],
+      "notes": "RNT telemetry logs duration/exitCode only; no -statdump/-levelstat/.zds demo parsing or per-level kill/secret/item tracking (DoomLauncher strength)."
+    },
+    {
+      "id": "diagnostics-missing-selection-alert",
+      "category": "diagnostics",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/validator/validator.go",
+        "internal/diagnostics/service.go",
+        "frontend/src/features/profiles/ValidationBanner.tsx"
+      ],
+      "notes": "Covered via validator 5 rules (Engine/IWAD/mod files/workingDir) plus diagnostics-health RunDiagnostics error/warning issue surfacing."
+    },
+    {
+      "id": "diagnostics-validation",
+      "category": "diagnostics",
+      "weight": 2,
+      "critical": true,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/validator/validator.go",
+        "internal/domain/models.go:ValidationResult",
+        "internal/diagnostics/service.go",
+        "frontend/src/features/diagnostics/DiagnosticsView.tsx"
+      ],
+      "notes": "Critical: 5-rule pre-flight ValidatorService + diagnostics-health PRAGMA integrity_check + orphan sweep; aggregate READY/READY_WITH_WARNINGS/CANNOT_LAUNCH."
+    },
+    {
+      "id": "dosbox-script-generation",
+      "category": "launch",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "missing",
+      "rnt_evidence": [
+        "internal/launcher/builder.go",
+        "internal/launcher/dialect.go"
+      ],
+      "notes": "RNT launch pipeline only supports native source ports via exec.CommandContext; no DOSBox MOUNT/script generation for DOOM.EXE (RocketLauncher2 legacy)."
+    },
+    {
+      "id": "drag-and-drop",
+      "category": "ui",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "frontend/src/features/library/LibraryView.tsx",
+        "app.go:230",
+        "internal/scanner/scanner.go:ImportFile"
+      ],
+      "notes": "HTML5 drop ingress referencing absolute path, fallback Add Mod picker; Wayland compositor limitation documented but core DnD implemented."
+    },
+    {
+      "id": "engine-dialect-flavors",
+      "category": "launch",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "partial",
+      "rnt_evidence": [
+        "internal/launcher/dialect.go:GetDialect",
+        "internal/engines/service.go:DetectFamilyFromPath",
+        "internal/domain/models.go:EngineFamily"
+      ],
+      "notes": "RNT GetDialect provides ZDoom/Chocolate/PrBoom/Woof/Generic; EDGE/Eternity/Doomsday/KEX alias Generic (partial vs DoomRunner deep EngineTraits). Flavors covered partially."
+    },
+    {
+      "id": "engine-dialect-translation",
+      "category": "launch",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/launcher/dialect.go",
+        "internal/launcher/builder.go",
+        "internal/domain/models.go:SupportsPK3"
+      ],
+      "notes": "EngineDialect interface translates -warp/+map, -file/-merge, -savedir, -complevel per family; PrBoom/Woof -complevel, ZDoom PK3 support."
+    },
+    {
+      "id": "engine-management",
+      "category": "management",
+      "weight": 2,
+      "critical": true,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/engines/service.go",
+        "internal/database/repositories.go:engineRepo",
+        "frontend/src/features/engines/EnginesView.tsx",
+        "app.go:335-365"
+      ],
+      "notes": "Critical: EngineService CRUD, ValidateExecutable, DetectFamilyFromPath, version probing with 1500ms timeout; family tabs GZDoom/Zandronum/Woof/etc."
+    },
+    {
+      "id": "gzdoom-netplay-controls",
+      "category": "multiplayer",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "missing",
+      "rnt_evidence": [
+        "internal/launcher/builder.go",
+        "internal/domain/dmflags.go"
+      ],
+      "notes": "RNT has no dedicated GZDoom netplay UI (-dup/-extratic/host concealment) beyond customArgs passthrough (Arachnotron strength)."
+    },
+    {
+      "id": "idgames-integration",
+      "category": "integration",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/idgames/client.go",
+        "app.go:243-298",
+        "frontend/src/features/library/IdgamesSearchModal.tsx"
+      ],
+      "notes": "IdgamesClient queries doomworld.com/idgames/api/api.php, downloads via mirror, ZipSlip-guarded extract, selectPrimaryModFile then scanner.ImportFile."
+    },
+    {
+      "id": "import-export",
+      "category": "portability",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/profiles/yaml.go",
+        "app.go:415-432",
+        "frontend/src/features/profiles/ImportProfileModal.tsx"
+      ],
+      "notes": "YAML v1 portability: ProfileExportFile v1 with engine/iwad/mods resolution by id/name/filename, warnings for missing assets."
+    },
+    {
+      "id": "import-export-rocket",
+      "category": "portability",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "missing",
+      "rnt_evidence": [
+        "internal/profiles/yaml.go",
+        "internal/profiles/zdl.go"
+      ],
+      "notes": "RNT supports YAML v1 + ZDL but no RocketLauncher2 .rocket INI SavedConfigs import (import-export-rocket)."
+    },
+    {
+      "id": "import-export-zdl",
+      "category": "portability",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/profiles/zdl.go",
+        "app.go:443-444",
+        "frontend/src/services/api.ts"
+      ],
+      "notes": "ParseZDL reads [zdl.save] INI (port/iwad/files/warp/skill/extraParams) and maps to Profile with heuristic resolution."
+    },
+    {
+      "id": "iwad-management",
+      "category": "management",
+      "weight": 2,
+      "critical": true,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/iwads/service.go",
+        "internal/scanner/scanner.go:683-744",
+        "frontend/src/features/iwads/IWADsView.tsx",
+        "internal/database/schema.go:iwads"
+      ],
+      "notes": "Critical: IWADService auto-identify 8 types via filename+lumpCount heuristics, sha256/size/lump_count storage, grid/table views."
+    },
+    {
+      "id": "launch-argument-building",
+      "category": "launch",
+      "weight": 2,
+      "critical": true,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/launcher/builder.go:BuildArguments",
+        "internal/launcher/dialect.go",
+        "internal/launcher/launcher.go:127-295"
+      ],
+      "notes": "Critical: BuildArguments -iwad + sorted enabled mods -file + SplitCustomArgs quote-aware, no shell interpolation, FormatCommandLine for history."
+    },
+    {
+      "id": "library-favorites",
+      "category": "library",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/database/schema.go:mods.is_favorite",
+        "internal/database/repositories.go:ToggleFavorite",
+        "app.go:222-224"
+      ],
+      "notes": "Toggle favorite int flag for mods & profiles, Dashboard favorites-first, Library Favorites tab, idx_mods_favorite."
+    },
+    {
+      "id": "library-management",
+      "category": "library",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "frontend/src/features/library/LibraryView.tsx",
+        "internal/database/repositories.go:modRepo.List",
+        "internal/scanner/scanner.go"
+      ],
+      "notes": "Full library-management dual grid/table, category/format/filter chips, SQLite indexed LIKE search <100ms, usage counts."
+    },
+    {
+      "id": "lightweight-fast-start",
+      "category": "performance",
+      "weight": 0,
+      "critical": false,
+      "rnt_status": "missing",
+      "rnt_evidence": [
+        "frontend/dist",
+        "main.go",
+        "internal/scanner/scanner.go"
+      ],
+      "notes": "Weight 0 excluded from scoring (pure performance variant). RNT Wails+React bundle is not sub-50ms/<10MB qZDL class; heavier but full library management tradeoff."
+    },
+    {
+      "id": "load-order-management",
+      "category": "launch",
+      "weight": 2,
+      "critical": true,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/profiles/service.go:AddMod/ReorderMods/ToggleMod",
+        "internal/domain/models.go:GetEffectiveMods",
+        "frontend/src/features/profiles/LoadOrderList.tsx"
+      ],
+      "notes": "Critical: Drag-drop reorder, keyboard up/down, Move Top/Bottom, per-mod enabled toggle, ReorderMods validation, Order ASC index."
+    },
+    {
+      "id": "lump-graphic-rendering-playpal",
+      "category": "parsing",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/filesystem/palette.go",
+        "internal/filesystem/inspector.go:ExtractArtwork",
+        "app.go:199-220"
+      ],
+      "notes": "Pure Go PLAYPAL 768-byte + Doom planar patch decoder to RGBA/PNG base64 dataUri for TITLEPIC/CREDIT/BOSSBACK without engine."
+    },
+    {
+      "id": "mapinfo-extraction",
+      "category": "parsing",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/filesystem/archive.go",
+        "internal/filesystem/wad.go:isMapLump",
+        "internal/filesystem/inspector.go"
+      ],
+      "notes": "InspectArchive/WAD parses MAPINFO tokens plus MAP01-MAP99/E1M1-E9M9 map lumps into FileInfo.Maps/Structures."
+    },
+    {
+      "id": "md5-engine-iwad-identification",
+      "category": "parsing",
+      "weight": 2,
+      "critical": true,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/filesystem/hasher.go:ComputeSHA256",
+        "internal/engines/service.go:DetectFamilyFromPath",
+        "internal/iwads/service.go:AutoIdentifyType"
+      ],
+      "notes": "Critical hashing-dedup proxy: streaming SHA-256 (64k buffer) per file + IWAD/engine family detection via regex/path heuristics (covers MD5 semantic via SHA256)."
+    },
+    {
+      "id": "mod-bundles-dmb",
+      "category": "portability",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "missing",
+      "rnt_evidence": [
+        "internal/profiles/service.go",
+        "internal/domain/models.go"
+      ],
+      "notes": "RNT profiles store flat mod list; no DoomRunner .dmb nested playlist/plaintext bundle composition."
+    },
+    {
+      "id": "mod-list-checked-toggle",
+      "category": "launch",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/profiles/service.go:ToggleMod",
+        "frontend/src/features/profiles/LoadOrderItem.tsx",
+        "internal/domain/models.go:EnabledMods"
+      ],
+      "notes": "Per-mod checkbox enabling selective -file inclusion without removal, strike-through semantics via enabled flag."
+    },
+    {
+      "id": "multiplayer-lan",
+      "category": "multiplayer",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "missing",
+      "rnt_evidence": [
+        "internal/launcher/launcher.go",
+        "internal/domain/dmflags.go"
+      ],
+      "notes": "No master-server browser, LAN join/host GUI; netplay only via custom args -host/-join (Tier PRD out-of-scope, DoomRunner multiplayer-lan gap)."
+    },
+    {
+      "id": "non-destructive-disable",
+      "category": "launch",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/profiles/service.go:ToggleMod",
+        "internal/domain/models.go:DisabledMods"
+      ],
+      "notes": "ToggleMod flips enabled flag preserving order; disabled mods excluded from BuildArguments but retained in profile (qZDL strike-through parity)."
+    },
+    {
+      "id": "pk3-parsing-via-miniz",
+      "category": "parsing",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/filesystem/archive.go:InspectArchive",
+        "internal/filesystem/inspector.go:ArchiveInfo"
+      ],
+      "notes": "Go's archive/zip central-directory inspection covers miniz-equivalent PK3/PK7 detection without extraction, entry listing."
+    },
+    {
+      "id": "pk3-zip-parsing",
+      "category": "parsing",
+      "weight": 2,
+      "critical": true,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/filesystem/archive.go",
+        "internal/filesystem/inspector.go",
+        "internal/filesystem/archive.go:IsZip/Is7z"
+      ],
+      "notes": "Critical: central-directory inspection for PK3/PK7/ZIP/IPK3/7Z, entry count/list, maps/structures, ZipSlip-guarded extraction in idgames client."
+    },
+    {
+      "id": "play-history",
+      "category": "telemetry",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/history/service.go",
+        "internal/database/repositories.go:historyRepo",
+        "internal/domain/models.go:LaunchRecord",
+        "frontend/src/features/history/HistoryView.tsx"
+      ],
+      "notes": "LaunchRecord history with profile/engine/iwad names, started/finished timestamps, durationMs, exitCode, status, commandLine; limit 50, search/status filter."
+    },
+    {
+      "id": "playtime-tracking",
+      "category": "telemetry",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/history/service.go:GetStats",
+        "internal/database/repositories.go:historyRepo.GetStats",
+        "internal/launcher/launcher.go:monitorProcess"
+      ],
+      "notes": "monitorProcess computes durationMs via time.Since -> history duration aggregated totalPlayTimeMs/mostPlayed in GetStats."
+    },
+    {
+      "id": "process-log-capture",
+      "category": "launch",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/launcher/launcher.go:OSProcessRunner",
+        "internal/launcher/launcher.go:monitorProcess",
+        "frontend/src/features/history/HistoryView.tsx"
+      ],
+      "notes": "OSProcessRunner captures stdout/stderr via pipes into buf; background monitor retains log; HistoryView surfaces commandLine and status."
+    },
+    {
+      "id": "process-supervision",
+      "category": "launch",
+      "weight": 2,
+      "critical": true,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/launcher/launcher.go:LauncherService",
+        "internal/launcher/launcher.go:ActiveLaunch",
+        "app.go:475-481",
+        "internal/launcher/launcher.go:monitorProcess"
+      ],
+      "notes": "Critical: non-blocking supervised launches, RWMutex active map, Pid/startTime, KillLaunch/KillAll on app.Close, launch:start/exit Wails events."
+    },
+    {
+      "id": "profile-inheritance",
+      "category": "management",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/domain/models.go:GetEffectiveMods",
+        "internal/database/schema.go:profiles.parent_profile_id",
+        "internal/profiles/service.go"
+      ],
+      "notes": "Child parent_profile_id inheritance: merge parent enabled mods with local overrides by ModID/clean path, disabled override suppresses parent."
+    },
+    {
+      "id": "profile-load-order",
+      "category": "launch",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/profiles/service.go:ReorderMods",
+        "internal/database/schema.go:idx_profile_mods_profile_order",
+        "internal/domain/models.go:EnabledMods"
+      ],
+      "notes": "Alias of load-order-management: ordered profile_mods sort_order ASC, ReorderMods validates length, UI drag-drop."
+    },
+    {
+      "id": "profile-management",
+      "category": "management",
+      "weight": 2,
+      "critical": true,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/profiles/service.go",
+        "internal/domain/models.go:Profile",
+        "internal/database/repositories.go:profileRepo",
+        "frontend/src/features/profiles/ProfilesView.tsx"
+      ],
+      "notes": "Critical: CRUD + Duplicate + ToggleFavorite, holds engineId/iwadId/mods/arguments/workingDir/isolateSaves/parentProfileId transactions."
+    },
+    {
+      "id": "savegame-management",
+      "category": "management",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "partial",
+      "rnt_evidence": [
+        "internal/saves/service.go",
+        "internal/launcher/launcher.go:151-162",
+        "app.go:454-461"
+      ],
+      "notes": "Partial: per-profile isolated dirs baseDir/<id> via -savedir injection when isolateSaves; no DB-swapped per-save metadata/screenshots like DoomLauncher (gap #8)."
+    },
+    {
+      "id": "scanning",
+      "category": "discovery",
+      "weight": 2,
+      "critical": true,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/scanner/scanner.go:ScannerService",
+        "internal/filesystem/inspector.go:InspectFile",
+        "frontend/src/features/library/LibraryView.tsx",
+        "app.go:487-531"
+      ],
+      "notes": "Critical: recursive discovery .wad/.pk3/.pk7/.ipk3/.zip/.deh/.bex, classify Mod/IWAD/Engine, cancellable ctx, progressFn -> Wails scan:progress/complete."
+    },
+    {
+      "id": "scope-based-config",
+      "category": "management",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "missing",
+      "rnt_evidence": [
+        "internal/settings/service.go",
+        "frontend/src/features/settings/SettingsView.tsx"
+      ],
+      "notes": "RNT settings are global KV only; no DoomRunner StoreToPreset/StoreGlobally/DontStore per-preset scoping."
+    },
+    {
+      "id": "screenshots-import",
+      "category": "telemetry",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "missing",
+      "rnt_evidence": [
+        "internal/saves/service.go",
+        "frontend/src/features/library/ModInspectorDrawer.tsx"
+      ],
+      "notes": "RNT isolates saves via -savedir dirs only; no DoomLauncher-like per-save screenshot metadata import/saving to DB."
+    },
+    {
+      "id": "search-filter",
+      "category": "library",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/database/repositories.go:modRepo.List",
+        "frontend/src/features/library/LibraryView.tsx:filteredMods",
+        "frontend/src/App.tsx:spotlight"
+      ],
+      "notes": "SQLite LIKE '%q%' on name/path + in-memory chip filters + global Ctrl+K spotlight across mods/profiles/engines/iwads."
+    },
+    {
+      "id": "search-filter-regex",
+      "category": "library",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "missing",
+      "rnt_evidence": [
+        "internal/database/repositories.go:modRepo.List"
+      ],
+      "notes": "Search uses case-insensitive LIKE + includes; no DoomRunner regex search-filter-regex support."
+    },
+    {
+      "id": "session-vs-profile-overrides",
+      "category": "management",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "missing",
+      "rnt_evidence": [
+        "internal/domain/models.go:GetEffectiveMods",
+        "internal/profiles/service.go"
+      ],
+      "notes": "RNT has persistent parentProfile inheritance but no Arachnotron ephemeral session-vs-profile split (profileSettings.json session overrides)."
+    },
+    {
+      "id": "settings-config",
+      "category": "management",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/settings/service.go",
+        "internal/domain/models.go:Settings",
+        "frontend/src/features/settings/SettingsView.tsx",
+        "app.go:550-556"
+      ],
+      "notes": "KV JSON settings: mod/iwad/engine dirs, defaultWorkingDir, theme, confirmLaunch, autoScanOnStartup, closeOnLaunch; Save/Reset/dirty-check."
+    },
+    {
+      "id": "statistics-tracking",
+      "category": "telemetry",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "partial",
+      "rnt_evidence": [
+        "internal/history/service.go:GetStats",
+        "internal/database/repositories.go:historyRepo.GetStats",
+        "internal/domain/models.go:LaunchRecord"
+      ],
+      "notes": "Partial: aggregates totalLaunches/playTime/mostPlayed but no -statdump/-levelstat/.zds per-level kill/secret/item interception (gap #7)."
+    },
+    {
+      "id": "steam-gog-discovery",
+      "category": "discovery",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "missing",
+      "rnt_evidence": [
+        "internal/scanner/scanner.go",
+        "internal/iwads/service.go"
+      ],
+      "notes": "No Steam libraryfolders.vdf / appmanifest*.acf auto-discovery parser (DoomLauncher parity missing, gap #6)."
+    },
+    {
+      "id": "tagging",
+      "category": "library",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "missing",
+      "rnt_evidence": [
+        "internal/domain/models.go:Mod.Category",
+        "internal/filesystem/inspector.go:DetermineCategory"
+      ],
+      "notes": "Single primary Category enum per mod only; no multi-tagging or custom tags deferred to v0.2.0 (gap #2)."
+    },
+    {
+      "id": "themes-light-dark",
+      "category": "ui",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "missing",
+      "rnt_evidence": [
+        "frontend/tailwind.config.js",
+        "frontend/src/index.css",
+        "internal/settings/service.go"
+      ],
+      "notes": "Industrial dark theme doom-bg #0c0d0e only; no Light/Dark theme switcher (DoomRunner themes-light-dark)."
+    },
+    {
+      "id": "ui-qml",
+      "category": "ui",
+      "weight": 0,
+      "critical": false,
+      "rnt_status": "missing",
+      "rnt_evidence": [
+        "frontend/src/App.tsx",
+        "frontend/src/components/layout/Sidebar.tsx"
+      ],
+      "notes": "Weight 0 UI framework variant excluded from scoring (Arachnotron QML not relevant to functional parity)."
+    },
+    {
+      "id": "ui-qt-widgets",
+      "category": "ui",
+      "weight": 0,
+      "critical": false,
+      "rnt_status": "missing",
+      "rnt_evidence": [
+        "frontend/src/App.tsx"
+      ],
+      "notes": "Weight 0 UI framework variant excluded from scoring (qt-widgets used by RocketLauncher2/qZDL/DoomRunner, not a functional feature)."
+    },
+    {
+      "id": "ui-winforms-wpf-tiles",
+      "category": "ui",
+      "weight": 0,
+      "critical": false,
+      "rnt_status": "missing",
+      "rnt_evidence": [
+        "frontend/src/App.tsx"
+      ],
+      "notes": "Weight 0 UI framework variant excluded from scoring (DoomLauncher WinForms/WPF tiles not relevant)."
+    },
+    {
+      "id": "wad-parsing",
+      "category": "parsing",
+      "weight": 2,
+      "critical": true,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/filesystem/wad.go:InspectWAD",
+        "internal/filesystem/inspector.go:detectFormat"
+      ],
+      "notes": "Critical: validate IWAD/PWAD magic, LE header numLumps/dirOffset, 16-byte directory, isMapLump regex, identifyStructure landmarks."
+    },
+    {
+      "id": "wad-parsing-minimal",
+      "category": "parsing",
+      "weight": 1,
+      "critical": false,
+      "rnt_status": "covered",
+      "rnt_evidence": [
+        "internal/filesystem/wad.go:ReadWADDirectory",
+        "internal/filesystem/inspector.go"
+      ],
+      "notes": "Minimal WAD headerdir parsing alias; already covered by wad-inspection InspectWADReader without full metadata."
+    }
+  ]
+}

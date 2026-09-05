@@ -20,11 +20,35 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
   onComplete,
   onNotify,
 }) => {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [isAutoDetecting, setIsAutoDetecting] = useState(false);
   const [selectedEnginePath, setSelectedEnginePath] = useState('');
   const [selectedIWADPath, setSelectedIWADPath] = useState('');
   const [selectedModDir, setSelectedModDir] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleAutoDetect = async () => {
+    if (isAutoDetecting) return;
+    setIsAutoDetecting(true);
+    try {
+      onNotify?.('Scanning standard system paths for Doom ports and IWADs...', 'info');
+      const scanResult = await api.startScan();
+      const enginesCount = scanResult?.discoveredEngines ?? scanResult?.discovered_engines ?? 0;
+      const iwadsCount = scanResult?.discoveredIWADs ?? scanResult?.discovered_iwads ?? 0;
+      const modsCount = scanResult?.discoveredMods ?? scanResult?.discovered_mods ?? 0;
+      const totalFound = enginesCount + iwadsCount + modsCount;
+      if (totalFound > 0) {
+        onNotify?.(`Auto-discovery completed: found ${enginesCount} engines, ${iwadsCount} IWADs, and ${modsCount} mods.`, 'success');
+        onComplete();
+      } else {
+        onNotify?.('No Doom assets found in default directories. Please select paths manually below.', 'warning');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      onNotify?.(`Auto-detection error: ${msg}`, 'error');
+    } finally {
+      setIsAutoDetecting(false);
+    }
+  };
 
   const handleSelectEngine = async () => {
     try {
@@ -45,7 +69,6 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
           family,
         });
         onNotify?.('Source Port registered successfully', 'success');
-        setStep(2);
       }
     } catch (err) {
       console.error('Failed to select engine:', err);
@@ -66,7 +89,6 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
         setIsProcessing(true);
         await api.registerIWADFile(path);
         onNotify?.('IWAD registered successfully', 'success');
-        setStep(3);
       }
     } catch (err) {
       console.error('Failed to select IWAD:', err);
@@ -92,7 +114,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
         }
         onNotify?.('Scanning mod directory...', 'info');
         await api.startScan();
-        onNotify?.('Setup complete! Welcome to RNT Launcher.', 'success');
+        onNotify?.('Setup complete. Welcome to RNT Launcher.', 'success');
         onComplete();
       }
     } catch (err) {
@@ -104,163 +126,132 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
   };
 
   return (
-    <div className="rounded-xl bg-gradient-to-b from-zinc-900 via-zinc-900/90 to-zinc-950 border border-zinc-800 p-6 md:p-8 shadow-2xl relative overflow-hidden">
-      {/* Background Accent */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-red-600/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
-
-      <div className="relative z-10 space-y-6">
-        {/* Banner Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800/80 pb-5">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-red-500 font-semibold text-xs uppercase tracking-wider">
-              <Sparkles className="w-4 h-4" />
-              Quick Setup Wizard
-            </div>
-            <h2 className="text-xl md:text-2xl font-bold text-zinc-100 flex items-center gap-2.5">
-              Welcome to RNT Launcher
-            </h2>
-            <p className="text-sm text-zinc-400">
-              Get ready to play in 3 simple steps. Configure your source port, IWAD, and mods directory.
-            </p>
+    <div className="rounded-xl bg-[#15181c] border border-white/[0.08] p-6 shadow-xl relative overflow-hidden mb-6">
+      {/* Header with Title & Dismiss */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.07] pb-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-red-400 font-mono text-[11px] uppercase tracking-wider font-semibold">
+            <Sparkles className="w-3.5 h-3.5 text-red-400" />
+            Smart Plug & Play Setup
           </div>
-          <Button variant="ghost" size="sm" onClick={onComplete} className="text-zinc-500 hover:text-zinc-300">
-            Skip for now
+          <h2 className="text-lg font-bold text-zinc-100">
+            Welcome to RNT Launcher
+          </h2>
+          <p className="text-xs text-zinc-400">
+            Auto-detect your installed Doom engines, IWADs, and mods or configure directories manually.
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={onComplete}
+          className="text-zinc-500 hover:text-zinc-300 font-mono text-xs"
+        >
+          Dismiss
+        </Button>
+      </div>
+
+      {/* 1-Click Auto-Detect Hero Banner */}
+      <div className="my-5 p-4 rounded-lg bg-black/40 border border-white/[0.08] flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="space-y-1 text-center md:text-left">
+          <div className="text-sm font-semibold text-zinc-100 flex items-center justify-center md:justify-start gap-2">
+            <span>Auto-Detect Games & Source Ports</span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-red-950/60 text-red-400 border border-red-800/40">
+              1-Click
+            </span>
+          </div>
+          <p className="text-xs text-zinc-400 max-w-xl">
+            Automatically search common Steam, GOG, and standard game folders for GZDoom, DSDA-Doom, DOOM2.WAD, and mods.
+          </p>
+        </div>
+        <Button
+          variant="primary"
+          onClick={handleAutoDetect}
+          disabled={isAutoDetecting}
+          className="px-5 py-2 font-bold tracking-wide uppercase text-xs whitespace-nowrap"
+        >
+          {isAutoDetecting ? 'Scanning System...' : 'Auto-Detect Installed Assets'}
+        </Button>
+      </div>
+
+      {/* Manual Quick Pickers */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* Step 1: Engine */}
+        <div className="p-3.5 rounded-lg bg-black/20 border border-white/[0.06] flex flex-col justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400">1. Engine</span>
+              {selectedEnginePath ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <FileCode2 className="w-3.5 h-3.5 text-zinc-400" />
+              )}
+            </div>
+            <div className="text-xs font-semibold text-zinc-200">Source Port</div>
+            <p className="text-[11px] text-zinc-400">Select gzdoom.exe, dsda-doom, etc.</p>
+          </div>
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={handleSelectEngine}
+            disabled={isProcessing}
+            className="w-full text-xs font-medium"
+            leftIcon={<FolderOpen className="w-3.5 h-3.5" />}
+          >
+            {selectedEnginePath ? 'Port Added' : 'Browse Executable'}
           </Button>
         </div>
 
-        {/* Step Indicator */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {/* Step 1 */}
-          <div
-            className={`p-4 rounded-lg border transition-all ${
-              step === 1
-                ? 'bg-zinc-800/80 border-red-500/50 shadow-md ring-1 ring-red-500/20'
-                : selectedEnginePath
-                ? 'bg-zinc-900/60 border-emerald-900/40 text-zinc-400'
-                : 'bg-zinc-900/40 border-zinc-800/60 text-zinc-500'
-            }`}
-          >
+        {/* Step 2: IWAD */}
+        <div className="p-3.5 rounded-lg bg-black/20 border border-white/[0.06] flex flex-col justify-between gap-3">
+          <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider">Step 1</span>
-              {selectedEnginePath ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              ) : (
-                <FileCode2 className="w-4 h-4 text-zinc-400" />
-              )}
-            </div>
-            <h3 className="text-sm font-semibold text-zinc-200 mt-2">Add Source Port</h3>
-            <p className="text-xs text-zinc-400 mt-1">GZDoom, DSDA-Doom, Woof, or Crispy</p>
-          </div>
-
-          {/* Step 2 */}
-          <div
-            className={`p-4 rounded-lg border transition-all ${
-              step === 2
-                ? 'bg-zinc-800/80 border-red-500/50 shadow-md ring-1 ring-red-500/20'
-                : selectedIWADPath
-                ? 'bg-zinc-900/60 border-emerald-900/40 text-zinc-400'
-                : 'bg-zinc-900/40 border-zinc-800/60 text-zinc-500'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider">Step 2</span>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400">2. Base Game</span>
               {selectedIWADPath ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
               ) : (
-                <Gamepad2 className="w-4 h-4 text-zinc-400" />
+                <Gamepad2 className="w-3.5 h-3.5 text-zinc-400" />
               )}
             </div>
-            <h3 className="text-sm font-semibold text-zinc-200 mt-2">Add Base IWAD</h3>
-            <p className="text-xs text-zinc-400 mt-1">DOOM2.WAD, DOOM.WAD, or Freedoom</p>
+            <div className="text-xs font-semibold text-zinc-200">Base IWAD</div>
+            <p className="text-[11px] text-zinc-400">DOOM2.WAD, DOOM.WAD, etc.</p>
           </div>
-
-          {/* Step 3 */}
-          <div
-            className={`p-4 rounded-lg border transition-all ${
-              step === 3
-                ? 'bg-zinc-800/80 border-red-500/50 shadow-md ring-1 ring-red-500/20'
-                : selectedModDir
-                ? 'bg-zinc-900/60 border-emerald-900/40 text-zinc-400'
-                : 'bg-zinc-900/40 border-zinc-800/60 text-zinc-500'
-            }`}
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={handleSelectIWAD}
+            disabled={isProcessing}
+            className="w-full text-xs font-medium"
+            leftIcon={<FolderOpen className="w-3.5 h-3.5" />}
           >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider">Step 3</span>
-              {selectedModDir ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              ) : (
-                <HardDrive className="w-4 h-4 text-zinc-400" />
-              )}
-            </div>
-            <h3 className="text-sm font-semibold text-zinc-200 mt-2">Scan Mod Folder</h3>
-            <p className="text-xs text-zinc-400 mt-1">Discover your PK3 and WAD collection</p>
-          </div>
+            {selectedIWADPath ? 'IWAD Added' : 'Browse IWAD'}
+          </Button>
         </div>
 
-        {/* Step Action Body */}
-        <div className="p-6 rounded-xl bg-zinc-950/80 border border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-          {step === 1 && (
-            <>
-              <div className="space-y-1">
-                <h4 className="text-base font-semibold text-zinc-100">Step 1: Choose Your Doom Source Port</h4>
-                <p className="text-xs text-zinc-400 max-w-lg">
-                  Select the executable for your preferred source port (such as <code>gzdoom.exe</code> or{' '}
-                  <code>dsda-doom</code>).
-                </p>
-              </div>
-              <Button
-                variant="primary"
-                onClick={handleSelectEngine}
-                disabled={isProcessing}
-                className="flex items-center gap-2 whitespace-nowrap"
-              >
-                <FolderOpen className="w-4 h-4" />
-                Select Engine Executable
-              </Button>
-            </>
-          )}
-
-          {step === 2 && (
-            <>
-              <div className="space-y-1">
-                <h4 className="text-base font-semibold text-zinc-100">Step 2: Choose Your Game IWAD</h4>
-                <p className="text-xs text-zinc-400 max-w-lg">
-                  Select a base game IWAD file (such as <code>DOOM2.WAD</code>, <code>DOOM.WAD</code>, or{' '}
-                  <code>freedoom2.wad</code>).
-                </p>
-              </div>
-              <Button
-                variant="primary"
-                onClick={handleSelectIWAD}
-                disabled={isProcessing}
-                className="flex items-center gap-2 whitespace-nowrap"
-              >
-                <FolderOpen className="w-4 h-4" />
-                Select IWAD File
-              </Button>
-            </>
-          )}
-
-          {step === 3 && (
-            <>
-              <div className="space-y-1">
-                <h4 className="text-base font-semibold text-zinc-100">Step 3: Select Your Mods Folder</h4>
-                <p className="text-xs text-zinc-400 max-w-lg">
-                  Choose the directory where you store your Doom mods (.pk3, .wad, .zip). We will automatically catalog
-                  and index them.
-                </p>
-              </div>
-              <Button
-                variant="primary"
-                onClick={handleSelectModDir}
-                disabled={isProcessing}
-                className="flex items-center gap-2 whitespace-nowrap"
-              >
-                <FolderOpen className="w-4 h-4" />
-                Select Mods Folder & Scan
-              </Button>
-            </>
-          )}
+        {/* Step 3: Mod Directory */}
+        <div className="p-3.5 rounded-lg bg-black/20 border border-white/[0.06] flex flex-col justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400">3. Content</span>
+              {selectedModDir ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <HardDrive className="w-3.5 h-3.5 text-zinc-400" />
+              )}
+            </div>
+            <div className="text-xs font-semibold text-zinc-200">Mods Folder</div>
+            <p className="text-[11px] text-zinc-400">Folder with PK3, WAD files</p>
+          </div>
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={handleSelectModDir}
+            disabled={isProcessing}
+            className="w-full text-xs font-medium"
+            leftIcon={<FolderOpen className="w-3.5 h-3.5" />}
+          >
+            {selectedModDir ? 'Folder Added' : 'Select Folder & Scan'}
+          </Button>
         </div>
       </div>
     </div>

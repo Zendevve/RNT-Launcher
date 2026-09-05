@@ -1,7 +1,5 @@
-import React, { useRef } from 'react';
-import { Search, RefreshCw, Play, X, ShieldAlert, CheckCircle2 } from 'lucide-react';
-import { Button } from '../ui/Button';
-import { Badge } from '../ui/Badge';
+import React from 'react';
+import { Search, RefreshCw, Play, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
 export interface HeaderProps {
@@ -23,11 +21,9 @@ export interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   title,
-  subtitle,
   searchQuery = '',
-  onSearchChange,
   onSearchClick,
-  searchPlaceholder = 'Search library, profiles, engines...',
+  searchPlaceholder = 'Search mods, profiles, commands...',
   showSearch = true,
   onQuickScan,
   isScanning = false,
@@ -37,10 +33,6 @@ export const Header: React.FC<HeaderProps> = ({
   actions,
   className,
 }) => {
-  const searchInputRef = useRef<HTMLInputElement>(null);
-
-  // Handled globally in App.tsx
-
   const isMac =
     typeof window !== 'undefined' &&
     /Mac|iPod|iPhone|iPad/.test(window.navigator.userAgent);
@@ -48,127 +40,115 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header
       className={cn(
-        'h-14 bg-doom-surface/90 backdrop-blur-sm border-b border-doom-border px-6 flex items-center justify-between gap-4 select-none z-20 flex-shrink-0',
+        'h-12 bg-[#09090b] border-b border-[#2d2d34] px-4 flex items-center justify-between gap-4 select-none z-20 flex-shrink-0',
         className
       )}
     >
-      {/* Title & context */}
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="flex flex-col min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="text-base font-bold tracking-tight text-doom-text uppercase truncate">
-              {title}
-            </h1>
-            {activeProfileName && (
-              <span className="hidden md:inline-flex items-center gap-1 font-mono text-xs text-doom-muted bg-doom-card px-2 py-0.5 rounded border border-doom-border">
-                Profile: <span className="text-doom-text font-semibold">{activeProfileName}</span>
-              </span>
-            )}
-          </div>
-          {subtitle && (
-            <span className="text-xs text-doom-muted truncate leading-tight -mt-0.5">
-              {subtitle}
+      {/* Breadcrumb - Geist 500, caption tracking */}
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="text-[11px] font-medium text-[#71717a] uppercase tracking-[0.08em]" style={{ fontFamily: 'var(--font-sans)' }}>
+          RNT
+        </span>
+        <span className="text-[#2d2d34] font-mono text-xs select-none">/</span>
+        <h1 className="text-xs font-medium text-[#f4f4f5] tracking-tight truncate" style={{ fontFamily: 'var(--font-sans)' }}>
+          {title}
+        </h1>
+        {activeProfileName && (
+          <div className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-[#a1a1aa] bg-[rgba(244,244,245,0.05)] px-2 py-0.5 rounded-[8px] border border-[#2d2d34]">
+            <span className="text-[#71717a] font-medium tracking-[0.04em] uppercase text-[10px]" style={{ fontFamily: 'var(--font-sans)' }}>Active:</span>
+            <span className="text-[#f4f4f5] font-medium truncate max-w-[160px]" style={{ fontFamily: 'var(--font-sans)' }}>
+              {activeProfileName}
             </span>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* Center Search Bar */}
-      {showSearch && onSearchChange && (
-        <div className="flex-1 max-w-md mx-4 hidden sm:block">
-          <div className="relative flex items-center">
-            <Search className="w-4 h-4 text-doom-muted absolute left-3 pointer-events-none" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchQuery}
-              onClick={() => onSearchClick?.()}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder={searchPlaceholder}
-              className={cn(
-                'w-full h-8 pl-9 pr-14 bg-doom-bg/80 text-doom-text placeholder:text-doom-muted/60 text-xs rounded border border-doom-border cursor-pointer',
-                'hover:border-doom-border-bright focus:border-doom-red focus:ring-1 focus:ring-doom-red focus:outline-none transition-colors'
-              )}
-            />
-            {searchQuery ? (
-              <button
-                type="button"
-                onClick={() => onSearchChange('')}
-                className="absolute right-2 text-doom-muted hover:text-doom-text p-0.5 rounded hover:bg-doom-card"
-                aria-label="Clear search"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            ) : (
-              <kbd className="absolute right-2 text-[10px] font-mono text-doom-muted/70 bg-doom-surface px-1.5 py-0.5 rounded border border-doom-border/70 pointer-events-none">
-                {isMac ? '⌘K' : 'Ctrl+K'}
-              </kbd>
-            )}
-          </div>
+      {/* Center Global Search Trigger (Ctrl+K) - 8px rhythm */}
+      {showSearch && (
+        <div className="flex-1 max-w-sm mx-4 hidden sm:block">
+          <button
+            type="button"
+            onClick={() => onSearchClick?.()}
+            className="w-full h-8 pl-8 pr-2 bg-[#101010] text-[#a1a1aa] text-xs rounded-[8px] border border-[#2d2d34] flex items-center justify-between hover:border-[#3a3a44] hover:text-[#f4f4f5] transition-colors relative"
+            style={{ fontFamily: 'var(--font-sans)' }}
+          >
+            <Search className="w-3.5 h-3.5 text-[#71717a] absolute left-2.5 pointer-events-none" />
+            <span className="truncate text-[12px] text-[#71717a] tracking-[0.01em]">
+              {searchQuery || searchPlaceholder}
+            </span>
+            <kbd className="text-[10px] font-medium text-[#a1a1aa] bg-[rgba(244,244,245,0.05)] px-1.5 py-0.5 rounded-[6px] border border-[#2d2d34] tracking-[0.04em]">
+              {isMac ? '⌘K' : 'Ctrl+K'}
+            </kbd>
+          </button>
         </div>
       )}
 
-      {/* Right Actions & Status */}
-      <div className="flex items-center gap-2.5 flex-shrink-0">
+      {/* Right Controls: Status / Scan / Periwinkle Play CTA - 8px rhythm, Geist */}
+      <div className="flex items-center gap-2 flex-shrink-0">
         {/* Launch Status indicator */}
         {launchStatus && launchStatus !== 'IDLE' && (
           <div className="hidden lg:flex items-center">
             {launchStatus === 'RUNNING' && (
-              <Badge variant="primary" dot dotPulse size="sm">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-[8px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 tracking-[0.04em]" style={{ fontFamily: 'var(--font-sans)' }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
                 RUNNING
-              </Badge>
+              </span>
             )}
             {launchStatus === 'LAUNCHING' && (
-              <Badge variant="warning-status" dot size="sm">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-[8px] bg-amber-500/10 text-amber-400 border border-amber-500/20 tracking-[0.04em]" style={{ fontFamily: 'var(--font-sans)' }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
                 LAUNCHING
-              </Badge>
+              </span>
             )}
             {launchStatus === 'READY' && (
-              <Badge variant="ready" icon={<CheckCircle2 className="w-3 h-3 mr-1" />} size="sm">
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-[8px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 tracking-[0.04em]" style={{ fontFamily: 'var(--font-sans)' }}>
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                 READY
-              </Badge>
+              </span>
             )}
             {launchStatus === 'WARNING' && (
-              <Badge variant="warning-status" icon={<ShieldAlert className="w-3 h-3 mr-1" />} size="sm">
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-[8px] bg-amber-500/10 text-amber-400 border border-amber-500/20 tracking-[0.04em]" style={{ fontFamily: 'var(--font-sans)' }}>
+                <ShieldAlert className="w-3 h-3 text-amber-400" />
                 WARNINGS
-              </Badge>
+              </span>
             )}
             {launchStatus === 'ERROR' && (
-              <Badge variant="error-status" icon={<ShieldAlert className="w-3 h-3 mr-1" />} size="sm">
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-[8px] bg-red-500/10 text-red-400 border border-red-500/20 tracking-[0.04em]" style={{ fontFamily: 'var(--font-sans)' }}>
+                <ShieldAlert className="w-3 h-3 text-red-400" />
                 CANNOT LAUNCH
-              </Badge>
+              </span>
             )}
           </div>
         )}
 
         {/* Quick Scan Button */}
         {onQuickScan && (
-          <Button
-            variant="secondary"
-            size="sm"
+          <button
+            type="button"
             onClick={onQuickScan}
             disabled={isScanning}
-            leftIcon={
-              <RefreshCw
-                className={cn('w-3.5 h-3.5', isScanning && 'animate-spin text-doom-red-bright')}
-              />
-            }
+            className="h-8 px-3 inline-flex items-center gap-1.5 text-xs font-medium text-[#a1a1aa] hover:text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.05)] disabled:text-[#71717a] rounded-[8px] transition-colors"
+            style={{ fontFamily: 'var(--font-sans)' }}
           >
-            {isScanning ? 'Scanning...' : 'Scan Files'}
-          </Button>
+            <RefreshCw
+              className={cn('w-3.5 h-3.5', isScanning && 'animate-spin text-[#5e7ce2]')}
+            />
+            <span>{isScanning ? 'Scanning...' : 'Scan'}</span>
+          </button>
         )}
 
-        {/* Quick Play Action */}
+        {/* Universal Periwinkle Play Button */}
         {onQuickLaunch && (
-          <Button
-            variant="primary"
-            size="sm"
+          <button
+            type="button"
             onClick={onQuickLaunch}
             disabled={launchStatus === 'RUNNING' || launchStatus === 'LAUNCHING'}
-            leftIcon={<Play className="w-3.5 h-3.5 fill-current" />}
+            className="h-8 px-4 inline-flex items-center gap-1.5 bg-[#5e7ce2] hover:bg-[#6b8bf0] active:bg-[#4a62c6] disabled:opacity-50 disabled:pointer-events-none text-white font-medium tracking-[0.04em] uppercase text-xs rounded-[8px] transition-colors duration-150"
+            style={{ fontFamily: 'var(--font-sans)' }}
           >
-            PLAY
-          </Button>
+            <Play className="w-3 h-3 fill-current" />
+            <span>PLAY</span>
+          </button>
         )}
 
         {actions}

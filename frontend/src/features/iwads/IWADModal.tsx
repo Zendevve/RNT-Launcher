@@ -119,12 +119,25 @@ export const IWADModal: React.FC<IWADModalProps> = ({
   const [lumpCount, setLumpCount] = useState<number>(0);
   const [size, setSize] = useState<number>(0);
   const [sha256, setSha256] = useState<string>('');
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   const [isInspecting, setIsInspecting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [copiedHash, setCopiedHash] = useState(false);
+  const isDirty = isEditing && iwad
+    ? name !== (iwad.name || '') ||
+      path !== (iwad.path || '') ||
+      type !== (iwad.type || 'doom2')
+    : Boolean(name.trim() || path.trim());
 
-  // Initialize or reset form
+  const handleRequestClose = useCallback(() => {
+    if (isDirty) {
+      setShowDiscardConfirm(true);
+    } else {
+      onClose();
+    }
+  }, [isDirty, onClose]);
+
   useEffect(() => {
     if (isOpen) {
       if (iwad) {
@@ -142,9 +155,9 @@ export const IWADModal: React.FC<IWADModalProps> = ({
         setSize(0);
         setSha256('');
       }
+      setCopiedHash(false);
     }
   }, [isOpen, iwad]);
-
   // Inspect WAD file to extract lumps, sha256 and auto-detect type without persisting
   const inspectWADFile = useCallback(
     async (filePath: string) => {
@@ -262,30 +275,43 @@ export const IWADModal: React.FC<IWADModalProps> = ({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded bg-doom-amber/20 text-doom-amber border border-doom-amber/40">
-            <Disc className="h-4 w-4" />
+    <>
+      <Modal
+        isOpen={isOpen}
+        onClose={handleRequestClose}
+        closeOnBackdrop={!isDirty}
+        title={
+          <div className="flex items-center gap-2.5">
+            <span className="rounded-[8px] bg-[#0c0c0f] border border-[#2d2d34] p-1.5 text-amber-400">
+              <Disc className="h-4 w-4" />
+            </span>
+            <span>{isEditing ? 'Edit Base IWAD' : 'Register Base Game IWAD'}</span>
           </div>
-          <div>
-            <div className="text-base font-bold tracking-wide text-zinc-100 uppercase">
-              {isEditing ? 'Edit Base IWAD' : 'Register Base Game IWAD'}
-            </div>
-            <div className="text-xs text-doom-muted font-normal">
-              {isEditing
-                ? 'Update IWAD name or game type classification'
-                : 'Select a base Doom game file (DOOM2.WAD, DOOM.WAD, TNT.WAD, etc.)'}
-            </div>
+        }
+        description={
+          isEditing
+            ? 'Update IWAD name or game type classification'
+            : 'Select a base Doom game file (DOOM2.WAD, DOOM.WAD, TNT.WAD, etc.)'
+        }
+        size="xl"
+        footer={
+          <div className="flex items-center justify-end gap-3 w-full">
+            <Button type="button" variant="ghost" onClick={handleRequestClose} disabled={isSaving}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              form="iwad-form"
+              variant="primary"
+              isLoading={isSaving}
+              leftIcon={<Disc className="h-4 w-4" />}
+            >
+              {isEditing ? 'Save Changes' : 'Register IWAD'}
+            </Button>
           </div>
-        </div>
-      }
-      size="xl"
-    >
-      <form onSubmit={handleSave} className="space-y-5">
-        {/* File Path with Browse Button */}
+        }
+      >
+        <form id="iwad-form" onSubmit={handleSave} className="space-y-5">
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-zinc-300 uppercase tracking-wider flex items-center justify-between">
             <span>IWAD File Path *</span>
@@ -409,21 +435,37 @@ export const IWADModal: React.FC<IWADModalProps> = ({
           </div>
         </div>
 
-        {/* Footer Actions */}
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-doom-border">
-          <Button type="button" variant="ghost" onClick={onClose} disabled={isSaving}>
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            isLoading={isSaving}
-            leftIcon={<Disc className="h-4 w-4" />}
-          >
-            {isEditing ? 'Save Changes' : 'Register IWAD'}
-          </Button>
+        </form>
+      </Modal>
+
+      <Modal
+        isOpen={showDiscardConfirm}
+        onClose={() => setShowDiscardConfirm(false)}
+        size="sm"
+        title="Discard Unsaved Changes?"
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-[#a1a1aa]">
+            You have unsaved changes for{' '}
+            <span className="text-[#f4f4f5] font-medium">{name || 'this IWAD'}</span>. Are you
+            sure you want to discard them?
+          </p>
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <Button variant="ghost" onClick={() => setShowDiscardConfirm(false)}>
+              Keep Editing
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                setShowDiscardConfirm(false);
+                onClose();
+              }}
+            >
+              Discard Changes
+            </Button>
+          </div>
         </div>
-      </form>
-    </Modal>
+      </Modal>
+    </>
   );
 };

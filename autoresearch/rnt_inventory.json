@@ -1,0 +1,413 @@
+{
+  "stack": "Go 1.25.0 + Wails v2.13.0 + React 18.3.1 / TypeScript 5.7 + Vite 6.2 + Tailwind CSS 3.4.17 + SQLite (modernc.org/sqlite v1.57.0, pure Go, CGO_ENABLED=0, WAL) + TanStack Query 5.67.1 + gopkg.in/yaml.v3 + github.com/google/uuid + lucide-react + clsx/tailwind-merge",
+  "features": [
+    {
+      "id": "asset-scanning",
+      "status": "implemented",
+      "evidence": [
+        "internal/scanner/scanner.go (ScannerService, ScanAll, ScanDirectories, ScanModDirectory, ScanIWADDirectory, ScanEngineDirectory, ImportFile)",
+        "internal/filesystem/inspector.go (FileInfo, InspectFile)",
+        "frontend/src/features/library/LibraryView.tsx",
+        "app.go:487-531 (StartScan, emit scan:start/progress/complete)"
+      ],
+      "notes": "Recursive discovery for .wad/.pk3/.pk7/.ipk3/.zip/.deh/.bex; classifies Mod vs IWAD vs Engine via collectModFiles/processModFile/upsertMod/upsertIWAD; progress callback emits Wails events; ctx-aware cancellable; handles zero-byte/corrupt headers panic-safe (recover). Configured via settingsService mod/iwad/engineDirectories."
+    },
+    {
+      "id": "wad-inspection",
+      "status": "implemented",
+      "evidence": [
+        "internal/filesystem/wad.go (WADInfo, InspectWAD, InspectWADReader, ReadWADDirectory, isMapLump MAP01/E1M1, identifyStructure)",
+        "internal/filesystem/inspector.go:detectFormat, InspectReader",
+        "frontend/src/features/library/ModInspectorDrawer.tsx"
+      ],
+      "notes": "Validates IWAD/PWAD 4-byte magic, parses little-endian header (numLumps, dirOffset), enumerates 16-byte directory entries, extracts lumpCount, maps (MAP01-MAP99, E1M1-E9M9 regex), structures (DECORATE/ZSCRIPT/MAPINFO/SNDINFO/TEXTURES/GLDEFS etc via identifyStructure)."
+    },
+    {
+      "id": "archive-inspection",
+      "status": "implemented",
+      "evidence": [
+        "internal/filesystem/archive.go (ArchiveInfo, InspectArchive, InspectArchiveReader, IsZip, Is7z, sevenZipMagic)",
+        "internal/filesystem/inspector.go (ZIP branch, ArchiveInfo embedding)",
+        "frontend/src/features/library/ModInspectorDrawer.tsx"
+      ],
+      "notes": "Inspects PK3/PK7/ZIP/IPK3/7Z central directories without extraction; detects entry count, entry list, map tokens, structures (MAPINFO, ZSCRIPT, DECORATE). Distinguishes 7z magic 37 7A BC AF 27 1C vs ZIP EOCD. Corrupt-archive limits/truncation guards."
+    },
+    {
+      "id": "artwork-extraction",
+      "status": "implemented",
+      "evidence": [
+        "internal/filesystem/palette.go (ExtractPLAYPAL, DecodeDoomPicture, EncodePNG, DefaultDoomPalette 256xRGB)",
+        "internal/filesystem/inspector.go:237-360 (ExtractArtwork searches TITLEPIC/CREDIT/BOSSBACK/HELP/INTERPIC)",
+        "app.go:199-220 (GetModArtwork -> filesystem.ExtractArtwork -> base64 dataUri)",
+        "frontend/src/features/library/ModCard.tsx, ModInspectorDrawer.tsx"
+      ],
+      "notes": "Reads 768-byte PLAYPAL (256*RGB), falls back to DefaultDoomPalette; decodes Doom planar patch format (width/height, column posts, 0xFF terminator) into image.RGBA then PNG; app.go returns {hasArt, lumpName, dataUri: base64}. Pure Go, no engine invocation."
+    },
+    {
+      "id": "hashing-dedup",
+      "status": "implemented",
+      "evidence": [
+        "internal/filesystem/hasher.go (ComputeSHA256 streaming 64k buffer, ComputeSHA256Bytes)",
+        "internal/filesystem/inspector.go: FileInfo.SHA256",
+        "internal/database/schema.go: mods.sha256, iwads.sha256",
+        "internal/scanner/scanner.go: upsertMod SHA computation"
+      ],
+      "notes": "Streaming SHA-256 hex for every file; stored in SQLite for duplicate detection & integrity; computed via io.CopyBuffer, not loading whole file."
+    },
+    {
+      "id": "engine-management",
+      "status": "implemented",
+      "evidence": [
+        "internal/engines/service.go (EngineService, Add, Update, Delete, List, ValidateExecutable)",
+        "internal/database/repositories.go: engineRepo (Create/Update/List/Delete)",
+        "internal/database/schema.go: engines(id,name,executable,version,family)",
+        "frontend/src/features/engines/EnginesView.tsx, EngineModal.tsx",
+        "app.go:335-365 (ListEngines, AddEngine etc, DetectEngineVersion)"
+      ],
+      "notes": "CRUD for source ports; stores executable absolute path, inferred version/family; path normalization cleanPath; family tabs GZDoom/Zandronum/DSDA/Woof/Crispy/Chocolate/PrBoom+/Other; validation via os.Stat + permission bits; copy path, open folder, test executable."
+    },
+    {
+      "id": "engine-version-detection",
+      "status": "implemented",
+      "evidence": [
+        "internal/scanner/scanner.go:746-777 (ProbeEngineVersion, 1500ms timeout, --version/-version probe, versionRegex)",
+        "internal/engines/service.go:143-281 (ParseVersionOutput, DetectFamilyFromPath, engineRules[], genericVerRegex)",
+        "app.go:355-361 (DetectEngineVersion RPC)"
+      ],
+      "notes": "Executes binary with version flags via CommandRunner with 1.5s ctx timeout; regex family-specific + generic semver fallback v?(\\d+\\.\\d+(...)); derives family from exec base name if output lacks; never errors — returns Unknown on failure/timeout; tolerant to GZDoom/Woof! banner variations."
+    },
+    {
+      "id": "engine-dialect-translation",
+      "status": "implemented",
+      "evidence": [
+        "internal/launcher/dialect.go (EngineDialect interface: FormatWarp, FormatFile, FormatDeh, FormatSaveDir, FormatConfig, FormatCompatibilityLevel; ZDoomDialect, ChocolateDialect, PrBoomDialect, WoofDialect, GenericDialect, GetDialect)",
+        "internal/launcher/builder.go (BuildArguments, GetDialect routing)",
+        "internal/domain/models.go: Engine.SupportsPK3()"
+      ],
+      "notes": "Translates generic launch intents into engine-family CLI syntax (-warp vs +map, -file vs -merge, -complevel, -savedir). ZDoom family supports PK3; Chocolate/Crispy suppress PK3/comp-level; PrBoom/Woof emit -complevel. Generic fallback uses standard -file."
+    },
+    {
+      "id": "iwad-management",
+      "status": "implemented",
+      "evidence": [
+        "internal/iwads/service.go (IWADService, RegisterFile, InspectFile, AutoIdentifyType, Add/Update/Delete/List)",
+        "internal/database/schema.go: iwads(id,name,path UNIQUE,type,lump_count,size,sha256)",
+        "frontend/src/features/iwads/IWADsView.tsx, IWADModal.tsx",
+        "app.go:303-329 (RegisterIWADFile, InspectIWADFile)"
+      ],
+      "notes": "Auto-identifies IWAD type via filename + lumpCount heuristics (DOOM/DOOM2/TNT/Plutonia/Heretic/Hexen/Strife/Freedoom/Chex/HACX); stores size/lump_count/sha256; grid/table views with type tabs, copy hash/path, open folder."
+    },
+    {
+      "id": "library-views",
+      "status": "implemented",
+      "evidence": [
+        "frontend/src/features/library/LibraryView.tsx (grid/card + table/row, category tabs, format filter, sort name/size/lumps/date)",
+        "frontend/src/features/library/ModCard.tsx, ModTableRow.tsx, ModInspectorDrawer.tsx, AddModModal.tsx",
+        "frontend/src/types/domain.ts: Mod, ModFilter",
+        "internal/database/repositories.go: modRepo.List(filter) LIKE wildcards, indexes on name/path/format/category"
+      ],
+      "notes": "Dual presentation (Grid cards with artwork preview & Table rows); category tabs All/Favorites/Gameplay/Maps/Megawads...; format chips; filter chips Has Maps/ZScript/DeHack/Unused/In-Use; instant search <100ms via SQLite indexed LIKE on name/path; usage counts via GetUsageCounts."
+    },
+    {
+      "id": "search-filtering",
+      "status": "implemented",
+      "evidence": [
+        "internal/database/repositories.go:332-396 (List with ModFilter search/category/format/isFavorite, ORDER BY, LIMIT/OFFSET)",
+        "frontend/src/features/library/LibraryView.tsx: filteredMods useMemo",
+        "frontend/src/App.tsx: global spotlight Ctrl+K (mods+profiles+engines+iwads)",
+        "frontend/src/components/layout/Header.tsx"
+      ],
+      "notes": "Case-insensitive SQLite LIKE queries across title/filename/path; in-memory additional filter chips; global Ctrl+K modal searches all entities; search by filename, title, path, format, category. Backend sub-3ms on 1k mods per stress_test."
+    },
+    {
+      "id": "favorites-bookmarks",
+      "status": "implemented",
+      "evidence": [
+        "internal/database/schema.go: mods.is_favorite, profiles.is_favorite, idx_mods_favorite",
+        "internal/database/repositories.go: ToggleFavorite",
+        "app.go:222-224 (ToggleModFavorite), 395-397 (ToggleProfileFavorite)",
+        "frontend/src/features/dashboard/DashboardView.tsx (favorites-first sorting)"
+      ],
+      "notes": "Toggle favorite for mods & profiles (integer 0/1); Dashboard prioritizes favorites; Library category tab Favorites; Profiles view Star toggle."
+    },
+    {
+      "id": "drag-and-drop",
+      "status": "implemented",
+      "evidence": [
+        "frontend/src/features/library/LibraryView.tsx (HTML5 drop handler, onDragOver/Drop, ImportModFile call)",
+        "frontend/src/components/layout/OnboardingWizard.tsx",
+        "app.go:230-231 (ImportModFile -> scanner.ImportFile)",
+        "docs/KNOWN_ISSUES.md:2.1 Wayland caveat"
+      ],
+      "notes": "HTML5 drop ingress without moving user files (file referenced by absolute path); fallback Add Mod/File picker buttons; known Wayland compositor limitation documented — recommends picker on Dolphin/Nautilus."
+    },
+    {
+      "id": "profile-crud",
+      "status": "implemented",
+      "evidence": [
+        "internal/profiles/service.go (Create, Update, Delete, Get, List, Duplicate, ToggleFavorite)",
+        "internal/domain/models.go: Profile struct (engineId, iwadId, Mods[], Arguments, WorkingDir, IsFavorite, IsolateSaves, ParentProfileID)",
+        "internal/database/schema.go: profiles + profile_mods (sort_order, enabled, FK CASCADE)",
+        "frontend/src/features/profiles/ProfilesView.tsx, ProfileEditor.tsx",
+        "app.go:371-413 (ListProfiles etc)"
+      ],
+      "notes": "Full CRUD; Duplicate clones mod order; profile holds engine/iwad refs, ordered mods with enabled flag, custom arguments array, workingDir; IsolateSaves + ParentProfileID for inheritance/isolation."
+    },
+    {
+      "id": "load-order-management",
+      "status": "implemented",
+      "evidence": [
+        "internal/profiles/service.go: AddMod, RemoveMod, ReorderMods, ToggleMod",
+        "internal/domain/models.go: EnabledMods(), DisabledMods(), FindMod, GetEffectiveMods(parent)",
+        "frontend/src/features/profiles/LoadOrderList.tsx, LoadOrderItem.tsx (drag-drop, up/down, top/bottom, enable checkbox)",
+        "internal/database/schema.go: idx_profile_mods_profile_order"
+      ],
+      "notes": "Drag-and-drop reordering, keyboard ↑/↓, Move to Top/Bottom, per-mod enable/disable toggle; ReorderMods validates modIDsInOrder length matches; ToggleMod flips enabled; Order indexed ASC; display computed via GetEffectiveMods when parent set."
+    },
+    {
+      "id": "profile-inheritance",
+      "status": "implemented",
+      "evidence": [
+        "internal/domain/models.go:405-465 (GetEffectiveMods(parentProfile *Profile) merging logic)",
+        "internal/database/schema.go: profiles.parent_profile_id FK SET NULL",
+        "internal/profiles/service.go: Create/Update handle ParentProfileID",
+        "internal/database/db.go:ALTER TABLE profiles ADD COLUMN parent_profile_id"
+      ],
+      "notes": "Child profile inherits parent enabled mods; local overrides by ModID or lower-cased clean path; disabled local override suppresses inherited mod; remaining local enabled mods appended; stable order sort. (Arachnotron-inspired, COMPETITOR_ANALYSIS Tier 3 implemented despite roadmap label)."
+    },
+    {
+      "id": "yaml-portability",
+      "status": "implemented",
+      "evidence": [
+        "internal/profiles/yaml.go (ProfileExportFile v1, ProfileYAMLEngine/IWAD/Mod, ExportYAML, ImportYAML with resolution by id/name/filename, warnings)",
+        "app.go:415-432 (ExportProfileYAML, ImportProfileYAML)",
+        "frontend/src/features/profiles/ImportProfileModal.tsx, ProfileEditor.tsx",
+        "frontend/wailsjs/go/models.ts: domain.Profile"
+      ],
+      "notes": "Portable YAML v1 human-readable spec; exports engine/iwad/mods as id+name+filename + arguments/workingDir/createdAt; imports resolve locally by ID→name→filename heuristic; returns profile + ValidationItem warnings for missing mods/engines/iwads; no absolute path coupling."
+    },
+    {
+      "id": "zdl-import",
+      "status": "implemented",
+      "evidence": [
+        "internal/profiles/zdl.go (ZDLData, ParseZDL INI [zdl.save], ImportZDL creates profile, resolves port/iwad/files/warp/skill)",
+        "app.go:443-444 (ImportProfileZDL)",
+        "frontend/src/services/api.ts: importProfileZDL",
+        "frontend/src/features/profiles/ImportProfileModal.tsx"
+      ],
+      "notes": "Parses legacy qZDL INI format (port, iwad, files list, extraParams, skill, warpMap); maps to RNT Profile (engine via DetectEngineFamily, iwad via DetectIWADType, files via path basename lookup); preserves enabled flags; returns warnings for unresolved files. Lowers migration friction from qZDL standard."
+    },
+    {
+      "id": "validation-engine",
+      "status": "implemented",
+      "evidence": [
+        "internal/validator/validator.go (ValidatorService, ValidateProfile + ValidateProfileEntity 5 rules: engine, iwad, mod files, duplicate mods, workingDir; computeStatus)",
+        "internal/domain/models.go: ValidationResult, ValidationItem, ValidationSeverity/Status",
+        "frontend/src/features/profiles/ValidationBanner.tsx",
+        "app.go:467-469 (ValidateProfile RPC)"
+      ],
+      "notes": "5 pre-flight rules executed before spawn: 1 Engine exists/accessible, 2 IWAD selected & file exists, 3 Mod files (error if enabled missing, warning if disabled missing, info), 4 Duplicate ModID in load order, 5 WorkingDir exists if set. Aggregates to READY / READY_WITH_WARNINGS / CANNOT_LAUNCH; color-coded banner with actionable messages."
+    },
+    {
+      "id": "launcher-pipeline",
+      "status": "implemented",
+      "evidence": [
+        "internal/launcher/launcher.go (LauncherService, LaunchProfile/LaunchProfileEntity: validator→BuildArguments→runner.Start→monitorProcess goroutine→history write; ActiveLaunch map w/ sync.RWMutex)",
+        "internal/launcher/builder.go (BuildArguments: -iwad <path> [-file <modPaths...>] + customArgs split without shell, SplitCustomArgs quote-aware, FormatCommandLine)",
+        "internal/launcher/dialect.go (GetDialect routing)",
+        "app.go:471-481 (LaunchProfile, GetActiveLaunches, KillLaunch)"
+      ],
+      "notes": "Validate→Build argv slice→os/exec.Command without shell (no cmd.exe/sh); enabled mods sorted by Order; customArgs appended via SplitCustomArgs preserving quoted substrings; direct exec; immediate LaunchRecord returned; background monitor computes duration, persists history, emits launch:exit."
+    },
+    {
+      "id": "process-supervision",
+      "status": "implemented",
+      "evidence": [
+        "internal/launcher/launcher.go:22-91 (ProcessRunner, OSProcessRunner, osProcessHandle.Pid/Kill/Wait capturing stdout/stderr via buf capture; sync.Mutex for active map)",
+        "internal/launcher/launcher.go:297-402 (monitorProcess wait + durationMs, GetActiveLaunches ordered desc, KillLaunch, KillAll on app.Close)",
+        "frontend/src/features/history/HistoryView.tsx (subscribe launch:exit/start)",
+        "app.go:475-481 (GetActiveLaunches, KillLaunch, Close kills all)"
+      ],
+      "notes": "Non-blocking supervised launches; each LaunchRecord holds Pid, startTime; active launches tracked in map protected by RWMutex; KillLaunch sends OS kill; app.Close kills all child procs before db.Close; async emitSafe launch:start/exit; real-time stdout/stderr capture via pipes (see launcher_test.go)."
+    },
+    {
+      "id": "telemetry-history",
+      "status": "implemented",
+      "evidence": [
+        "internal/history/service.go (List limit Default 50, GetStats, Clear, Add)",
+        "internal/database/repositories.go: historyRepo (List ordered started_at DESC, GetStats totalLaunches/totalPlayTimeMs/mostPlayed)",
+        "internal/domain/models.go: LaunchRecord (ProfileName, EngineName, IWADName, StartedAt, FinishedAt, DurationMs, ExitCode, Status, CommandLine)",
+        "frontend/src/features/history/HistoryView.tsx (search/status filter, re-launch, clear, copy command line)",
+        "frontend/src/features/dashboard/DashboardView.tsx (recent feed, stats)"
+      ],
+      "notes": "Logs every launch with exitCode, durationMs, timestamps; history table launch_history with indexes on started_at, profile_id; aggregated stats total launches/playtime/lastLaunched/mostPlayed; HistoryView supports limit select, search filter, re-launch via profileId."
+    },
+    {
+      "id": "isolated-saves",
+      "status": "implemented",
+      "evidence": [
+        "internal/saves/service.go (SaveService, BaseDir default ~/.config/RNTLauncher/saves or UserConfigDir, GetProfileSaveDir, EnsureProfileSaveDir MkdirAll)",
+        "internal/domain/models.go: Profile.IsolateSaves bool, Profile.ParentProfileID",
+        "internal/launcher/launcher.go:151-162 (SetSaveService, if isolate_saves inject -savedir via dialect.FormatSaveDir)",
+        "app.go:141-149 (New SaveService), 454-461 (GetProfileSaveDir/OpenProfileSaveFolder via savesService)",
+        "frontend/src/features/profiles/ProfileEditor.tsx (isolate toggles)"
+      ],
+      "notes": "Per-profile isolated savegame dirs under baseDir/<profileId>; EnsureProfileSaveDir creates 0755; Launcher injects engine-specific savedir arg (-savedir/+savedir) only when isolateSaves set; UI exposes toggle and open-folder helper; baseDir configurable via UserConfigDir."
+    },
+    {
+      "id": "idgames-integration",
+      "status": "implemented",
+      "evidence": [
+        "internal/idgames/client.go (IdgamesClient, DefaultBaseURL doomworld.com/idgames/api/api.php, Search query, Download mirrors, extractZipSafely ZipSlip guard, selectPrimaryModFile)",
+        "app.go:243-298 (SearchIdgames, DownloadIdgamesMod: download destDir -> scanner.ImportFile -> mod)",
+        "frontend/src/features/library/IdgamesSearchModal.tsx",
+        "frontend/src/lib/api.ts:651-653 (searchIdgames, downloadIdgamesMod)"
+      ],
+      "notes": "Queries Doomworld /idgames API (api.php?action=search, type=json); downloads zip from mirrors, validates zip, extracts with traversal protection, selects primary .wad/.pk3/.zip; imports into library via scanner; despite KNOWN_ISSUES local-first claim, now delivers DoomLauncher parity (Tier 1 roadmap implemented)."
+    },
+    {
+      "id": "diagnostics-health",
+      "status": "implemented",
+      "evidence": [
+        "internal/diagnostics/service.go (RunDiagnostics, checkDatabase integrity PRAGMA quick_check, checkEngines/IWADs/Library/Profiles orphan & missing-file; DiagnosticsReport OverallStatus/DatabaseHealth/Issues/Summary; Repair prune_all_missing, remove_orphan etc)",
+        "internal/domain/diagnostics.go (DiagnosticSeverity/Category, DiagnosticIssue with repairAction, DatabaseHealth, DiagnosticsSummary)",
+        "app.go:638-650 (RunDiagnostics, RepairDiagnosticIssue)",
+        "frontend/src/features/diagnostics/DiagnosticsView.tsx (health cards, issues tabs errors/warnings/logs, Prune All Missing, per-issue Repair)"
+      ],
+      "notes": "Comprehensive health: SQL integrity_check quick_check, file existence for engines/iwads/mods, orphaned profile_mods (FK CASCADE vs missing mods), workingDir validation; aggregates errors/warnings/info; one-click repairs delete orphan records/purge missing files; Wails events diagnostic:issue."
+    },
+    {
+      "id": "settings",
+      "status": "implemented",
+      "evidence": [
+        "internal/settings/service.go (Get, Update, ResetToDefaults, Add/Remove Mod/IWAD/Engine directories, Get*Directories, normalizeSettings lower+clean)",
+        "internal/domain/models.go: Settings (mod/iwad/engine dirs, defaultWorkingDir, theme, confirmLaunch, autoScanOnStartup, closeOnLaunch)",
+        "internal/database/schema.go: settings(key,value) TEXT KV",
+        "frontend/src/features/settings/SettingsView.tsx (directory pickers, theme, confirmLaunch/autoScan/closeOnLaunch toggles, Save/Reset, Trigger Scan)",
+        "app.go:168-176 (AutoScanOnStartup goroutine), 550-556 (GetSettings, UpdateSettings)"
+      ],
+      "notes": "KV-backed settings persisted as JSON values; directory helpers idempotent containsDir/removeDir; startup goroutine checks AutoScanOnStartup then StartScan; DefaultSettings empty dirs, dark theme, AutoScan true; dirty-check via JSON stringify; OpenDirectoryDialog for each dir type."
+    },
+    {
+      "id": "system-logging",
+      "status": "implemented",
+      "evidence": [
+        "internal/logger/logger.go (MemoryLogHandler ring buffer maxSize, Handle stores LogEntry timestamp/level/message, GetEntries clone, Clear, InitLogger, GetRecentLogs)",
+        "internal/domain/diagnostics.go: DatabaseHealth + issue severities",
+        "app.go:652-659 (GetSystemLogs, ClearSystemLogs)",
+        "frontend/src/features/diagnostics/DiagnosticsView.tsx (logs tab filter, Clear Logs)"
+      ],
+      "notes": "In-memory structured slog handler with RWMutex bounded buffer; exposed via GetRecentLogs for DiagnosticsView filtering by message/level; clearable; used throughout backend services Info/Warn/Error."
+    },
+    {
+      "id": "native-dialogs",
+      "status": "implemented",
+      "evidence": [
+        "app.go:562-632 (OpenFileDialog via wails runtime.OpenFileDialog filters *.wad/*.pk3 etc, OpenDirectoryDialog, OpenPathInExplorer via exec xdg-open/open/explorer)",
+        "internal/filesystem/inspector.go: path handling os-specific",
+        "frontend/src/features/settings/SettingsView.tsx (openDirectoryDialog calls)"
+      ],
+      "notes": "Wails runtime dialogs: file picker with extension filters, directory picker, open path in native explorer (platform switch: explorer / open / xdg-open); Wails RPC bridge typed DTOs; mock fallback for browser preview."
+    },
+    {
+      "id": "dmflags-bitfield",
+      "status": "implemented",
+      "evidence": [
+        "internal/domain/dmflags.go (Bitflag struct, DMFlags, DMFlags2, CompatFlags, CompatFlags2 slices with value/name/description/category, ComputeBitmask, ParseBitmask)",
+        "frontend/src/features/profiles/DmFlagsModal.tsx (DMFLAGS_DATA sync, parseBitmask/computeBitmask, tabs dmflags/dmflags2/compatflags/compatflags2, extractFlagFromArgs +set, categorized by category, search, toHex, onApply -> customArgs +dmflags ...)",
+        "frontend/src/features/profiles/ProfileEditor.tsx (open DmFlagsModal, convert args <-> flags)"
+      ],
+      "notes": "DoomRunner parity interactive bitfield calculator: 4 flag sets (30+11/25/30/9 entries) grouped by category (Gameplay/Weapons/Monsters/Movement...), real-time integer mask via bitwise OR, hex display, bidirectional parse from existing +dmflags args (+set dmflags <n>), embedded descriptions; COMPETITOR_ANALYSIS Tier 2 claimed planned — now shipped."
+    },
+    {
+      "id": "dashboard",
+      "status": "implemented",
+      "evidence": [
+        "frontend/src/features/dashboard/DashboardView.tsx (loadProfiles/mods/iwads/engines/history/historyStats; favoriteProfiles + otherProfiles.slice(0,4), isLibraryEmpty, handleLaunch/ToggleFavorite/handleScan, stats cards)",
+        "frontend/src/features/dashboard/RecentProfileCard.tsx",
+        "frontend/src/components/layout/ScanBanner.tsx (progress prop current/total/currentFile)",
+        "frontend/src/components/layout/Sidebar.tsx, Header.tsx"
+      ],
+      "notes": "Launch cockpit: 1-click launch favorite/recent profiles, engine/iwad/mod counts, total playtime/last played feed, scan progress banner; empty state onboarding CTA to Library/Profiles."
+    },
+    {
+      "id": "keyboard-shortcuts",
+      "status": "implemented",
+      "evidence": [
+        "frontend/src/App.tsx:196-224 (global keydown: Ctrl/Cmd+K spotlight, Ctrl+Enter quick launch favorite/active, Ctrl+S save profile, Ctrl+Shift+S export YAML, Esc close modals)",
+        "frontend/src/features/profiles/LoadOrderList.tsx (↑/↓ move items via keyboard)",
+        "README.md:66-72 (shortcuts table)"
+      ],
+      "notes": "Global hotkeys: Ctrl+K spotlight search, Ctrl+Enter launch active/favorite profile, Ctrl+S save, Ctrl+Shift+S export YAML, Esc dismiss; LoadOrderItem keyboard nav up/down; mpv-like ergonomic feel."
+    },
+    {
+      "id": "spotlight-search",
+      "status": "implemented",
+      "evidence": [
+        "frontend/src/App.tsx:69-78,227-258 (globalSearchQuery/allMods/allProfiles/allEngines/allIwads state, filteredSearch useMemo case-insensitive includes across all entities, modal with lucide Search/Crosshair)",
+        "frontend/src/components/ui/Modal.tsx, Input.tsx"
+      ],
+      "notes": "Spotlight modal searches mods/profiles/engines/iwads simultaneously; selecting a profile navigates to ProfilesView with selectedProfileId; debounced filtering; matches name/filename/path/type."
+    },
+    {
+      "id": "context-menus-toasts",
+      "status": "implemented",
+      "evidence": [
+        "frontend/src/components/ui/ContextMenu.tsx, Toast.tsx (ToastProvider, useToast, bottom-right queue auto-dismiss)",
+        "frontend/src/features/library/ModCard.tsx (right-click add to profile/inspect/show file)",
+        "frontend/src/App.tsx: notify helper"
+      ],
+      "notes": "Custom context menu on mod cards/rows (Add to Profile, Inspect, Show in Explorer, Toggle Favorite); non-blocking toasts for scan/import/error/success."
+    },
+    {
+      "id": "ui-shell",
+      "status": "implemented",
+      "evidence": [
+        "frontend/src/App.tsx (activeView switch dashboard/library/profiles/engines/iwads/history/settings/diagnostics, collapsible Sidebar, Header breadcrumb, ScanBanner, counts badge)",
+        "frontend/src/components/layout/Sidebar.tsx (NavViewId enum, Lucide icons, collapsed state)",
+        "frontend/src/components/layout/OnboardingWizard.tsx (3-step wizard for zero-config)",
+        "frontend/tailwind.config.js (dark industrial palette doom-bg #0c0d0e, doom-surface #141618, doom-red #dc2626, doom-amber etc)",
+        "frontend/index.html, frontend/src/index.css"
+      ],
+      "notes": "Wails 1280x800 window BackgroundColour rgba 12,13,14; React layout flex h-screen, Tailwind doom-* utilities, high-density dark utility aesthetic; zero modal bloat for main flows; onboarding wizard for first run."
+    },
+    {
+      "id": "onboarding-wizard",
+      "status": "implemented",
+      "evidence": [
+        "frontend/src/components/layout/OnboardingWizard.tsx (3 steps: configure directories → add IWADs/Engines → create profile)",
+        "frontend/src/App.tsx: hasDismissedOnboarding state",
+        "docs/RELEASE_READINESS.md:4 first-run wizard checklist"
+      ],
+      "notes": "Shown when library empty / first install; guides directory configuration, IWAD/engine registration, profile creation; dismissable persisted in settings."
+    }
+  ],
+  "engines_supported": [
+    "gzdoom",
+    "zandronum",
+    "dsda-doom",
+    "prboom-plus",
+    "woof",
+    "crispy-doom",
+    "chocolate-doom",
+    "other (covers: lzdoom, vkdoom, eternity, doomsday, edge-classic, custom)"
+  ],
+  "storage": "SQLite (modernc.org/sqlite v1.57.0, pure Go, CGO_ENABLED=0) via database/sql; InitDB in internal/database/db.go enforces PRAGMAs: foreign_keys=ON, journal_mode=WAL, busy_timeout=5000, synchronous=NORMAL; connection pool 10 (1 for :memory: to preserve state). SchemaSQL in internal/database/schema.go defines tables: engines(id PK, name, executable, version, family, created_at, updated_at), iwads(id PK, path UNIQUE, name, type, lump_count, size, sha256, created_at/upd), mods(id PK, path UNIQUE, name, format, category, size, modified_at, sha256, lump_count, structures JSON[], is_favorite, created_at/upd), profiles(id PK, name, description, engine_id FK SET NULL, iwad_id FK SET NULL, parent_profile_id FK SET NULL, isolate_saves, arguments JSON[], working_dir, is_favorite, created_at/upd), profile_mods(id PK, profile_id FK CASCADE, mod_id FK CASCADE, enabled, sort_order), launch_history(id PK, profile_id, profile_name, engine_name, iwad_name, started_at, finished_at, duration_ms, exit_code, status, command_line), settings(key PK, value TEXT JSON). Indexes: idx_mods_name/path/format/category/favorite, idx_profile_mods_profile_order/mod, idx_launch_history_started/profile. Repositories in internal/database/repositories.go (engineRepo, iwadRepo, modRepo with List search LIKE wildcards, ToggleFavorite, GetUsageCounts; profileRepo Create/Update transactional + SetProfileMods reorder; historyRepo GetStats aggregates; settingsRepo JSON marshal). Migrations: backward-compat ALTER ADD isolate_saves, parent_profile_id. Data flow: frontend Wails RPC (frontend/src/lib/api.ts callBackend -> window.go.main.App binding or mock fallback) -> app.go App struct DI (database + 8 services + idgames) -> domain models (internal/domain/models.go) -> repositories -> SQLite WAL file at os.UserConfigDir/rnt-launcher/rnt-launcher.db (or temp :memory: for tests/e2e). Filesystem layer (internal/filesystem/wad.go, archive.go, inspector.go, hasher.go, palette.go) reads files read-only, no ownership assumption, streaming hashes, ZipSlip-guarded extraction. Process layer (internal/launcher) supervised via launcherService map + monitorProcess goroutine emitting launch:exit event via Wails runtime.EventsEmit -> frontend runtime.EventsOn (frontend/src/lib/events.ts). Diagnostics via PRAGMA integrity_check quick_check + orphan sweep.",
+  "known_gaps": [
+    "File watcher NOT implemented — no inotify/ReadDirectoryChangesW continuous scan (deferred by design for CPU/battery; manual Scan Folders button or AutoScanOnStartup; docs/KNOWN_ISSUES.md 1.3, PRD 15).",
+    "Single primary category per mod only — no multi-tagging or user custom tags (mods Category enum single value; deferred to v0.2.0 Organization milestone; docs/KNOWN_ISSUES.md 1.2, COMPETITOR_ANALYSIS 1.2).",
+    "Linux Wayland drag-and-drop intermittently blocked by compositor/WebKitGTK policies (HTML5 drop events not emitted from Dolphin/Nautilus; workaround picker button; docs/KNOWN_ISSUES.md 2.1).",
+    "macOS Gatekeeper quarantine (com.apple.quarantine xattr) blocks unsigned engine binaries until System Settings verification; validator reports permission warnings only (docs/KNOWN_ISSUES.md 2.2).",
+    "Legacy source port PK3 incompatibility advisory only — blocking/warning before launch (SupportsPK3 true only for gzdoom/zandronum; no automatic conversion; docs/KNOWN_ISSUES.md 3.1).",
+    "No automatic Steam/GOG IWAD discovery via libraryfolders.vdf / appmanifest acf parsing (DoomLauncher parity missing; COMPETITOR_ANALYSIS 2.1 Strengths, Tier 1 roadmap not yet implemented).",
+    "No demo/statdump interception (-statdump / -levelstat / .zds save header kill/secret/item tracking) — only generic duration/exitCode telemetry (DoomLauncher strength, COMPETITOR_ANALYSIS 2.1.3 vs launcher.go).",
+    "No dedicated savegame swapping DB with screenshot metadata — only per-profile isolated directories via -savedir (saves.SaveService; COMPETITOR_ANALYSIS Tier 1 \"Isolated Savegame Management\" partial).",
+    "No multiplayer master-server browser, server join configuration, or netplay GUI beyond dmflags/compatflags modals (PRD 11 Out-of-Scope, COMPETITOR_ANALYSIS RocketLauncher DoSbox vs RNT none).",
+    "No in-app marketplace beyond /idgames — no ModDB/scraper, no Doomworld README inline viewer beyond download+import (PRD 6.2/11 local-first, KNOWN_ISSUES 1.1 by design).",
+    "No DOSBox automated scripting for vanilla DOS executables (RocketLauncher differentiator; RNT only launches native source ports).",
+    "No profile templates gallery — only duplicate + empty create + YAML/ZDL import (PRD 78 Future Templates roadmap).",
+    "Cloud sync / multi-machine path portability limited to YAML v1 name/filename resolution — no path rewriting middleware for cross-OS absolute path translation beyond lower-cased filename match (profiles/yaml.go resolution heuristic).",
+    "No in-memory log rotation/file persistence — MemoryLogHandler bounded ring buffer only (logger/logger.go); logs lost after restart (by design).",
+    "Eternity/Doomsday/EDGE/KEX engine dialects not distinct — all route to GenericDialect (launcher/dialect.go GetDialect default); trait adaptation shallower than DoomRunner's deep EngineTraits for EDGE/KEX flags."
+  ]
+}

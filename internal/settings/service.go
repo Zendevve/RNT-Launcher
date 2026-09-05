@@ -238,4 +238,13 @@ func normalizeSettings(s *domain.Settings) {
 	if s.Theme == "" {
 		s.Theme = "dark"
 	}
+	if s.UiDensity == "" {
+		s.UiDensity = "compact"
+	}
+	if s.FormatVisibility == nil || len(s.FormatVisibility) == 0 {
+		s.FormatVisibility = []string{".wad", ".pk3", ".pk7", ".ipk3", ".zip", ".deh", ".bex"}
+	}
+	if s.DefaultView == "" {
+		s.DefaultView = "dashboard"
+	}
 }

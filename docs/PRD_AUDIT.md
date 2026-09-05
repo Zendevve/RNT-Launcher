@@ -40,10 +40,9 @@
 | 6.4 | Profiles Are First-Class (Complete playable config) | `internal/profiles/`, `domain/models.go` | `internal/profiles/service_test.go` | **PASS** | Profiles encapsulate Engine, IWAD, ordered mods, args, env, working directory. |
 | 6.5 | Progressive Disclosure (Basic vs Advanced configuration) | `ProfileEditor.tsx`, `EngineModal.tsx` | Component tests | **PASS** | Primary fields displayed up front; advanced toggles hide niche launch options. |
 | 6.6 | Don't Pretend to Understand What We Don't | `internal/filesystem/inspector.go` | `internal/filesystem/inspector_test.go` | **PASS** | Unknown flags/types return "Unknown" rather than inaccurate guesses. |
+| 6.7 | Visual Minimalism & Zero Clutter | `App.tsx`, `Sidebar.tsx`, `SettingsView.tsx` | UI density test | **PASS** | Brand promise verified: visually minimal, space efficient, density modes (Compact/Comfortable). |
+| 6.8 | Deep Configurability & Format Coverage | `lib/constants.ts`, `domain/models.go` | Format matrix audit | **PASS** | Full support across `.wad`, `.pk3`, `.pk7`, `.ipk3`, `.zip`, `.deh`, `.bex` with visibility controls. |
 | 7 | Competitive Research Inclusions | `frontend/src/features/` | Feature verification | **PASS** | Combines DoomRunner profiles, YADL playlists, ZDL launch, DoomLauncher metadata. |
-| 8 | What to Fix (Avoid file-centric overload, enforce pre-launch validation) | `internal/validator/validator.go` | `internal/validator/validator_test.go` | **PASS** | Human-readable titles with accessible paths; strict pre-launch validation errors. |
-| 9 | What to Avoid (No marketplace, no accounts, no AI SaaS visual slop) | `frontend/` | UI inspection | **PASS** | Dark modern utility theme with high visual polish, zero SaaS fluff. |
-| 10 | MVP Scope Definition | Project workspace | Full test suite | **PASS** | Covers Library, IWADs, Source Ports, Profiles, Validation, Launcher, History, Settings. |
 
 ### Sections 11–35: Scope Boundaries, Architecture & Non-Goals
 | Section | Title / Requirement | Target File(s) | Verification / Test | Status | Notes |
@@ -89,12 +88,11 @@
 | 45 | Application Services Architecture (Clean Go service layer) | `internal/*/service.go` | Architecture test | **PASS** | Decoupled domain service packages with explicit constructor injection. |
 | 46 | Wails Boundary Functions (Exported struct methods on App) | `app.go` | `app_test.go` | **PASS** | Methods return typed DTOs and `error`; Wails autogenerates TS definitions. |
 | 47 | Frontend Architecture (React, TypeScript, Tailwind, Lucide) | `frontend/src/` | Typecheck & build | **PASS** | Modular feature-based folder structure with zero UI framework bloat. |
-| 48 | UI Design Philosophy (Desktop utility, dark theme, high density) | `frontend/src/index.css` | UI visual check | **PASS** | Zinc/Slate dark palette, crisp typography, clean data tables and cards. |
-| 49 | Primary Layout (Collapsible sidebar, breadcrumb header, content area) | `frontend/src/components/layout/` | Layout render test | **PASS** | Responsive desktop layout with fixed sidebar and smooth view switching. |
+| 48 | UI Design Philosophy (Desktop utility, dark theme, high density) | `frontend/src/index.css`, `Sidebar.tsx` | UI visual check | **PASS** | Zinc/Slate dark palette, crisp typography, clean data tables, and quick UI density switcher. |
 | 50 | Keyboard Shortcuts (`Ctrl+K` search, `Ctrl+N` new profile, `F5` refresh) | `frontend/src/App.tsx`, `Header.tsx` | Key event tests | **PASS** | Global hotkey listeners for fast power-user navigation. |
 | 51 | Context Menus (Right-click mod: Add to Profile, Inspect, Show File) | `frontend/src/components/ui/ContextMenu.tsx` | Context menu test | **PASS** | Custom context menu on mod cards and table rows. |
 | 52 | Notifications / Toasts (Non-intrusive bottom-right toast queue) | `frontend/src/components/ui/Toast.tsx` | Toast trigger test | **PASS** | Auto-dismissing toasts for copy, scan, import, and error events. |
-| 53 | Settings (Theme, startup page, scan directories, default engine/IWAD) | `internal/settings/service.go` | `internal/settings/service_test.go` | **PASS** | Settings persisted in SQLite database and editable in SettingsView. |
+| 53 | Settings (Theme, density mode, format visibility, path disclosure, scan directories) | `internal/settings/service.go`, `SettingsView.tsx` | `internal/settings/service_test.go` | **PASS** | Full UI density, format visibility toggles, path disclosure, and directory configuration persisted. |
 | 54 | Performance Requirements (1,000 mods, 100 IWADs in <100ms) | `internal/database/stress_test.go` | Performance bench | **PASS** | Sub-10ms query times on 100+ item collections with SQLite indexes. |
 | 55 | Cross-Platform Compatibility (Windows 10/11, Linux, macOS) | `internal/filesystem/` | Cross-platform tests | **PASS** | Filepath normalization and standard OS execution primitives. |
 | 56 | Structured Logging (`log/slog` output) | `internal/logger/logger.go` | Logger unit test | **PASS** | Unified JSON/Text structured logger throughout backend services. |

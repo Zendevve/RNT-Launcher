@@ -660,20 +660,25 @@ func TestSettingsRepository_Persistence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetSettings failed: %v", err)
 	}
-	if defaults.Theme != "dark" || !defaults.AutoScanOnStartup || defaults.ConfirmLaunch {
+	if defaults.Theme != "dark" || !defaults.AutoScanOnStartup || defaults.ConfirmLaunch || defaults.UiDensity != "compact" || defaults.ShowFilePaths || defaults.ShowRecentLaunches != 3 || defaults.DefaultView != "dashboard" {
 		t.Errorf("unexpected default settings: %+v", defaults)
 	}
 
 	// Save modified settings
 	custom := domain.Settings{
-		ModDirectories:    []string{"C:\\Doom\\Mods", "D:\\Games\\DoomMods"},
-		IWADDirectories:   []string{"C:\\Doom\\IWADs"},
-		EngineDirectories: []string{"C:\\Doom\\Engines"},
-		DefaultWorkingDir: "C:\\Doom",
-		Theme:             "light",
-		ConfirmLaunch:     true,
-		AutoScanOnStartup: false,
-		CloseOnLaunch:     true,
+		ModDirectories:     []string{"C:\\Doom\\Mods", "D:\\Games\\DoomMods"},
+		IWADDirectories:    []string{"C:\\Doom\\IWADs"},
+		EngineDirectories:  []string{"C:\\Doom\\Engines"},
+		DefaultWorkingDir:  "C:\\Doom",
+		Theme:              "light",
+		ConfirmLaunch:      true,
+		AutoScanOnStartup:  false,
+		CloseOnLaunch:      true,
+		UiDensity:          "comfortable",
+		ShowFilePaths:      true,
+		ShowRecentLaunches: 7,
+		FormatVisibility:   []string{".wad", ".pk3", ".zip"},
+		DefaultView:        "library",
 	}
 	if err := repos.Settings.SaveSettings(custom); err != nil {
 		t.Fatalf("SaveSettings failed: %v", err)
@@ -688,6 +693,21 @@ func TestSettingsRepository_Persistence(t *testing.T) {
 	}
 	if !loaded.ConfirmLaunch || loaded.AutoScanOnStartup || !loaded.CloseOnLaunch {
 		t.Errorf("boolean flags mismatch: %+v", loaded)
+	}
+	if loaded.UiDensity != "comfortable" {
+		t.Errorf("expected UiDensity comfortable, got %s", loaded.UiDensity)
+	}
+	if !loaded.ShowFilePaths {
+		t.Errorf("expected ShowFilePaths true")
+	}
+	if loaded.ShowRecentLaunches != 7 {
+		t.Errorf("expected ShowRecentLaunches 7, got %d", loaded.ShowRecentLaunches)
+	}
+	if len(loaded.FormatVisibility) != 3 || loaded.FormatVisibility[2] != ".zip" {
+		t.Errorf("format visibility mismatch: %+v", loaded.FormatVisibility)
+	}
+	if loaded.DefaultView != "library" {
+		t.Errorf("expected DefaultView library, got %s", loaded.DefaultView)
 	}
 	if len(loaded.ModDirectories) != 2 || loaded.ModDirectories[1] != "D:\\Games\\DoomMods" {
 		t.Errorf("mod directories mismatch: %+v", loaded.ModDirectories)

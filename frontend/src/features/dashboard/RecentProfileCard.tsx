@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Play, Star, Disc, Cpu, Layers, Terminal, Loader2, CheckCircle2 } from 'lucide-react';
+import { Play, Star, Disc, Cpu, Layers, Loader2, ArrowUpRight } from 'lucide-react';
 import { Profile } from '../../types';
+import { cn } from '../../utils/cn';
 
 interface RecentProfileCardProps {
   profile: Profile;
@@ -9,6 +10,12 @@ interface RecentProfileCardProps {
   onSelectProfile?: (profileId: string) => void;
 }
 
+/**
+ * Slate Framer — RecentProfileCard
+ * - Card radius 12px, bg #0f0f12 / hover #0c0c0f, border #2d2d34
+ * - Button bg #0f0f12 / #0c0c0f, radius 14px/32px, padding 8px 14px 8px 18px
+ * - Text #f4f4f5 / #a1a1aa / #71717a, accent #5e7ce2, Geist 500, motion 0.001s ease
+ */
 export const RecentProfileCard: React.FC<RecentProfileCardProps> = ({
   profile,
   onLaunch,
@@ -18,14 +25,14 @@ export const RecentProfileCard: React.FC<RecentProfileCardProps> = ({
   const [isLaunching, setIsLaunching] = useState(false);
   const [isFavLoading, setIsFavLoading] = useState(false);
 
-  const enabledModsCount = profile.mods?.filter((m) => m.enabled).length || 0;
+  const activeModsCount = profile.mods?.filter((m) => m.enabled).length || 0;
   const totalModsCount = profile.mods?.length || 0;
 
   const handleLaunch = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isLaunching) return;
+    setIsLaunching(true);
     try {
-      setIsLaunching(true);
       await onLaunch(profile.id);
     } finally {
       setIsLaunching(false);
@@ -35,8 +42,8 @@ export const RecentProfileCard: React.FC<RecentProfileCardProps> = ({
   const handleFavoriteClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isFavLoading) return;
+    setIsFavLoading(true);
     try {
-      setIsFavLoading(true);
       await onToggleFavorite(profile.id);
     } finally {
       setIsFavLoading(false);
@@ -46,111 +53,97 @@ export const RecentProfileCard: React.FC<RecentProfileCardProps> = ({
   return (
     <div
       onClick={() => onSelectProfile?.(profile.id)}
-      className="group relative flex flex-col justify-between rounded-lg border border-doom-border bg-doom-surface/80 p-4 transition-all duration-200 hover:border-doom-border-bright hover:bg-doom-surface hover:shadow-lg hover:shadow-black/40 cursor-pointer"
+      className="group relative flex flex-col justify-between rounded-[12px] border border-[#2d2d34] bg-[#0f0f12] hover:bg-[#0c0c0f] hover:border-[#3a3a44] p-4 transition-[background-color,border-color] duration-[0.001s] ease-[ease] cursor-pointer select-none"
     >
-      {/* Top row: Title and Favorite Toggle */}
       <div>
-        <div className="flex items-start justify-between gap-3">
+        {/* Header: Title and Star */}
+        <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h3 className="truncate font-mono text-base font-semibold text-doom-text group-hover:text-white">
-                {profile.name}
-              </h3>
-              {profile.isFavorite && (
-                <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-doom-amber/15 text-doom-amber border border-doom-amber/30">
-                  Fav
-                </span>
-              )}
-            </div>
-            {profile.description ? (
-              <p className="mt-1 line-clamp-1 text-xs text-doom-muted">{profile.description}</p>
-            ) : (
-              <p className="mt-1 text-xs italic text-doom-muted/60">No description</p>
+            <h3
+              className="text-sm font-[500] text-[#f4f4f5] group-hover:text-white truncate [font-family:var(--font-geist),Geist,sans-serif] tracking-tight"
+              title={profile.name}
+            >
+              {profile.name}
+            </h3>
+            {profile.description && (
+              <p
+                className="text-xs text-[#a1a1aa] truncate mt-0.5 font-[500] [font-family:var(--font-geist),Geist,sans-serif]"
+                title={profile.description}
+              >
+                {profile.description}
+              </p>
             )}
           </div>
 
           <button
             type="button"
-            title={profile.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            title={profile.isFavorite ? 'Remove favorite' : 'Add to favorites'}
             onClick={handleFavoriteClick}
             disabled={isFavLoading}
-            className="rounded p-1 text-doom-muted transition-colors hover:bg-doom-card hover:text-doom-amber disabled:opacity-50"
+            className="text-[#71717a] hover:text-[#5e7ce2] p-1 rounded-[8px] hover:bg-[#0c0c0f] transition-[color,background-color] duration-[0.001s] ease-[ease] shrink-0"
           >
             <Star
-              className={`h-4 w-4 transition-colors ${
-                profile.isFavorite ? 'fill-doom-amber text-doom-amber' : ''
-              }`}
+              className={cn(
+                'w-4 h-4 transition-[color] duration-[0.001s] ease-[ease]',
+                profile.isFavorite ? 'fill-[#5e7ce2] text-[#5e7ce2]' : 'text-[#71717a]'
+              )}
             />
           </button>
         </div>
 
-        {/* Status Indicators Grid */}
-        <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-          {/* Engine */}
-          <div className="flex items-center gap-1.5 rounded bg-doom-card/80 px-2 py-1.5 text-doom-muted">
-            <Cpu className="h-3.5 w-3.5 shrink-0 text-doom-cyan" />
-            <span className="truncate font-mono text-[11px] text-doom-text">
-              {profile.engineName || 'No Engine'}
-            </span>
+        {/* Engine & IWAD Specs */}
+        <div className="mt-3 flex flex-col gap-1 text-xs text-[#a1a1aa] font-[500] [font-family:var(--font-geist),Geist,sans-serif]">
+          <div className="flex items-center gap-1.5 truncate">
+            <Cpu className="w-3.5 h-3.5 text-[#71717a] shrink-0" />
+            <span className="truncate text-[#a1a1aa]">{profile.engineName || 'No Port Configured'}</span>
           </div>
-
-          {/* IWAD */}
-          <div className="flex items-center gap-1.5 rounded bg-doom-card/80 px-2 py-1.5 text-doom-muted">
-            <Disc className="h-3.5 w-3.5 shrink-0 text-doom-blue" />
-            <span className="truncate font-mono text-[11px] text-doom-text">
-              {profile.iwadName || 'No IWAD'}
-            </span>
-          </div>
-
-          {/* Mod Count */}
-          <div className="flex items-center gap-1.5 rounded bg-doom-card/80 px-2 py-1.5 text-doom-muted">
-            <Layers className="h-3.5 w-3.5 shrink-0 text-doom-amber" />
-            <span className="font-mono text-[11px] text-doom-text">
-              {totalModsCount === 0
-                ? 'Vanilla'
-                : `${enabledModsCount}${
-                    enabledModsCount !== totalModsCount ? `/${totalModsCount}` : ''
-                  } ${totalModsCount === 1 ? 'Mod' : 'Mods'}`}
-            </span>
-          </div>
-
-          {/* Arguments Badge */}
-          <div className="flex items-center gap-1.5 rounded bg-doom-card/80 px-2 py-1.5 text-doom-muted">
-            <Terminal className="h-3.5 w-3.5 shrink-0 text-doom-text/60" />
-            <span className="truncate font-mono text-[11px] text-doom-muted">
-              {profile.arguments && profile.arguments.length > 0
-                ? `${profile.arguments.length} args`
-                : 'Default args'}
-            </span>
+          <div className="flex items-center gap-1.5 truncate">
+            <Disc className="w-3.5 h-3.5 text-[#71717a] shrink-0" />
+            <span className="truncate text-[#a1a1aa]">{profile.iwadName || 'No IWAD Configured'}</span>
           </div>
         </div>
       </div>
 
-      {/* Bottom Row: 1-Click Launch Button */}
-      <div className="mt-4 pt-3 border-t border-doom-border/60 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 text-[11px] text-doom-muted">
-          <CheckCircle2 className="h-3.5 w-3.5 text-doom-green" />
-          <span>Ready to launch</span>
+      {/* Footer: Mod count & Launch CTA */}
+      <div className="mt-4 pt-3 border-t border-[#2d2d34] flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-xs text-[#71717a] font-[500] [font-family:var(--font-geist),Geist,sans-serif]">
+          <Layers className="w-3.5 h-3.5 text-[#71717a]" />
+          <span>
+            {totalModsCount === 0 ? 'Vanilla' : `${activeModsCount}/${totalModsCount} mods`}
+          </span>
         </div>
 
-        <button
-          type="button"
-          onClick={handleLaunch}
-          disabled={isLaunching}
-          className="relative inline-flex items-center justify-center gap-2 rounded bg-doom-red px-4 py-2 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-doom-red/20 transition-all hover:bg-doom-red-bright hover:shadow-doom-red/40 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isLaunching ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              <span>LAUNCHING...</span>
-            </>
-          ) : (
-            <>
-              <Play className="h-3.5 w-3.5 fill-current" />
-              <span>PLAY</span>
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelectProfile?.(profile.id);
+            }}
+            title="Configure setup"
+            className="p-1.5 text-[#71717a] hover:text-[#f4f4f5] rounded-[8px] hover:bg-[#0c0c0f] transition-[color,background-color] duration-[0.001s] ease-[ease]"
+          >
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={handleLaunch}
+            disabled={isLaunching}
+            className="inline-flex items-center gap-1.5 rounded-[14px] bg-[#0f0f12] hover:bg-[#0c0c0f] text-[#f4f4f5] border border-[#2d2d34] hover:border-[#3a3a44] pt-[8px] pr-[14px] pb-[8px] pl-[18px] text-xs font-[500] transition-[background-color,color,border-color] duration-[0.001s] ease-[ease] disabled:opacity-50 [font-family:var(--font-geist),Geist,sans-serif]"
+          >
+            {isLaunching ? (
+              <>
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span>Running</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-3 h-3 fill-current" />
+                <span>Play</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

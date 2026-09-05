@@ -148,8 +148,13 @@ func (c *IdgamesClient) Search(ctx context.Context, query string) ([]IdgamesFile
 	if err != nil {
 		return nil, fmt.Errorf("failed to create search request: %w", err)
 	}
-	req.Header.Set("User-Agent", "RNT-Launcher/1.0 (Doom Mod Manager)")
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 RNT-Launcher/1.0")
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Referer", "https://www.doomworld.com/idgames/")
+	req.Header.Set("Origin", "https://www.doomworld.com")
+	req.Header.Set("Cache-Control", "no-cache")
+	req.Header.Set("Pragma", "no-cache")
 
 	client := c.HTTPClient
 	if client == nil {
@@ -163,10 +168,20 @@ func (c *IdgamesClient) Search(ctx context.Context, query string) ([]IdgamesFile
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		return nil, fmt.Errorf("idgames search returned HTTP %d: %s", resp.StatusCode, string(bodyBytes))
+		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		bodyStr := strings.TrimSpace(string(bodyBytes))
+		lowerBody := strings.ToLower(bodyStr)
+		if resp.StatusCode == http.StatusForbidden || strings.Contains(lowerBody, "cloudflare") || strings.Contains(lowerBody, "just a moment") || strings.Contains(lowerBody, "attention required") {
+			return nil, fmt.Errorf("idgames archive is temporarily shielded by Cloudflare protection (HTTP %d). The archive blocks automated requests at the moment. Please try again in a few minutes", resp.StatusCode)
+		}
+		if strings.Contains(bodyStr, "<!DOCTYPE") || strings.Contains(bodyStr, "<html") {
+			return nil, fmt.Errorf("idgames archive is temporarily unavailable (HTTP %d). Please try again shortly", resp.StatusCode)
+		}
+		if len(bodyStr) > 400 {
+			bodyStr = bodyStr[:400] + "..."
+		}
+		return nil, fmt.Errorf("idgames search returned HTTP %d: %s", resp.StatusCode, bodyStr)
 	}
-
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read idgames search response: %w", err)

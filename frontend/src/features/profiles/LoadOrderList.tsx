@@ -27,34 +27,35 @@ export const LoadOrderList: React.FC<LoadOrderListProps> = ({
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
 
-  // Count active mods
   const enabledCount = mods.filter((m) => m.enabled).length;
   const totalCount = mods.length;
 
-  // Filtered mods if user types search
   const filteredMods = mods.filter(
     (m) =>
       m.modName.toLowerCase().includes(searchFilter.toLowerCase()) ||
       (m.modPath && m.modPath.toLowerCase().includes(searchFilter.toLowerCase()))
   );
 
-  // Drag & Drop handlers
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', index.toString());
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', index.toString());
+    }
   };
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move';
+    }
     if (dragOverIndex !== index) {
       setDragOverIndex(index);
     }
   };
 
   const handleDragLeave = () => {
-    // Minimal handler to prevent flicker
+    // Keep clean
   };
 
   const handleDrop = (e: React.DragEvent, targetIndex: number) => {
@@ -65,17 +66,13 @@ export const LoadOrderList: React.FC<LoadOrderListProps> = ({
       return;
     }
 
-    const reordered = [...mods];
-    const [movedItem] = reordered.splice(draggedIndex, 1);
-    reordered.splice(targetIndex, 0, movedItem);
+    const updated = [...mods];
+    const [draggedItem] = updated.splice(draggedIndex, 1);
+    updated.splice(targetIndex, 0, draggedItem);
 
-    // Update order indices
-    const updated = reordered.map((item, idx) => ({
-      ...item,
-      order: idx,
-    }));
+    const reordered = updated.map((m, idx) => ({ ...m, order: idx }));
+    onReorder(reordered);
 
-    onReorder(updated);
     setDraggedIndex(null);
     setDragOverIndex(null);
   };
@@ -85,185 +82,182 @@ export const LoadOrderList: React.FC<LoadOrderListProps> = ({
     setDragOverIndex(null);
   };
 
-  // Reorder button actions
   const handleMoveUp = (index: number) => {
-    if (index <= 0) return;
-    const reordered = [...mods];
-    const temp = reordered[index - 1];
-    reordered[index - 1] = reordered[index];
-    reordered[index] = temp;
-
-    const updated = reordered.map((item, idx) => ({ ...item, order: idx }));
-    onReorder(updated);
+    if (index === 0) return;
+    const updated = [...mods];
+    const temp = updated[index];
+    updated[index] = updated[index - 1];
+    updated[index - 1] = temp;
+    onReorder(updated.map((m, idx) => ({ ...m, order: idx })));
   };
 
   const handleMoveDown = (index: number) => {
     if (index >= mods.length - 1) return;
-    const reordered = [...mods];
-    const temp = reordered[index + 1];
-    reordered[index + 1] = reordered[index];
-    reordered[index] = temp;
-
-    const updated = reordered.map((item, idx) => ({ ...item, order: idx }));
-    onReorder(updated);
+    const updated = [...mods];
+    const temp = updated[index];
+    updated[index] = updated[index + 1];
+    updated[index + 1] = temp;
+    onReorder(updated.map((m, idx) => ({ ...m, order: idx })));
   };
 
   const handleMoveToTop = (index: number) => {
-    if (index <= 0) return;
-    const reordered = [...mods];
-    const [item] = reordered.splice(index, 1);
-    reordered.unshift(item);
-
-    const updated = reordered.map((modItem, idx) => ({ ...modItem, order: idx }));
-    onReorder(updated);
+    if (index === 0) return;
+    const updated = [...mods];
+    const [item] = updated.splice(index, 1);
+    updated.unshift(item);
+    onReorder(updated.map((m, idx) => ({ ...m, order: idx })));
   };
 
   const handleMoveToBottom = (index: number) => {
-    if (index >= mods.length - 1) return;
-    const reordered = [...mods];
-    const [item] = reordered.splice(index, 1);
-    reordered.push(item);
-
-    const updated = reordered.map((modItem, idx) => ({ ...modItem, order: idx }));
-    onReorder(updated);
+    if (index === mods.length - 1) return;
+    const updated = [...mods];
+    const [item] = updated.splice(index, 1);
+    updated.push(item);
+    onReorder(updated.map((m, idx) => ({ ...m, order: idx })));
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* Header & Controls Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-doom-border/60">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Layers className="w-5 h-5 text-doom-red" />
-            <h3 className="text-sm font-bold tracking-wide uppercase text-doom-text">
-              Mod Load Order
-            </h3>
-          </div>
-          <span className="text-xs font-mono px-2 py-0.5 rounded bg-doom-card text-doom-muted border border-doom-border">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden gap-3">
+      {/* Workshop Header & Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#22262d]">
+        <div className="flex items-center gap-2.5">
+          <Layers className="w-4 h-4 text-zinc-400" />
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-200">
+            Mod Load Order
+          </h3>
+          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#101317] text-zinc-400 border border-[#22262d]">
             {enabledCount} of {totalCount} active
           </span>
         </div>
 
+        {/* Clear toolbar: + Add Mods, Enable All, Disable All, Clear */}
         <div className="flex items-center gap-2">
-          {totalCount > 0 && (
-            <>
-              {/* Quick filter in load order */}
-              {totalCount > 5 && (
-                <div className="relative flex items-center">
-                  <Search className="w-3.5 h-3.5 absolute left-2.5 text-doom-muted pointer-events-none" />
-                  <input
-                    type="text"
-                    value={searchFilter}
-                    onChange={(e) => setSearchFilter(e.target.value)}
-                    placeholder="Filter load order..."
-                    className="bg-doom-surface border border-doom-border rounded text-xs text-doom-text pl-7 pr-2 py-1 focus:outline-none focus:ring-1 focus:ring-doom-red w-36 placeholder-zinc-600"
-                  />
-                </div>
-              )}
-
-              {/* Toggle all */}
-              {onToggleAll && (
-                <div className="flex items-center rounded border border-doom-border overflow-hidden bg-doom-card">
-                  <button
-                    type="button"
-                    onClick={() => onToggleAll(true)}
-                    className="px-2 py-1 text-xs text-doom-muted hover:text-emerald-400 hover:bg-zinc-800 transition-colors flex items-center gap-1"
-                    title="Enable all mods"
-                  >
-                    <CheckSquare className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">All</span>
-                  </button>
-                  <div className="w-px h-3 bg-doom-border" />
-                  <button
-                    type="button"
-                    onClick={() => onToggleAll(false)}
-                    className="px-2 py-1 text-xs text-doom-muted hover:text-zinc-300 hover:bg-zinc-800 transition-colors flex items-center gap-1"
-                    title="Disable all mods"
-                  >
-                    <Square className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">None</span>
-                  </button>
-                </div>
-              )}
-
-              {/* Clear all */}
-              {onClearAll && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onClearAll}
-                  className="text-doom-muted hover:text-red-400 text-xs px-2"
-                  title="Remove all mods from profile"
-                >
-                  <Trash2 className="w-3.5 h-3.5 mr-1" />
-                  Clear
-                </Button>
-              )}
-            </>
+          {totalCount > 4 && (
+            <div className="relative flex items-center">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 text-zinc-500 pointer-events-none" />
+              <input
+                type="text"
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                placeholder="Filter load order..."
+                className="bg-[#101317] border border-[#22262d] rounded-md text-xs text-zinc-200 pl-7 pr-2.5 py-1 focus:outline-none focus:border-zinc-500 w-36 placeholder-zinc-500 font-normal"
+              />
+            </div>
           )}
 
-          {/* Add Mods Trigger */}
+          {totalCount > 0 && onToggleAll && (
+            <div className="flex items-center rounded-md border border-[#22262d] bg-[#101317] overflow-hidden text-xs">
+              <button
+                type="button"
+                onClick={() => onToggleAll(true)}
+                className="px-2.5 py-1 text-zinc-400 hover:text-emerald-400 hover:bg-[#181f26] transition-colors flex items-center gap-1.5"
+                title="Enable all mods"
+              >
+                <CheckSquare className="w-3.5 h-3.5" />
+                <span>Enable All</span>
+              </button>
+              <div className="w-px h-3.5 bg-[#22262d]" />
+              <button
+                type="button"
+                onClick={() => onToggleAll(false)}
+                className="px-2.5 py-1 text-zinc-400 hover:text-zinc-200 hover:bg-[#181f26] transition-colors flex items-center gap-1.5"
+                title="Disable all mods"
+              >
+                <Square className="w-3.5 h-3.5" />
+                <span>Disable All</span>
+              </button>
+            </div>
+          )}
+
+          {totalCount > 0 && onClearAll && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClearAll}
+              className="text-zinc-500 hover:text-red-400 text-xs px-2.5 h-7"
+              title="Remove all mods from this preset"
+            >
+              <Trash2 className="w-3.5 h-3.5 mr-1" />
+              Clear
+            </Button>
+          )}
+
           <Button
-            variant="primary"
+            variant="secondary"
             size="sm"
             onClick={onAddModsClick}
-            leftIcon={<Plus className="w-4 h-4" />}
+            leftIcon={<Plus className="w-3.5 h-3.5 text-zinc-300" />}
+            className="text-xs h-7 px-3 bg-[#181f26] hover:bg-[#202732] border-[#22262d] text-zinc-100 font-medium"
           >
-            Add Mods
+            + Add Mods
           </Button>
         </div>
       </div>
 
-      {/* Mods List / Empty State */}
+      {/* Mods List / Dense Table / Empty State */}
       {totalCount === 0 ? (
-        <div className="flex flex-col items-center justify-center p-8 rounded-lg border-2 border-dashed border-doom-border/70 bg-doom-card/20 text-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-doom-card border border-doom-border flex items-center justify-center text-doom-muted">
-            <Layers className="w-6 h-6 text-doom-muted" />
+        <div className="flex flex-col items-center justify-center py-10 px-6 rounded-lg border border-dashed border-[#22262d] bg-[#101317]/50 text-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-[#14171c] border border-[#22262d] flex items-center justify-center text-zinc-500">
+            <Layers className="w-5 h-5" />
           </div>
-          <div>
-            <h4 className="text-sm font-semibold text-doom-text">No Mods in Load Order</h4>
-            <p className="text-xs text-doom-muted max-w-sm mt-1">
-              Add WADs, PK3s, or patches to customize your gameplay. Mods are loaded in top-to-bottom sequence.
+          <div className="space-y-1">
+            <h4 className="text-xs font-semibold text-zinc-200">
+              No mods loaded in this setup. Playing vanilla Doom.
+            </h4>
+            <p className="text-[11px] text-zinc-500 max-w-sm">
+              Add WADs, PK3s, or DEH patches to customize this launch preset. Mods load in top-to-bottom order.
             </p>
           </div>
           <Button
             variant="secondary"
             size="sm"
             onClick={onAddModsClick}
-            leftIcon={<Plus className="w-4 h-4 text-doom-red" />}
-            className="mt-1"
+            leftIcon={<Plus className="w-3.5 h-3.5 text-zinc-300" />}
+            className="mt-1 text-xs bg-[#181f26] hover:bg-[#202732] border-[#22262d] text-zinc-100"
           >
-            Select Mods from Library
+            Add Mods from Library
           </Button>
         </div>
       ) : (
-        <div className="flex flex-col gap-1.5 min-h-[100px]">
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          {/* Dense Clean Table Header Row */}
+          <div className="flex items-center gap-2.5 px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-zinc-500 border-b border-[#22262d]/60 mb-1.5 select-none">
+            <span className="w-5 text-center shrink-0">#</span>
+            <span className="w-3.5 shrink-0" />
+            <span className="w-4 shrink-0" />
+            <span className="w-48 sm:w-56 lg:w-64 shrink-0">Mod Name</span>
+            <span className="w-14 shrink-0">Format</span>
+            <span className="flex-1 min-w-0">File Path</span>
+            <span className="shrink-0 text-right pr-2">Actions</span>
+          </div>
+
           {filteredMods.length === 0 ? (
-            <div className="p-4 text-center text-xs text-doom-muted border border-doom-border rounded bg-doom-surface">
-              No mods matching filter &quot;{searchFilter}&quot;
+            <div className="p-4 text-center text-xs text-zinc-500 border border-[#22262d] rounded-lg bg-[#101317]">
+              No mods matching &quot;{searchFilter}&quot;
             </div>
           ) : (
-            filteredMods.map((mod, idx) => (
-              <LoadOrderItem
-                key={mod.modId || `${mod.id}-${idx}`}
-                mod={mod}
-                index={idx}
-                totalCount={filteredMods.length}
-                isDragging={draggedIndex === idx}
-                isDragOver={dragOverIndex === idx}
-                onToggle={onToggle}
-                onRemove={onRemove}
-                onMoveUp={handleMoveUp}
-                onMoveDown={handleMoveDown}
-                onMoveToTop={handleMoveToTop}
-                onMoveToBottom={handleMoveToBottom}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onDragEnd={handleDragEnd}
-              />
-            ))
+            <div className="flex-1 overflow-y-auto min-h-0 pr-1 flex flex-col gap-1.5">
+              {filteredMods.map((mod, idx) => (
+                <LoadOrderItem
+                  mod={mod}
+                  index={idx}
+                  totalCount={filteredMods.length}
+                  isDragging={draggedIndex === idx}
+                  isDragOver={dragOverIndex === idx}
+                  onToggle={onToggle}
+                  onRemove={onRemove}
+                  onMoveUp={handleMoveUp}
+                  onMoveDown={handleMoveDown}
+                  onMoveToTop={handleMoveToTop}
+                  onMoveToBottom={handleMoveToBottom}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onDragEnd={handleDragEnd}
+                />
+              ))}
+            </div>
           )}
         </div>
       )}

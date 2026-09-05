@@ -248,6 +248,19 @@ export interface ScanResult {
   errors: string[]
 }
 
+export type UiDensity = 'compact' | 'comfortable'
+
+export type DefaultNavView =
+  | 'play'
+  | 'mods'
+  | 'settings'
+  | 'dashboard'
+  | 'profiles'
+  | 'library'
+  | 'iwads'
+  | 'engines'
+  | 'history'
+  | 'diagnostics'
 export interface Settings {
   modDirectories: string[]
   mod_directories?: string[]
@@ -264,7 +277,19 @@ export interface Settings {
   auto_scan_on_startup?: boolean
   closeOnLaunch: boolean
   close_on_launch?: boolean
+  uiDensity?: UiDensity
+  ui_density?: UiDensity
+  showFilePaths?: boolean
+  show_file_paths?: boolean
+  showRecentLaunches?: number
+  show_recent_launches?: number
+  formatVisibility?: string[]
+  format_visibility?: string[]
+  defaultView?: DefaultNavView
+  default_view?: DefaultNavView
 }
+
+export type AppSettings = Settings
 
 export interface HistoryStats {
   totalLaunches: number
@@ -403,4 +428,55 @@ export interface IdgamesFile {
   rating: number
   votes: number
   url: string
+}
+
+export interface IdgamesCatalogItem {
+  id: number
+  title: string
+  dir: string
+  filename: string
+  size: number
+  age: number
+  date: string
+  author: string
+  description: string
+  rating: number
+  votes: number
+  url: string
+  isCacoward: boolean
+  cacowardYear: number
+  isTop100: boolean
+  category: string
+  curatorNote: string
+  isInstalled: boolean
+  installedModId: string
+  score: number
+}
+
+export interface IdgamesSearchOptions {
+  query: string
+  cacowardOnly?: boolean
+  top100Only?: boolean
+  category?: string
+  sort?: string
+  limit?: number
+  offset?: number
+}
+
+export interface IdgamesShowcase {
+  cacowardClassics: IdgamesCatalogItem[]
+  top100: IdgamesCatalogItem[]
+  topRated: IdgamesCatalogItem[]
+  recentUploads: IdgamesCatalogItem[]
+}
+
+export interface IdgamesDownloadProgress {
+  archiveId: number
+  filename: string
+  bytesRead: number
+  totalBytes: number
+  percent: number
+  mirrorUrl: string
+  status: string
+  error: string
 }

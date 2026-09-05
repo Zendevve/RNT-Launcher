@@ -148,10 +148,12 @@ export const SelectModsModal: React.FC<SelectModsModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={
-        <span className="flex items-center gap-2">
-          <Layers className="w-5 h-5 text-doom-red" />
-          Select Mods from Library
-        </span>
+        <div className="flex items-center gap-2.5">
+          <span className="rounded-[8px] bg-[#0c0c0f] border border-[#2d2d34] p-1.5 text-[#5e7ce2]">
+            <Layers className="h-4 w-4" />
+          </span>
+          <span>Select Mods from Library</span>
+        </div>
       }
       description="Choose one or more mods to add to the active profile load order."
       size="2xl"

@@ -4,12 +4,18 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"rnt-launcher/internal/database"
 	"rnt-launcher/internal/diagnostics"
@@ -18,6 +24,7 @@ import (
 	"rnt-launcher/internal/filesystem"
 	"rnt-launcher/internal/history"
 	"rnt-launcher/internal/idgames"
+	"rnt-launcher/internal/idgames/seed"
 	"rnt-launcher/internal/iwads"
 	"rnt-launcher/internal/launcher"
 	"rnt-launcher/internal/logger"
@@ -52,6 +59,8 @@ type App struct {
 	settingsService    *settings.SettingsService
 	diagnosticsService *diagnostics.DiagnosticsService
 	idgamesClient      *idgames.IdgamesClient
+	idgamesRepo        *idgames.CatalogRepository
+	idgamesDownloader  *idgames.Downloader
 	isScanning         bool
 	scanMu             sync.Mutex
 }
@@ -166,6 +175,18 @@ func (a *App) startup(ctx context.Context) {
 		a.dbPath,
 	)
 	a.idgamesClient = idgames.NewClient()
+	a.idgamesRepo = idgames.NewCatalogRepository(db)
+	a.idgamesDownloader = idgames.NewDownloader()
+
+	// Seed /idgames offline catalog in background if empty
+	go func() {
+		reader, err := seed.OpenCatalogReader()
+		if err != nil {
+			return
+		}
+		defer reader.Close()
+		_, _ = a.idgamesRepo.SeedIfEmpty(context.Background(), reader)
+	}()
 
 	// Check if AutoScanOnStartup is enabled
 	go func() {
@@ -290,12 +311,402 @@ func (a *App) DownloadIdgamesMod(file idgames.IdgamesFile) (*domain.Mod, error) 
 	}
 
 	mod, err := a.scannerService.ImportFile(ctx, extractedPath)
+
 	if err != nil {
 		return nil, fmt.Errorf("downloaded but failed to import mod: %w", err)
 	}
 
 	return mod, nil
 }
+
+// SearchIdgamesCatalog queries the offline SQLite catalog with FTS5 full-text
+// search. It never touches the network.
+func (a *App) SearchIdgamesCatalog(opts idgames.SearchOptions) ([]idgames.CatalogItem, error) {
+	if a.idgamesRepo == nil {
+		a.idgamesRepo = idgames.NewCatalogRepository(a.db)
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	items, err := a.idgamesRepo.Search(ctx, opts)
+	if err != nil {
+		return nil, fmt.Errorf("searching idgames catalog: %w", err)
+	}
+	if items == nil {
+		return []idgames.CatalogItem{}, nil
+	}
+	return items, nil
+}
+
+// GetIdgamesCuratedShowcase returns curated, top rated, and recent catalog sets
+// for the zero-state mod store view.
+func (a *App) GetIdgamesCuratedShowcase() (idgames.ShowcaseResult, error) {
+	if a.idgamesRepo == nil {
+		a.idgamesRepo = idgames.NewCatalogRepository(a.db)
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	result, err := a.idgamesRepo.GetShowcase(ctx)
+	if err != nil {
+		return idgames.ShowcaseResult{}, fmt.Errorf("fetching idgames showcase: %w", err)
+	}
+	if result == nil {
+		return idgames.ShowcaseResult{}, nil
+	}
+	return *result, nil
+}
+
+// SyncIdgamesHighWatermark fetches catalog entries newer than the local maximum
+// ID and inserts the difference. It returns the number of newly inserted rows.
+// When the remote archive is unreachable, it returns the current maximum ID
+// with a nil error so offline startups stay quiet.
+func (a *App) SyncIdgamesHighWatermark() (int, error) {
+	if a.idgamesRepo == nil {
+		a.idgamesRepo = idgames.NewCatalogRepository(a.db)
+	}
+	if a.idgamesClient == nil {
+		a.idgamesClient = idgames.NewClient()
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	maxID, err := a.idgamesRepo.GetMaxID(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("querying idgames high watermark: %w", err)
+	}
+	fresh, err := a.fetchIdgamesNewer(ctx, maxID)
+	if err != nil {
+		return maxID, nil
+	}
+	if len(fresh) == 0 {
+		return 0, nil
+	}
+	inserted, err := a.idgamesRepo.InsertItems(ctx, fresh)
+	if err != nil {
+		return 0, fmt.Errorf("inserting synced idgames items: %w", err)
+	}
+	return inserted, nil
+}
+
+// maxIdgamesSyncProbe caps how many new archive IDs a single watermark sync pulls.
+const maxIdgamesSyncProbe = 50
+
+// errIdgamesFileNotFound marks a remote lookup for an archive ID that does not
+// exist yet, which terminates a watermark sync without failing it.
+var errIdgamesFileNotFound = errors.New("idgames file not found")
+
+// fetchIdgamesNewer probes sequential archive IDs above maxID via the remote
+// API, stopping at the first unknown ID. Transport failures surface as errors
+// only when nothing was collected; a partial batch ends the probe quietly.
+func (a *App) fetchIdgamesNewer(ctx context.Context, maxID int) ([]idgames.CatalogItem, error) {
+	var fresh []idgames.CatalogItem
+	for id := maxID + 1; len(fresh) < maxIdgamesSyncProbe; id++ {
+		file, err := a.fetchIdgamesFileByID(ctx, id)
+		if err != nil {
+			if errors.Is(err, errIdgamesFileNotFound) {
+				break
+			}
+			if len(fresh) == 0 {
+				return nil, err
+			}
+			break
+		}
+		fresh = append(fresh, idgames.CatalogItem{
+			ID:          file.ID,
+			Title:       file.Title,
+			Dir:         file.Dir,
+			Filename:    file.Filename,
+			Size:        file.Size,
+			Age:         file.Age,
+			Date:        file.Date,
+			Author:      file.Author,
+			Description: file.Description,
+			Rating:      file.Rating,
+			Votes:       file.Votes,
+			URL:         file.URL,
+		})
+	}
+	return fresh, nil
+}
+
+// idgamesGetResponse mirrors the Doomworld archive get-action payload.
+type idgamesGetResponse struct {
+	Content *idgamesGetContent `json:"content"`
+	Error   *idgamesGetError   `json:"error"`
+}
+
+type idgamesGetContent struct {
+	File  json.RawMessage  `json:"file"`
+	Error *idgamesGetError `json:"error"`
+}
+
+type idgamesGetError struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
+}
+
+type idgamesGetFile struct {
+	ID          any `json:"id"`
+	Title       any `json:"title"`
+	Dir         any `json:"dir"`
+	Filename    any `json:"filename"`
+	Size        any `json:"size"`
+	Age         any `json:"age"`
+	Date        any `json:"date"`
+	Author      any `json:"author"`
+	Description any `json:"description"`
+	Rating      any `json:"rating"`
+	Votes       any `json:"votes"`
+	URL         any `json:"url"`
+}
+
+// fetchIdgamesFileByID retrieves a single archive record through the client's
+// configured API endpoint, so tests can point it at a stub server.
+func (a *App) fetchIdgamesFileByID(ctx context.Context, id int) (*idgames.IdgamesFile, error) {
+	baseURL := idgames.DefaultBaseURL
+	httpClient := http.DefaultClient
+	if a.idgamesClient != nil {
+		if a.idgamesClient.BaseURL != "" {
+			baseURL = a.idgamesClient.BaseURL
+		}
+		if a.idgamesClient.HTTPClient != nil {
+			httpClient = a.idgamesClient.HTTPClient
+		}
+	}
+
+	reqURL, err := url.Parse(baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid idgames base URL %q: %w", baseURL, err)
+	}
+	q := reqURL.Query()
+	q.Set("action", "get")
+	q.Set("id", strconv.Itoa(id))
+	q.Set("out", "json")
+	reqURL.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create idgames get request: %w", err)
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 RNT-Launcher/1.0")
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("Referer", "https://www.doomworld.com/idgames/")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("idgames get request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("idgames get returned HTTP %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read idgames get response: %w", err)
+	}
+
+	var payload idgamesGetResponse
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, fmt.Errorf("failed to parse idgames get response: %w", err)
+	}
+	if payload.Error != nil && payload.Error.Message != "" {
+		if isIdgamesMissing(payload.Error.Message) {
+			return nil, errIdgamesFileNotFound
+		}
+		return nil, fmt.Errorf("idgames API error: %s (%s)", payload.Error.Message, payload.Error.Type)
+	}
+	if payload.Content == nil {
+		return nil, errIdgamesFileNotFound
+	}
+	if payload.Content.Error != nil && payload.Content.Error.Message != "" {
+		if isIdgamesMissing(payload.Content.Error.Message) {
+			return nil, errIdgamesFileNotFound
+		}
+		return nil, fmt.Errorf("idgames API error: %s (%s)", payload.Content.Error.Message, payload.Content.Error.Type)
+	}
+	trimmed := strings.TrimSpace(string(payload.Content.File))
+	if trimmed == "" || trimmed == "null" {
+		return nil, errIdgamesFileNotFound
+	}
+	var raw idgamesGetFile
+	if err := json.Unmarshal(payload.Content.File, &raw); err != nil {
+		return nil, fmt.Errorf("failed to decode idgames file: %w", err)
+	}
+
+	file := &idgames.IdgamesFile{
+		ID:          idgamesAnyInt(raw.ID),
+		Title:       idgamesAnyString(raw.Title),
+		Dir:         idgamesAnyString(raw.Dir),
+		Filename:    idgamesAnyString(raw.Filename),
+		Size:        idgamesAnyInt64(raw.Size),
+		Age:         idgamesAnyInt64(raw.Age),
+		Date:        idgamesAnyString(raw.Date),
+		Author:      idgamesAnyString(raw.Author),
+		Description: idgamesAnyString(raw.Description),
+		Rating:      idgamesAnyFloat64(raw.Rating),
+		Votes:       idgamesAnyInt(raw.Votes),
+		URL:         idgamesAnyString(raw.URL),
+	}
+	if file.ID == 0 {
+		file.ID = id
+	}
+	if file.URL == "" && file.Dir != "" && file.Filename != "" {
+		cleanDir := strings.Trim(filepath.ToSlash(file.Dir), "/")
+		file.URL = fmt.Sprintf("https://www.doomworld.com/idgames/%s/%s", cleanDir, strings.TrimSuffix(file.Filename, filepath.Ext(file.Filename)))
+	}
+	return file, nil
+}
+
+func isIdgamesMissing(msg string) bool {
+	lower := strings.ToLower(msg)
+	return strings.Contains(lower, "no file") ||
+		strings.Contains(lower, "not found") ||
+		strings.Contains(lower, "no result") ||
+		strings.Contains(lower, "zero result")
+}
+
+func idgamesAnyString(v any) string {
+	switch t := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return t
+	case bool:
+		if t {
+			return "1"
+		}
+		return "0"
+	case float64:
+		if t == float64(int64(t)) {
+			return strconv.FormatInt(int64(t), 10)
+		}
+		return strconv.FormatFloat(t, 'f', -1, 64)
+	case json.Number:
+		return t.String()
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+func idgamesAnyInt(v any) int {
+	return int(idgamesAnyInt64(v))
+}
+
+func idgamesAnyInt64(v any) int64 {
+	switch t := v.(type) {
+	case nil:
+		return 0
+	case float64:
+		return int64(t)
+	case string:
+		n, err := strconv.ParseInt(strings.TrimSpace(t), 10, 64)
+		if err == nil {
+			return n
+		}
+		if f, err := strconv.ParseFloat(strings.TrimSpace(t), 64); err == nil {
+			return int64(f)
+		}
+		return 0
+	case bool:
+		if t {
+			return 1
+		}
+		return 0
+	case json.Number:
+		if n, err := t.Int64(); err == nil {
+			return n
+		}
+		return 0
+	default:
+		return 0
+	}
+}
+
+func idgamesAnyFloat64(v any) float64 {
+	switch t := v.(type) {
+	case nil:
+		return 0
+	case float64:
+		return t
+	case string:
+		f, err := strconv.ParseFloat(strings.TrimSpace(t), 64)
+		if err == nil {
+			return f
+		}
+		return 0
+	case bool:
+		if t {
+			return 1
+		}
+		return 0
+	case json.Number:
+		if f, err := t.Float64(); err == nil {
+			return f
+		}
+		return 0
+	default:
+		return 0
+	}
+}
+
+// DownloadIdgamesArchive downloads a cataloged archive through the resilient
+// CDN downloader and ingests it into the mod library, forwarding progress to
+// the frontend via the idgames:download:progress event.
+func (a *App) DownloadIdgamesArchive(id int) (*domain.Mod, error) {
+	if a.idgamesRepo == nil {
+		a.idgamesRepo = idgames.NewCatalogRepository(a.db)
+	}
+	if a.idgamesDownloader == nil {
+		a.idgamesDownloader = idgames.NewDownloader()
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	item, err := a.idgamesRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("resolving idgames archive %d: %w", id, err)
+	}
+
+	var destDir string
+	if a.settingsService != nil {
+		s, err := a.settingsService.Get(ctx)
+		if err == nil && len(s.ModDirectories) > 0 {
+			destDir = s.ModDirectories[0]
+		}
+	}
+	if destDir == "" {
+		configDir, err := os.UserConfigDir()
+		if err == nil {
+			destDir = filepath.Join(configDir, "rnt-launcher", "mods")
+		} else {
+			destDir = "mods"
+		}
+	}
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create mod directory: %w", err)
+	}
+
+	if a.scannerService == nil {
+		return nil, errors.New("scanner service is not initialized")
+	}
+
+	mod, err := a.idgamesDownloader.DownloadAndIngest(ctx, *item, destDir, a.scannerService, func(p idgames.DownloadProgress) {
+		a.emitSafe("idgames:download:progress", p)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("downloading idgames archive %d: %w", id, err)
+	}
+
+	return mod, nil
+}
+
 // -------------------------------------------------------------
 // IWADs API
 // -------------------------------------------------------------

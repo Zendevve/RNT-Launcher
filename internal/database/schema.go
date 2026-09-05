@@ -96,4 +96,54 @@ CREATE INDEX IF NOT EXISTS idx_profile_mods_mod ON profile_mods(mod_id);
 
 CREATE INDEX IF NOT EXISTS idx_launch_history_started ON launch_history(started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_launch_history_profile ON launch_history(profile_id);
+CREATE TABLE IF NOT EXISTS idgames_catalog (
+    id INTEGER PRIMARY KEY,
+    title TEXT NOT NULL,
+    dir TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    age INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    author TEXT NOT NULL,
+    description TEXT NOT NULL,
+    rating REAL NOT NULL,
+    votes INTEGER NOT NULL,
+    is_cacoward INTEGER NOT NULL DEFAULT 0,
+    cacoward_year INTEGER NOT NULL DEFAULT 0,
+    is_top100 INTEGER NOT NULL DEFAULT 0,
+    category TEXT NOT NULL DEFAULT '',
+    curator_note TEXT NOT NULL DEFAULT '',
+    created_at DATETIME NOT NULL
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS idgames_fts USING fts5(
+    title,
+    author,
+    filename,
+    description,
+    content='idgames_catalog',
+    content_rowid='id'
+);
+
+CREATE TRIGGER IF NOT EXISTS idgames_ai AFTER INSERT ON idgames_catalog BEGIN
+    INSERT INTO idgames_fts(rowid, title, author, filename, description)
+    VALUES (new.id, new.title, new.author, new.filename, new.description);
+END;
+
+CREATE TRIGGER IF NOT EXISTS idgames_ad AFTER DELETE ON idgames_catalog BEGIN
+    INSERT INTO idgames_fts(idgames_fts, rowid, title, author, filename, description)
+    VALUES ('delete', old.id, old.title, old.author, old.filename, old.description);
+END;
+
+CREATE TRIGGER IF NOT EXISTS idgames_au AFTER UPDATE ON idgames_catalog BEGIN
+    INSERT INTO idgames_fts(idgames_fts, rowid, title, author, filename, description)
+    VALUES ('delete', old.id, old.title, old.author, old.filename, old.description);
+    INSERT INTO idgames_fts(rowid, title, author, filename, description)
+    VALUES (new.id, new.title, new.author, new.filename, new.description);
+END;
+
+CREATE INDEX IF NOT EXISTS idx_idgames_rating_votes ON idgames_catalog(rating DESC, votes DESC);
+CREATE INDEX IF NOT EXISTS idx_idgames_cacoward ON idgames_catalog(is_cacoward, cacoward_year DESC);
+CREATE INDEX IF NOT EXISTS idx_idgames_date ON idgames_catalog(date DESC);
+CREATE INDEX IF NOT EXISTS idx_idgames_filename ON idgames_catalog(filename);
 `
