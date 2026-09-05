@@ -682,6 +682,56 @@ export namespace filesystem {
 
 export namespace idgames {
 	
+	export class CatalogItem {
+	    id: number;
+	    title: string;
+	    dir: string;
+	    filename: string;
+	    size: number;
+	    age: number;
+	    date: string;
+	    author: string;
+	    description: string;
+	    rating: number;
+	    votes: number;
+	    url: string;
+	    is_cacoward: boolean;
+	    cacoward_year: number;
+	    is_top100: boolean;
+	    category: string;
+	    curator_note: string;
+	    is_installed: boolean;
+	    installed_mod_id: string;
+	    score?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CatalogItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.title = source["title"];
+	        this.dir = source["dir"];
+	        this.filename = source["filename"];
+	        this.size = source["size"];
+	        this.age = source["age"];
+	        this.date = source["date"];
+	        this.author = source["author"];
+	        this.description = source["description"];
+	        this.rating = source["rating"];
+	        this.votes = source["votes"];
+	        this.url = source["url"];
+	        this.is_cacoward = source["is_cacoward"];
+	        this.cacoward_year = source["cacoward_year"];
+	        this.is_top100 = source["is_top100"];
+	        this.category = source["category"];
+	        this.curator_note = source["curator_note"];
+	        this.is_installed = source["is_installed"];
+	        this.installed_mod_id = source["installed_mod_id"];
+	        this.score = source["score"];
+	    }
+	}
 	export class IdgamesFile {
 	    id: number;
 	    title: string;
@@ -715,6 +765,66 @@ export namespace idgames {
 	        this.votes = source["votes"];
 	        this.url = source["url"];
 	    }
+	}
+	export class SearchOptions {
+	    query: string;
+	    cacoward_only: boolean;
+	    top100_only: boolean;
+	    category: string;
+	    sort: string;
+	    limit: number;
+	    offset: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SearchOptions(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.query = source["query"];
+	        this.cacoward_only = source["cacoward_only"];
+	        this.top100_only = source["top100_only"];
+	        this.category = source["category"];
+	        this.sort = source["sort"];
+	        this.limit = source["limit"];
+	        this.offset = source["offset"];
+	    }
+	}
+	export class ShowcaseResult {
+	    cacoward_classics: CatalogItem[];
+	    top_100: CatalogItem[];
+	    top_rated: CatalogItem[];
+	    recent_uploads: CatalogItem[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ShowcaseResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cacoward_classics = this.convertValues(source["cacoward_classics"], CatalogItem);
+	        this.top_100 = this.convertValues(source["top_100"], CatalogItem);
+	        this.top_rated = this.convertValues(source["top_rated"], CatalogItem);
+	        this.recent_uploads = this.convertValues(source["recent_uploads"], CatalogItem);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }

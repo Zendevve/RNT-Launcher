@@ -50,6 +50,10 @@ export function DetectEngineVersion(arg1) {
   return window['go']['main']['App']['DetectEngineVersion'](arg1);
 }
 
+export function DownloadIdgamesArchive(arg1) {
+  return window['go']['main']['App']['DownloadIdgamesArchive'](arg1);
+}
+
 export function DownloadIdgamesMod(arg1) {
   return window['go']['main']['App']['DownloadIdgamesMod'](arg1);
 }
@@ -76,6 +80,10 @@ export function GetHistoryStats() {
 
 export function GetIWAD(arg1) {
   return window['go']['main']['App']['GetIWAD'](arg1);
+}
+
+export function GetIdgamesCuratedShowcase() {
+  return window['go']['main']['App']['GetIdgamesCuratedShowcase']();
 }
 
 export function GetMod(arg1) {
@@ -198,6 +206,10 @@ export function SearchIdgames(arg1) {
   return window['go']['main']['App']['SearchIdgames'](arg1);
 }
 
+export function SearchIdgamesCatalog(arg1) {
+  return window['go']['main']['App']['SearchIdgamesCatalog'](arg1);
+}
+
 export function SetDBPath(arg1) {
   return window['go']['main']['App']['SetDBPath'](arg1);
 }
@@ -208,6 +220,10 @@ export function SetEventEmitter(arg1) {
 
 export function StartScan() {
   return window['go']['main']['App']['StartScan']();
+}
+
+export function SyncIdgamesHighWatermark() {
+  return window['go']['main']['App']['SyncIdgamesHighWatermark']();
 }
 
 export function ToggleModFavorite(arg1) {

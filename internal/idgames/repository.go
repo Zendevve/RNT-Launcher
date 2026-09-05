@@ -229,8 +229,10 @@ func (r *CatalogRepository) searchBrowsing(ctx context.Context, opts SearchOptio
 		whereClauses = append(whereClauses, "c.is_top100 = 1")
 	}
 	if strings.TrimSpace(opts.Category) != "" {
-		whereClauses = append(whereClauses, "LOWER(c.category) = LOWER(?)")
-		args = append(args, strings.TrimSpace(opts.Category))
+		cat := strings.TrimSpace(opts.Category)
+		singular := strings.TrimSuffix(strings.ToLower(cat), "s")
+		whereClauses = append(whereClauses, "(LOWER(c.category) = LOWER(?) OR LOWER(c.category) = ? OR LOWER(c.category) LIKE ?)")
+		args = append(args, cat, singular, "%"+singular+"%")
 	}
 
 	whereSQL := ""
@@ -297,8 +299,10 @@ func (r *CatalogRepository) searchFTS5(ctx context.Context, rawQuery string, opt
 		whereClauses = append(whereClauses, "c.is_top100 = 1")
 	}
 	if strings.TrimSpace(opts.Category) != "" {
-		whereClauses = append(whereClauses, "LOWER(c.category) = LOWER(?)")
-		args = append(args, strings.TrimSpace(opts.Category))
+		cat := strings.TrimSpace(opts.Category)
+		singular := strings.TrimSuffix(strings.ToLower(cat), "s")
+		whereClauses = append(whereClauses, "(LOWER(c.category) = LOWER(?) OR LOWER(c.category) = ? OR LOWER(c.category) LIKE ?)")
+		args = append(args, cat, singular, "%"+singular+"%")
 	}
 
 	whereSQL := "WHERE " + strings.Join(whereClauses, " AND ")
@@ -381,8 +385,10 @@ func (r *CatalogRepository) searchFallbackLike(ctx context.Context, rawQuery str
 		whereClauses = append(whereClauses, "c.is_top100 = 1")
 	}
 	if strings.TrimSpace(opts.Category) != "" {
-		whereClauses = append(whereClauses, "LOWER(c.category) = LOWER(?)")
-		args = append(args, strings.TrimSpace(opts.Category))
+		cat := strings.TrimSpace(opts.Category)
+		singular := strings.TrimSuffix(strings.ToLower(cat), "s")
+		whereClauses = append(whereClauses, "(LOWER(c.category) = LOWER(?) OR LOWER(c.category) = ? OR LOWER(c.category) LIKE ?)")
+		args = append(args, cat, singular, "%"+singular+"%")
 	}
 
 	whereSQL := "WHERE " + strings.Join(whereClauses, " AND ")

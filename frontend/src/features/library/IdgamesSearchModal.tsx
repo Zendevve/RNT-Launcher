@@ -25,6 +25,12 @@ import { events } from '../../lib/events';
 import { formatBytes } from '../../utils/formatters';
 import { Modal } from '../../components/ui/Modal';
 import { Badge } from '../../components/ui/Badge';
+import { Button } from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
+import { Input } from '../../components/ui/Input';
+import { ProgressBar } from '../../components/ui/ProgressBar';
+import { useToast } from '../../components/ui/Toast';
+import { cn } from '../../utils/cn';
 
 export interface IdgamesSearchModalProps {
   isOpen: boolean;
@@ -48,13 +54,25 @@ const POPULAR_SUGGESTIONS = [
 const CATEGORY_PILLS = [
   'All',
   'Megawads',
-  'Maps',
+  'Episodes',
+  'Total Conversions',
   'Gameplay',
-  'Weapons',
-  'Monsters',
-  'Textures',
-  'Audio',
 ];
+
+function mapCategoryToDb(cat: string): string {
+  switch (cat) {
+    case 'Megawads':
+      return 'Megawad';
+    case 'Episodes':
+      return 'Episode';
+    case 'Total Conversions':
+      return 'Total Conversion';
+    case 'All':
+      return '';
+    default:
+      return cat;
+  }
+}
 
 const SHELVES: Array<{ key: keyof IdgamesShowcase; title: string; icon: 'award' | 'trophy' | 'star' | 'globe' }> = [
   { key: 'cacowardClassics', title: 'Cacoward Classics', icon: 'award' },
@@ -105,6 +123,8 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
 
   const requestRef = useRef(0);
 
+  const toast = useToast();
+
   // Curated showcase for the zero-state shelves
   useEffect(() => {
     if (!isOpen) return;
@@ -114,7 +134,16 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
       .getIdgamesShowcase()
       .then((data) => {
         if (cancelled) return;
-        setShowcase(data);
+        if (!data) {
+          setShowcase(null);
+          return;
+        }
+        setShowcase({
+          cacowardClassics: data.cacowardClassics ?? [],
+          top100: data.top100 ?? [],
+          topRated: data.topRated ?? [],
+          recentUploads: data.recentUploads ?? [],
+        });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -130,9 +159,20 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
   }, [isOpen]);
 
   const runSearch = useCallback(
-    async (raw: string) => {
+    async (raw: string, catOverride?: string) => {
       const trimmed = raw.trim();
-      if (!trimmed) return;
+      const cat = catOverride ?? activeCategory;
+      const dbCat = mapCategoryToDb(cat);
+
+      // If query is empty and category is 'All', return to zero state
+      if (!trimmed && cat === 'All') {
+        setResults([]);
+        setHasSearched(false);
+        setError(null);
+        setIsLoading(false);
+        return;
+      }
+
       const requestId = requestRef.current + 1;
       requestRef.current = requestId;
 
@@ -143,7 +183,7 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
       try {
         const items = await api.searchIdgamesCatalog({
           query: trimmed,
-          category: activeCategory === 'All' ? '' : activeCategory,
+          category: dbCat,
           sort: sortOption,
           limit: 50,
           offset: 0,
@@ -152,7 +192,7 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
         setResults(items || []);
         setSelectedFile((prev) => {
           if (prev && items?.some((it) => it.id === prev.id)) return prev;
-          return items && items.length > 0 ? items[0] : null;
+          return null;
         });
       } catch (err: unknown) {
         if (requestRef.current !== requestId) return;
@@ -167,22 +207,26 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
     [activeCategory, sortOption]
   );
 
-  // Debounced search (~100ms) as the user types
+  // Debounced search (~350ms) as the user types
   useEffect(() => {
     if (!isOpen) return;
     const trimmed = query.trim();
     if (!trimmed) {
-      setResults([]);
-      setHasSearched(false);
-      setError(null);
-      setIsLoading(false);
+      if (activeCategory === 'All') {
+        setResults([]);
+        setHasSearched(false);
+        setError(null);
+        setIsLoading(false);
+      } else {
+        void runSearch('', activeCategory);
+      }
       return;
     }
     const timer = setTimeout(() => {
       void runSearch(query);
-    }, 100);
+    }, 350);
     return () => clearTimeout(timer);
-  }, [query, isOpen, runSearch]);
+  }, [query, isOpen, activeCategory, runSearch]);
 
   // Non-blocking progress tray: backend progress events + window event fallback
   useEffect(() => {
@@ -208,6 +252,14 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
     void runSearch(query);
   };
 
+  const handleClear = () => {
+    setQuery('');
+    setResults([]);
+    setHasSearched(false);
+    setError(null);
+    setSelectedFile(null);
+  };
+
   const handleSuggestionClick = (suggestion: string) => {
     setQuery(suggestion);
     void runSearch(suggestion);
@@ -215,7 +267,7 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
 
   const handleCategoryClick = (category: string) => {
     setActiveCategory(category);
-    if (query.trim()) void runSearch(query);
+    void runSearch(query, category);
   };
 
   const handleDownload = async (file: IdgamesCatalogItem) => {
@@ -244,6 +296,8 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
           : prev
       );
 
+      toast.success(`Imported ${importedMod?.name ?? file.title ?? file.filename}`);
+
       if (onModImported && importedMod) {
         onModImported(importedMod);
       }
@@ -254,6 +308,7 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
         ...prev,
         [file.id]: { status: 'error', message: msg },
       }));
+      toast.error('Download failed', msg);
     } finally {
       setDownloadingId(null);
     }
@@ -293,14 +348,27 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
     const progress = progressMap[file.id];
 
     return (
-      <div
+      <Card
         key={file.id}
+        padding="none"
+        hoverable
+        role="option"
+        tabIndex={0}
+        aria-selected={isSelected}
+        aria-label={file.title || file.filename}
         onClick={() => setSelectedFile(file)}
-        className={`group flex flex-col gap-2 rounded border p-3.5 transition-all cursor-pointer ${
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setSelectedFile(file);
+          }
+        }}
+        className={cn(
+          'group flex cursor-pointer flex-col gap-2 p-3.5 outline-none transition-all focus-visible:ring-1 focus-visible:ring-doom-red',
           isSelected
             ? 'border-doom-red bg-doom-surface/90 shadow-md shadow-doom-red/10'
-            : 'border-doom-border bg-doom-card hover:border-doom-border-bright hover:bg-doom-surface/50'
-        }`}
+            : 'hover:border-doom-border-bright hover:bg-doom-surface/50'
+        )}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
@@ -337,34 +405,37 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
             </div>
           </div>
           {/* Quick Download Button */}
-          <div className="shrink-0">
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            {isSelected && (
+              <span
+                aria-hidden="true"
+                className="inline-flex items-center gap-1 font-mono text-[10px] font-bold uppercase tracking-wider text-doom-red"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5 fill-doom-red/20" />
+                Selected
+              </span>
+            )}
             {status?.status === 'success' || file.isInstalled ? (
               <span className="inline-flex items-center gap-1 rounded bg-green-500/10 px-2.5 py-1 font-mono text-xs font-bold text-green-400 border border-green-500/30">
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 <span>Imported</span>
               </span>
             ) : (
-              <button
+              <Button
                 type="button"
+                variant="danger"
+                size="sm"
+                isLoading={isDownloading}
                 disabled={isDownloading || downloadingId !== null}
+                leftIcon={<Download className="h-3 w-3" />}
                 onClick={(e) => {
                   e.stopPropagation();
                   void handleDownload(file);
                 }}
-                className="inline-flex items-center gap-1.5 rounded bg-doom-red px-3 py-1.5 font-mono text-xs font-bold uppercase tracking-wider text-white shadow-sm hover:bg-doom-red-bright disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+                className="uppercase"
               >
-                {isDownloading ? (
-                  <>
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    <span>Downloading...</span>
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-3 w-3" />
-                    <span>Get</span>
-                  </>
-                )}
-              </button>
+                {isDownloading ? 'Downloading...' : 'Get'}
+              </Button>
             )}
           </div>
         </div>
@@ -391,12 +462,13 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
         </div>
 
         {(isDownloading || (progress && progress.percent < 100 && progress.status !== 'done')) && progress && (
-          <div className="h-1 rounded bg-doom-border overflow-hidden">
-            <div
-              className="h-full bg-doom-red transition-all"
-              style={{ width: `${Math.min(100, Math.max(0, progress.percent))}%` }}
-            />
-          </div>
+          <ProgressBar
+            value={progress.percent}
+            variant="primary"
+            size="xs"
+            label={file.filename}
+            statusText={`${Math.round(progress.percent)}% · ${progress.status}`}
+          />
         )}
 
         {file.description && (
@@ -411,7 +483,7 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
             <span>{status.message || 'Failed to download'}</span>
           </p>
         )}
-      </div>
+      </Card>
     );
   };
 
@@ -435,48 +507,47 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
       }
       description="Zero-account search, direct mirror download, and instant library import"
     >
-      <div className="flex h-[75vh] w-full flex-col -m-6 overflow-hidden relative">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* Search & Filter Bar */}
         <div className="border-b border-doom-border bg-doom-surface/60 px-6 py-3.5">
           <form onSubmit={handleSubmit} className="flex gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-doom-muted" />
-              <input
-                type="text"
+            <div className="min-w-0 flex-1">
+              <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search by mod title, author, or filename (e.g. eviternity, sunder, scythe)..."
                 autoFocus
-                className="w-full rounded border border-doom-border bg-doom-card pl-9 pr-8 py-2 font-mono text-xs text-doom-text placeholder-doom-muted/60 focus:border-doom-red focus:outline-hidden"
+                aria-label="Search /idgames archive"
+                leftIcon={<Search className="h-4 w-4" />}
+                rightIcon={
+                  isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-doom-muted" />
+                  ) : query ? (
+                    <button
+                      type="button"
+                      onClick={handleClear}
+                      aria-label="Clear search"
+                      className="flex items-center text-doom-muted transition-colors hover:text-white"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  ) : undefined
+                }
+                className="h-10"
               />
-              {query && (
-                <button
-                  type="button"
-                  onClick={() => setQuery('')}
-                  className="absolute right-2.5 top-2.5 text-doom-muted hover:text-white"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
             </div>
 
-            <button
+            <Button
               type="submit"
+              variant="danger"
+              size="md"
+              isLoading={isLoading}
               disabled={isLoading || !query.trim()}
-              className="inline-flex items-center gap-2 rounded bg-doom-red px-5 py-2 font-mono text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-doom-red/20 transition-colors hover:bg-doom-red-bright disabled:cursor-not-allowed disabled:opacity-50"
+              leftIcon={<Search className="h-3.5 w-3.5" />}
+              className="h-10 shrink-0 uppercase"
             >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span>Searching...</span>
-                </>
-              ) : (
-                <>
-                  <Search className="h-3.5 w-3.5" />
-                  <span>Search</span>
-                </>
-              )}
-            </button>
+              {isLoading ? 'Searching...' : 'Search'}
+            </Button>
           </form>
           {/* Category Pills */}
           <div className="mt-2.5 flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
@@ -485,9 +556,10 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
                 key={cat}
                 type="button"
                 onClick={() => handleCategoryClick(cat)}
+                aria-pressed={activeCategory === cat}
                 className={`rounded-full border px-3 py-1 font-mono text-[11px] shrink-0 transition-colors ${
                   activeCategory === cat
-                    ? 'border-doom-red bg-doom-red/15 text-white'
+                    ? 'border-doom-red bg-doom-red/15 text-white font-bold'
                     : 'border-doom-border bg-doom-card/70 text-doom-muted hover:border-doom-border-bright hover:text-doom-text'
                 }`}
               >
@@ -495,32 +567,18 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
               </button>
             ))}
           </div>
-          {/* Quick Suggestions Chips */}
-          <div className="mt-2 flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-            <span className="flex items-center gap-1 font-mono text-[11px] text-doom-muted uppercase tracking-wider shrink-0">
-              <Sparkles className="h-3 w-3 text-doom-amber" />
-              Popular:
-            </span>
-            {POPULAR_SUGGESTIONS.map((suggestion) => (
-              <button
-                key={suggestion}
-                type="button"
-                onClick={() => handleSuggestionClick(suggestion)}
-                className="rounded border border-doom-border bg-doom-card/70 px-2 py-0.5 font-mono text-[11px] text-doom-muted transition-colors hover:border-doom-border-bright hover:bg-doom-card hover:text-doom-text shrink-0"
-              >
-                {suggestion}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Content Body: Split Results List & Detail Panel */}
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex min-h-0 flex-1 overflow-hidden">
           {/* Left Column: Results List or Showcase Shelves */}
-          <div className="flex flex-1 flex-col border-r border-doom-border overflow-hidden">
+          <div className={cn(
+                'flex min-h-0 flex-1 flex-col overflow-hidden',
+                selectedFile && 'border-r border-doom-border'
+              )}>
             {/* Results Sub-header with Sort */}
             <div className="flex items-center justify-between border-b border-doom-border/70 bg-doom-surface/40 px-6 py-2">
-              <span className="font-mono text-xs font-semibold text-doom-muted">
+              <span role="status" className="font-mono text-xs font-semibold text-doom-muted">
                 {showZeroState ? 'Curated from the offline archive' : `${results.length} results found`}
               </span>
               {!showZeroState && results.length > 0 && (
@@ -531,7 +589,7 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
                     value={sortOption}
                     onChange={(e) => setSortOption(e.target.value as SortOption)}
                     aria-label="Sort idgames search results"
-                    className="bg-transparent text-doom-text focus:outline-hidden cursor-pointer text-xs"
+                    className="rounded border border-doom-border bg-doom-card px-2 py-1 font-mono text-xs text-doom-text cursor-pointer focus:border-doom-red focus:outline-hidden"
                   >
                     <option value="rating-desc" className="bg-doom-surface text-doom-text">Highest Rating</option>
                     <option value="votes-desc" className="bg-doom-surface text-doom-text">Most Votes</option>
@@ -544,7 +602,27 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
             </div>
 
             {/* List Body */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-2.5">
+              {showZeroState && !showcaseLoading && (
+                <div className="rounded border border-doom-border bg-doom-card p-3">
+                  <p className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-doom-muted">
+                    <Sparkles className="h-3 w-3 text-doom-amber" />
+                    Popular right now — select to search
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {POPULAR_SUGGESTIONS.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() => handleSuggestionClick(suggestion)}
+                        className="rounded-full border border-doom-border bg-doom-surface/60 px-3 py-1 font-mono text-[11px] text-doom-text transition-colors hover:border-doom-red hover:text-white"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {showZeroState ? (
                 showcaseLoading ? (
                   <div className="flex h-64 flex-col items-center justify-center text-center">
@@ -554,13 +632,13 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
                     </p>
                   </div>
                 ) : showcase &&
-                  (showcase.cacowardClassics.length > 0 ||
-                    showcase.top100.length > 0 ||
-                    showcase.topRated.length > 0 ||
-                    showcase.recentUploads.length > 0) ? (
+                  ((showcase.cacowardClassics?.length ?? 0) > 0 ||
+                    (showcase.top100?.length ?? 0) > 0 ||
+                    (showcase.topRated?.length ?? 0) > 0 ||
+                    (showcase.recentUploads?.length ?? 0) > 0) ? (
                   SHELVES.map((shelf) => {
-                    const items = showcase[shelf.key];
-                    if (!items || items.length === 0) return null;
+                    const items = showcase[shelf.key] ?? [];
+                    if (items.length === 0) return null;
                     return (
                       <div key={shelf.key}>
                         <div className="flex items-center gap-1.5 px-1 pb-2">
@@ -590,12 +668,24 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
                     </p>
                   </div>
                 )
-              ) : isLoading ? (
-                <div className="flex h-64 flex-col items-center justify-center text-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-doom-red mb-3" />
-                  <p className="font-mono text-xs text-doom-muted uppercase tracking-wider">
-                    Querying Doomworld /idgames database...
-                  </p>
+              ) : isLoading && results.length === 0 ? (
+                <div role="status" aria-label="Loading search results" className="space-y-2.5">
+                  <span className="sr-only">Querying Doomworld /idgames database...</span>
+                  {Array.from({ length: 6 }, (_, i) => (
+                    <div
+                      key={i}
+                      aria-hidden="true"
+                      className="animate-pulse space-y-2 rounded border border-doom-border bg-doom-card p-3.5"
+                    >
+                      <div className="h-4 w-2/3 rounded bg-doom-border/70" />
+                      <div className="flex gap-2">
+                        <div className="h-3 w-20 rounded bg-doom-border/50" />
+                        <div className="h-3 w-16 rounded bg-doom-border/50" />
+                        <div className="h-3 w-24 rounded bg-doom-border/50" />
+                      </div>
+                      <div className="h-3 w-full rounded bg-doom-border/40" />
+                    </div>
+                  ))}
                 </div>
               ) : error ? (
                 <div className="flex min-h-[280px] flex-col items-center justify-center p-8 text-center">
@@ -639,35 +729,134 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
                   <FileCode className="h-10 w-10 text-doom-muted/40 mb-3" />
                   <h4 className="font-mono text-sm font-bold uppercase text-doom-text">No Files Found</h4>
                   <p className="mt-1 font-mono text-xs max-w-sm">
-                    No archive entries matched &ldquo;{query}&rdquo;. Try another search term or author name.
+                    {activeCategory !== 'All' ? (
+                      <>
+                        No archive entries matched &ldquo;{query}&rdquo; in category{' '}
+                        <span className="text-doom-text font-bold">{activeCategory}</span>.
+                      </>
+                    ) : (
+                      <>No archive entries matched &ldquo;{query}&rdquo;. Try another search term or author name.</>
+                    )}
                   </p>
+                  {activeCategory !== 'All' && (
+                    <button
+                      type="button"
+                      onClick={() => handleCategoryClick('All')}
+                      className="mt-3 inline-flex items-center gap-1.5 rounded border border-doom-border bg-doom-card px-3 py-1.5 font-mono text-xs text-doom-text hover:border-doom-red hover:text-white transition-colors"
+                    >
+                      Clear category filter & search all
+                    </button>
+                  )}
                 </div>
               ) : (
-                sortedResults.map((file) => renderFileCard(file))
+                <div
+                  role="listbox"
+                  aria-label="Search results"
+                  className={cn(
+                    'space-y-2.5 transition-opacity duration-150',
+                    isLoading && 'opacity-60 pointer-events-none'
+                  )}
+                >
+                  {sortedResults.map((file) => renderFileCard(file))}
+                </div>
               )}
             </div>
+            {/* Mobile details fallback (drawer is hidden below md) */}
+            {selectedFile && !showZeroState && (
+              <div className="shrink-0 border-t border-doom-border bg-doom-surface/50 p-4 md:hidden">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-doom-muted">
+                    Archive Details
+                  </span>
+                  {selectedFile.url && (
+                    <a
+                      href={selectedFile.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 font-mono text-[11px] text-doom-cyan hover:underline"
+                    >
+                      <span>Doomworld</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+                <h3 className="mt-1 font-mono text-sm font-black text-white break-words">
+                  {selectedFile.title || selectedFile.filename}
+                </h3>
+                {selectedFile.rating > 0 && (
+                  <p className="mt-1 flex items-center gap-1.5 font-mono text-xs text-doom-amber">
+                    <Star className="h-3.5 w-3.5 fill-doom-amber" />
+                    <span>
+                      {selectedFile.rating.toFixed(2)} / 5.0 · {selectedFile.votes}{' '}
+                      {selectedFile.votes === 1 ? 'vote' : 'votes'}
+                    </span>
+                  </p>
+                )}
+                <p className="mt-1 font-mono text-[11px] text-doom-muted">
+                  {[selectedFile.author, selectedFile.size > 0 ? formatBytes(selectedFile.size) : '', selectedFile.date]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+                {selectedFile.description && (
+                  <p className="mt-2 font-mono text-xs text-doom-muted line-clamp-3 leading-relaxed">
+                    {selectedFile.description}
+                  </p>
+                )}
+                <div className="mt-3">
+                  {downloadStatus[selectedFile.id]?.status === 'success' || selectedFile.isInstalled ? (
+                    <div className="flex items-center justify-center gap-2 rounded bg-green-500/10 border border-green-500/30 p-2.5 font-mono text-xs font-bold text-green-400">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span>Ready in Mod Library</span>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="danger"
+                      size="sm"
+                      isLoading={downloadingId === selectedFile.id}
+                      disabled={downloadingId !== null}
+                      leftIcon={<Download className="h-4 w-4" />}
+                      onClick={() => void handleDownload(selectedFile)}
+                      className="w-full uppercase"
+                    >
+                      {downloadingId === selectedFile.id ? 'Downloading & Importing...' : 'Download & Import'}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Right Column: Selected File Details Drawer */}
-          <div className="hidden md:flex w-80 lg:w-96 flex-col bg-doom-surface/50 overflow-y-auto p-5">
-            {selectedFile ? (
-              <div className="flex flex-col gap-4">
-                <div>
+          {selectedFile && (
+            <div className="hidden min-h-0 w-80 flex-col bg-doom-surface/50 md:flex lg:w-96">
+              <div className="flex min-h-0 flex-1 flex-col">
+                <div className="shrink-0 px-5 pt-5">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-doom-muted">
                       ARCHIVE DETAILS
                     </span>
-                    {selectedFile.url && (
-                      <a
-                        href={selectedFile.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 font-mono text-[11px] text-doom-cyan hover:underline"
+                    <span className="flex items-center gap-1">
+                      {selectedFile.url && (
+                        <a
+                          href={selectedFile.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 font-mono text-[11px] text-doom-cyan hover:underline"
+                        >
+                          <span>Doomworld</span>
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedFile(null)}
+                        aria-label="Close details"
+                        className="flex items-center rounded p-1 text-doom-muted transition-colors hover:bg-doom-card hover:text-white"
                       >
-                        <span>Doomworld</span>
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </span>
                   </div>
                   <h3 className="mt-1 font-mono text-base font-black text-white break-words">
                     {selectedFile.title || selectedFile.filename}
@@ -688,6 +877,7 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
                     {selectedFile.isInstalled && <InstalledBadge />}
                   </div>
                 </div>
+                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
 
                 {/* Rating Card */}
                 {selectedFile.rating > 0 && (
@@ -769,42 +959,32 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
                   </div>
                 )}
 
+                </div>
                 {/* Download & Import Action */}
-                <div className="mt-auto pt-4 border-t border-doom-border/70">
+                <div className="sticky bottom-0 shrink-0 border-t border-doom-border/70 bg-doom-surface/50 px-5 pb-5 pt-4">
                   {downloadStatus[selectedFile.id]?.status === 'success' || selectedFile.isInstalled ? (
                     <div className="flex items-center justify-center gap-2 rounded bg-green-500/10 border border-green-500/30 p-2.5 font-mono text-xs font-bold text-green-400">
                       <CheckCircle2 className="h-4 w-4" />
                       <span>Ready in Mod Library</span>
                     </div>
                   ) : (
-                    <button
+                    <Button
                       type="button"
+                      variant="danger"
+                      size="md"
+                      isLoading={downloadingId === selectedFile.id}
                       disabled={downloadingId !== null}
+                      leftIcon={<Download className="h-4 w-4" />}
                       onClick={() => void handleDownload(selectedFile)}
-                      className="w-full inline-flex items-center justify-center gap-2 rounded bg-doom-red py-2.5 font-mono text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-doom-red/20 hover:bg-doom-red-bright disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+                      className="w-full uppercase"
                     >
-                      {downloadingId === selectedFile.id ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          <span>Downloading & Importing...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Download className="h-4 w-4" />
-                          <span>Download & Import</span>
-                        </>
-                      )}
-                    </button>
+                      {downloadingId === selectedFile.id ? 'Downloading & Importing...' : 'Download & Import'}
+                    </Button>
                   )}
                 </div>
               </div>
-            ) : (
-              <div className="flex h-full flex-col items-center justify-center text-center text-doom-muted">
-                <FileCode className="h-8 w-8 text-doom-muted/30 mb-2" />
-                <p className="font-mono text-xs">Select a mod from the results to view details</p>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Non-blocking download progress tray */}
@@ -818,12 +998,14 @@ export const IdgamesSearchModal: React.FC<IdgamesSearchModalProps> = ({
                     {Math.round(p.percent)}% · {p.status}
                   </span>
                 </div>
-                <div className="mt-1 h-1.5 rounded bg-doom-border overflow-hidden">
-                  <div
-                    className="h-full bg-doom-red transition-all"
-                    style={{ width: `${Math.min(100, Math.max(0, p.percent))}%` }}
-                  />
-                </div>
+                <ProgressBar
+                  value={p.percent}
+                  variant="primary"
+                  size="xs"
+                  showLabel
+                  label={p.filename || `Archive #${p.archiveId}`}
+                  statusText={`${Math.round(p.percent)}% · ${p.status}`}
+                />
                 {p.mirrorUrl && (
                   <p className="mt-0.5 text-doom-muted/70 truncate">via {p.mirrorUrl}</p>
                 )}

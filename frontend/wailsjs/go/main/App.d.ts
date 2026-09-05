@@ -30,6 +30,8 @@ export function DeleteProfile(arg1:string):Promise<void>;
 
 export function DetectEngineVersion(arg1:string):Promise<Record<string, string>>;
 
+export function DownloadIdgamesArchive(arg1:number):Promise<domain.Mod>;
+
 export function DownloadIdgamesMod(arg1:idgames.IdgamesFile):Promise<domain.Mod>;
 
 export function DuplicateProfile(arg1:string,arg2:string):Promise<domain.Profile>;
@@ -43,6 +45,8 @@ export function GetEngine(arg1:string):Promise<domain.Engine>;
 export function GetHistoryStats():Promise<domain.HistoryStats>;
 
 export function GetIWAD(arg1:string):Promise<domain.IWAD>;
+
+export function GetIdgamesCuratedShowcase():Promise<idgames.ShowcaseResult>;
 
 export function GetMod(arg1:string):Promise<domain.Mod>;
 
@@ -104,11 +108,15 @@ export function RunDiagnostics():Promise<domain.DiagnosticsReport>;
 
 export function SearchIdgames(arg1:string):Promise<Array<idgames.IdgamesFile>>;
 
+export function SearchIdgamesCatalog(arg1:idgames.SearchOptions):Promise<Array<idgames.CatalogItem>>;
+
 export function SetDBPath(arg1:string):Promise<void>;
 
 export function SetEventEmitter(arg1:any):Promise<void>;
 
 export function StartScan():Promise<domain.ScanResult>;
+
+export function SyncIdgamesHighWatermark():Promise<number>;
 
 export function ToggleModFavorite(arg1:string):Promise<boolean>;
 

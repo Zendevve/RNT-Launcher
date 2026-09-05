@@ -187,10 +187,10 @@ const DEFAULT_MOCK_SETTINGS: Settings = {
 }
 
 async function mockCall<T>(methodName: string, ...args: unknown[]): Promise<T> {
-  const norm = toCamelCase(methodName)
+  const norm = toCamelCase(methodName).toLowerCase()
   
   switch (norm) {
-    case 'listMods': {
+    case 'listmods': {
       const mods = getMockStorage<Mod[]>('mods', DEFAULT_MOCK_MODS)
       const filter = (args[0] ?? {}) as ModFilter
       let filtered = [...mods]
@@ -209,14 +209,14 @@ async function mockCall<T>(methodName: string, ...args: unknown[]): Promise<T> {
       }
       return filtered as T
     }
-    case 'getMod': {
+    case 'getmod': {
       const id = args[0] as string
       const mods = getMockStorage<Mod[]>('mods', DEFAULT_MOCK_MODS)
       const found = mods.find((m) => m.id === id)
       if (!found) throw new Error(`Mod with id ${id} not found`)
       return found as T
     }
-    case 'inspectMod': {
+    case 'inspectmod': {
       const id = args[0] as string
       const mods = getMockStorage<Mod[]>('mods', DEFAULT_MOCK_MODS)
       const found = mods.find((m) => m.id === id)
@@ -234,7 +234,7 @@ async function mockCall<T>(methodName: string, ...args: unknown[]): Promise<T> {
       }
       return info as T
     }
-    case 'toggleModFavorite': {
+    case 'togglemodfavorite': {
       const id = args[0] as string
       const mods = getMockStorage<Mod[]>('mods', DEFAULT_MOCK_MODS)
       let newState = false
@@ -248,13 +248,13 @@ async function mockCall<T>(methodName: string, ...args: unknown[]): Promise<T> {
       setMockStorage('mods', updated)
       return newState as T
     }
-    case 'deleteMod': {
+    case 'deletemod': {
       const id = args[0] as string
       const mods = getMockStorage<Mod[]>('mods', DEFAULT_MOCK_MODS)
       setMockStorage('mods', mods.filter((m) => m.id !== id))
       return undefined as T
     }
-    case 'getModUsageCounts': {
+    case 'getmodusagecounts': {
       const profiles = getMockStorage<Profile[]>('profiles', [])
       const counts: Record<string, number> = {}
       for (const p of profiles) {
@@ -266,17 +266,17 @@ async function mockCall<T>(methodName: string, ...args: unknown[]): Promise<T> {
       }
       return counts as T
     }
-    case 'listIWADs': {
+    case 'listiwads': {
       return getMockStorage<IWAD[]>('iwads', DEFAULT_MOCK_IWADS) as T
     }
-    case 'getIWAD': {
+    case 'getiwad': {
       const id = args[0] as string
       const iwads = getMockStorage<IWAD[]>('iwads', DEFAULT_MOCK_IWADS)
       const found = iwads.find((w) => w.id === id)
       if (!found) throw new Error(`IWAD with id ${id} not found`)
       return found as T
     }
-    case 'inspectIWADFile': {
+    case 'inspectiwadfile': {
       const path = (args[0] as string) || ''
       const filename = path.replace(/\\/g, '/').split('/').pop() || 'DOOM2.WAD'
       const isFreedoom2 = filename.toUpperCase().includes('FREEDOOM2')
@@ -292,33 +292,33 @@ async function mockCall<T>(methodName: string, ...args: unknown[]): Promise<T> {
         updatedAt: new Date().toISOString(),
       } as T
     }
-    case 'listEngines': {
+    case 'listengines': {
       return getMockStorage<Engine[]>('engines', DEFAULT_MOCK_ENGINES) as T
     }
-    case 'getEngine': {
+    case 'getengine': {
       const id = args[0] as string
       const engines = getMockStorage<Engine[]>('engines', DEFAULT_MOCK_ENGINES)
       const found = engines.find((e) => e.id === id)
       if (!found) throw new Error(`Engine with id ${id} not found`)
       return found as T
     }
-    case 'detectEngineVersion': {
+    case 'detectengineversion': {
       return { version: '4.12.2', family: 'gzdoom' } as T
     }
-    case 'validateEngineExecutable': {
+    case 'validateengineexecutable': {
       return undefined as T
     }
-    case 'listProfiles': {
+    case 'listprofiles': {
       return getMockStorage<Profile[]>('profiles', []) as T
     }
-    case 'getProfile': {
+    case 'getprofile': {
       const id = args[0] as string
       const profiles = getMockStorage<Profile[]>('profiles', [])
       const found = profiles.find((p) => p.id === id)
       if (!found) throw new Error(`Profile with id ${id} not found`)
       return found as T
     }
-    case 'createProfile': {
+    case 'createprofile': {
       const data = args[0] as Partial<Profile>
       const profiles = getMockStorage<Profile[]>('profiles', [])
       const newProfile: Profile = {
@@ -339,13 +339,13 @@ async function mockCall<T>(methodName: string, ...args: unknown[]): Promise<T> {
       setMockStorage('profiles', [...profiles, newProfile])
       return newProfile as T
     }
-    case 'updateProfile': {
+    case 'updateprofile': {
       const data = args[0] as Profile
       const profiles = getMockStorage<Profile[]>('profiles', [])
       setMockStorage('profiles', profiles.map((p) => (p.id === data.id ? { ...data, updatedAt: new Date().toISOString() } : p)))
       return undefined as T
     }
-    case 'deleteProfile': {
+    case 'deleteprofile': {
       const id = args[0] as string
       const profiles = getMockStorage<Profile[]>('profiles', [])
       setMockStorage('profiles', profiles.filter((p) => p.id !== id))
@@ -358,7 +358,7 @@ async function mockCall<T>(methodName: string, ...args: unknown[]): Promise<T> {
       const id = args[0] as string
       return `userData/saves/${id || 'default'}` as T
     }
-    case 'validateProfile': {
+    case 'validateprofile': {
       const res: ValidationResult = {
         status: 'READY',
         items: [],
@@ -366,7 +366,7 @@ async function mockCall<T>(methodName: string, ...args: unknown[]): Promise<T> {
       }
       return res as T
     }
-    case 'launchProfile': {
+    case 'launchprofile': {
       const id = args[0] as string
       const record: LaunchRecord = {
         id: `launch-${Date.now()}`,
@@ -381,13 +381,13 @@ async function mockCall<T>(methodName: string, ...args: unknown[]): Promise<T> {
       }
       return record as T
     }
-    case 'getActiveLaunches': {
+    case 'getactivelaunches': {
       return [] as T
     }
-    case 'killLaunch': {
+    case 'killlaunch': {
       return undefined as T
     }
-    case 'startScan': {
+    case 'startscan': {
       const res: ScanResult = {
         discoveredMods: 2,
         discoveredIWADs: 2,
@@ -396,39 +396,39 @@ async function mockCall<T>(methodName: string, ...args: unknown[]): Promise<T> {
       }
       return res as T
     }
-    case 'isScanning': {
+    case 'isscanning': {
       return false as T
     }
-    case 'listLaunchHistory': {
+    case 'listlaunchhistory': {
       return getMockStorage<LaunchRecord[]>('history', []) as T
     }
-    case 'getHistoryStats': {
+    case 'gethistorystats': {
       const stats: HistoryStats = {
         totalLaunches: 0,
         totalPlayTimeMs: 0,
       }
       return stats as T
     }
-    case 'clearLaunchHistory': {
+    case 'clearlaunchhistory': {
       setMockStorage('history', [])
       return undefined as T
     }
-    case 'getSettings': {
+    case 'getsettings': {
       return getMockStorage<Settings>('settings', DEFAULT_MOCK_SETTINGS) as T
     }
-    case 'updateSettings': {
+    case 'updatesettings': {
       const data = args[0] as Settings
       setMockStorage('settings', data)
       return undefined as T
     }
-    case 'openFileDialog':
-    case 'openDirectoryDialog': {
+    case 'openfiledialog':
+    case 'opendirectorydialog': {
       return '' as T
     }
-    case 'openPathInExplorer': {
+    case 'openpathinexplorer': {
       return undefined as T
     }
-    case 'runDiagnostics': {
+    case 'rundiagnostics': {
       return {
         overallStatus: 'healthy',
         database: {
@@ -451,13 +451,13 @@ async function mockCall<T>(methodName: string, ...args: unknown[]): Promise<T> {
         generatedAt: new Date().toISOString(),
       } as T
     }
-    case 'repairDiagnosticIssue': {
+    case 'repairdiagnosticissue': {
       return undefined as T
     }
-    case 'getSystemLogs': {
+    case 'getsystemlogs': {
       return [] as T
     }
-    case 'clearSystemLogs': {
+    case 'clearsystemlogs': {
       return undefined as T
     }
     case 'searchidgames': {
