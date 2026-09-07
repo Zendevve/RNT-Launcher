@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mod, FileInfo, ModFormat } from '../../types';
+import { Mod, FileInfo, ModFormat, ValidationItem } from '../../types';
 import { api } from '../../services/api';
 import { formatBytes, formatDate } from '../../utils/formatters';
 import { drawerVariants, scrimVariants } from '../../lib/springs';
@@ -31,6 +31,8 @@ interface ModInspectorDrawerProps {
   onToggleFavorite: (modId: string) => Promise<void>;
   onDelete: (modId: string) => Promise<void>;
   onOpenFolder: (path: string) => Promise<void>;
+  /** Conflict items mentioning this mod, fed by App.GetProfileConflicts. */
+  conflicts?: ValidationItem[];
 }
 
 const getFormatBadgeStyle = (format: ModFormat): string => {
@@ -75,6 +77,7 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
   onToggleFavorite,
   onDelete,
   onOpenFolder,
+  conflicts = [],
 }) => {
   const [fileInfo, setFileInfo] = useState<FileInfo | null>(null);
   const [artwork, setArtwork] = useState<{ hasArt: boolean; lumpName: string; dataUri: string } | null>(null);
@@ -141,6 +144,9 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
 
   const detectedStructures = fileInfo?.structures || mod?.structures || [];
   const detectedMaps = fileInfo?.maps || [];
+  const collidingItems = (conflicts || []).filter(
+    (item) => item.target === mod?.id || (mod?.name && item.message.includes(mod.name))
+  );
 
   const content = (
     <AnimatePresence>
@@ -399,6 +405,22 @@ export const ModInspectorDrawer: React.FC<ModInspectorDrawerProps> = ({
                       </div>
                     )}
                   </div>
+                  {collidingItems.length > 0 && (
+                    <div>
+                      <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3">
+                        <MinusCircle className="h-3.5 w-3.5 text-zinc-400" />
+                        <span>Collides with ({collidingItems.length})</span>
+                      </h3>
+                      <div className="space-y-1.5 rounded-lg border border-[#22262d] bg-[#181c21] p-3">
+                        {collidingItems.map((item, idx) => (
+                          <div key={idx} className="text-[11px] leading-relaxed">
+                            <span className="font-mono font-medium text-amber-300">{item.code}</span>
+                            <span className="text-zinc-400"> — {item.message}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </div>

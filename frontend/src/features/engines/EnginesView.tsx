@@ -7,6 +7,7 @@ import {
   AlertCircle,
   FolderOpen,
   Copy,
+  Download,
   Check,
   Edit2,
   Trash2,
@@ -59,6 +60,8 @@ export const EnginesView: React.FC = () => {
 
   // Copied path tracking
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  // Per-family provisioning state for Install-or-Update
+  const [provisioningFamilies, setProvisioningFamilies] = useState<Record<string, boolean>>({});
 
   // Fetch engines list
   const loadEngines = useCallback(async () => {
@@ -123,6 +126,22 @@ export const EnginesView: React.FC = () => {
       toast.error('Engine Validation Error', message);
     }
   };
+  // Install or update a source port family via the backend provisioner,
+  // then refresh the list. Backend errors name the manual download page.
+  const handleEnsureEngine = async (family: EngineFamily) => {
+    const key = String(family);
+    setProvisioningFamilies((prev) => ({ ...prev, [key]: true }));
+    try {
+      await api.ensureEngine(family, 'latest');
+      toast.success('Source Port Ready', `Latest ${key} release installed.`);
+      await loadEngines();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Provisioning failed';
+      toast.error('Install Failed', message);
+    } finally {
+      setProvisioningFamilies((prev) => ({ ...prev, [key]: false }));
+    }
+  };
 
   // Quick background scan trigger
   const handleScanFolders = async () => {
@@ -174,6 +193,9 @@ export const EnginesView: React.FC = () => {
       return true;
     });
   }, [engines, activeFamilyTab, searchQuery]);
+  // Active family tab resolution for the per-family Install/Update button
+  const activeFamily = FAMILY_TABS.find((t) => t.id === activeFamilyTab)?.family;
+  const isProvisioningActive = activeFamily ? provisioningFamilies[activeFamily] === true : false;
 
   // Helpers for family badge appearance
   const getFamilyBadgeStyle = (family: EngineFamily) => {
@@ -311,10 +333,28 @@ export const EnginesView: React.FC = () => {
           })}
         </div>
 
-        {/* Right: Match count badge */}
-        <span className="font-mono text-[11px] text-zinc-400 bg-[#14171c] border border-[#22262d] px-2.5 py-1 rounded">
-          {filteredEngines.length} of {engines.length} ports
-        </span>
+        {/* Right: Family Install/Update + Match count badge */}
+        <div className="flex items-center gap-2 shrink-0">
+          {activeFamily && (
+            <button
+              type="button"
+              onClick={() => void handleEnsureEngine(activeFamily)}
+              disabled={isProvisioningActive}
+              title={`Install or update latest ${activeFamily} release`}
+              className="inline-flex items-center gap-1.5 rounded border border-[#22262d] bg-[#181c21] hover:bg-[#1f242e] px-2.5 py-1 text-[11px] font-medium text-zinc-300 hover:text-white transition-colors disabled:opacity-60"
+            >
+              {isProvisioningActive ? (
+                <RotateCw className="h-3 w-3 animate-spin text-zinc-400" />
+              ) : (
+                <Download className="h-3 w-3 text-zinc-400" />
+              )}
+              <span>{isProvisioningActive ? 'Installing…' : 'Install/Update'}</span>
+            </button>
+          )}
+          <span className="font-mono text-[11px] text-zinc-400 bg-[#14171c] border border-[#22262d] px-2.5 py-1 rounded">
+            {filteredEngines.length} of {engines.length} ports
+          </span>
+        </div>
       </div>
 
       {/* MAIN CONTENT VIEWPORT */}
@@ -362,17 +402,33 @@ export const EnginesView: React.FC = () => {
                 <p className="mt-1 text-xs text-zinc-400">
                   Try clearing your search query or switching to All Engines.
                 </p>
-                <Button
-                  variant="outline"
-                  size="xs"
-                  className="mt-4"
-                  onClick={() => {
-                    setSearchQuery('');
-                    setActiveFamilyTab('all');
-                  }}
-                >
-                  Clear Filters
-                </Button>
+                <div className="mt-4 flex items-center justify-center gap-2.5">
+                  {activeFamily && (
+                    <button
+                      type="button"
+                      onClick={() => void handleEnsureEngine(activeFamily)}
+                      disabled={isProvisioningActive}
+                      className="inline-flex items-center gap-1.5 rounded-[8px] bg-[#5e7ce2] hover:bg-[#4d6bd4] px-4 py-1.5 text-xs font-[600] text-[#09090b] transition-colors disabled:opacity-60"
+                    >
+                      {isProvisioningActive ? (
+                        <RotateCw className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Download className="h-3.5 w-3.5" />
+                      )}
+                      <span>{isProvisioningActive ? 'Installing…' : 'Install/Update'}</span>
+                    </button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setActiveFamilyTab('all');
+                    }}
+                  >
+                    Clear Filters
+                  </Button>
+                </div>
               </>
             )}
           </div>
@@ -481,6 +537,19 @@ export const EnginesView: React.FC = () => {
                           <div className="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                             <button
                               type="button"
+                              onClick={() => void handleEnsureEngine(engine.family)}
+                              disabled={provisioningFamilies[String(engine.family)] === true}
+                              title="Install or update latest release for this family"
+                              className="p-1.5 rounded text-zinc-400 hover:text-sky-400 hover:bg-white/[0.04] transition-colors disabled:opacity-40"
+                            >
+                              {provisioningFamilies[String(engine.family)] === true ? (
+                                <RotateCw className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Download className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => handleTestEngine(engine)}
                               disabled={status?.testing}
                               title="Verify Executable"
@@ -551,6 +620,19 @@ export const EnginesView: React.FC = () => {
                       </div>
 
                       <div className="flex items-center gap-0.5 opacity-80 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={() => void handleEnsureEngine(engine.family)}
+                          disabled={provisioningFamilies[String(engine.family)] === true}
+                          className="p-1.5 rounded text-zinc-400 hover:text-sky-400 hover:bg-white/[0.04] transition-colors disabled:opacity-40"
+                          title="Install or Update Latest Release"
+                        >
+                          {provisioningFamilies[String(engine.family)] === true ? (
+                            <RotateCw className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Download className="h-3.5 w-3.5" />
+                          )}
+                        </button>
                         <button
                           type="button"
                           onClick={() => {

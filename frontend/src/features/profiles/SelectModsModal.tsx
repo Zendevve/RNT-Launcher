@@ -47,6 +47,9 @@ export const SelectModsModal: React.FC<SelectModsModalProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<ModCategory | 'all'>('all');
   const [selectedFormat, setSelectedFormat] = useState<string>('all');
   const [selectedModIds, setSelectedModIds] = useState<Set<string>>(new Set());
+  const [urlInput, setUrlInput] = useState('');
+  const [isImportingUrl, setIsImportingUrl] = useState(false);
+  const [urlError, setUrlError] = useState<string | null>(null);
 
   // Load mods from library on modal open
   useEffect(() => {
@@ -68,6 +71,8 @@ export const SelectModsModal: React.FC<SelectModsModalProps> = ({
       setSearchQuery('');
       setSelectedCategory('all');
       setSelectedFormat('all');
+      setUrlInput('');
+      setUrlError(null);
     }
   }, [isOpen]);
 
@@ -133,6 +138,23 @@ export const SelectModsModal: React.FC<SelectModsModalProps> = ({
     const toAdd = allMods.filter((m) => selectedModIds.has(m.id));
     onAddMods(toAdd);
     onClose();
+  };
+  // Import a mod straight from a URL, then refresh the library list
+  const handleImportFromURL = async () => {
+    const url = urlInput.trim();
+    if (!url) return;
+    setIsImportingUrl(true);
+    setUrlError(null);
+    try {
+      await api.importModFromURL(url);
+      const mods = await api.listMods();
+      setAllMods(mods || []);
+      setUrlInput('');
+    } catch (err: unknown) {
+      setUrlError(err instanceof Error ? err.message : 'Could not import mod from URL.');
+    } finally {
+      setIsImportingUrl(false);
+    }
   };
 
   const formatFileSize = (bytes?: number) => {
@@ -224,6 +246,33 @@ export const SelectModsModal: React.FC<SelectModsModalProps> = ({
               {cat.label}
             </button>
           ))}
+        </div>
+        {/* Import straight from URL */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-2">
+            <div className="flex-1">
+              <Input
+                type="text"
+                placeholder="Paste mod URL (https://… or idgames://…) then Import"
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleImportFromURL();
+                }}
+              />
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleImportFromURL()}
+              disabled={isImportingUrl || !urlInput.trim()}
+              isLoading={isImportingUrl}
+              leftIcon={<Plus className="w-3.5 h-3.5" />}
+            >
+              Import
+            </Button>
+          </div>
+          {urlError && <div className="text-[11px] text-red-400">{urlError}</div>}
         </div>
 
         {/* Bulk Selection Actions Bar */}

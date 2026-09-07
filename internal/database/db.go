@@ -32,12 +32,10 @@ func InitDB(dbPath string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to open sqlite database at %s: %w", dbPath, err)
 	}
 
-	// Set connection pool settings appropriate for SQLite
-	if dbPath == ":memory:" || strings.Contains(dbPath, ":memory:") {
-		db.SetMaxOpenConns(1) // Keep single in-memory connection so state persists across calls
-	} else {
-		db.SetMaxOpenConns(10)
-	}
+	// Single connection: this is an embedded desktop database. Serializing all
+	// access through one connection (plus busy_timeout) prevents SQLITE_BUSY
+	// between foreground ops and background tasks (watcher, diagnostics).
+	db.SetMaxOpenConns(1)
 
 	// Configure PRAGMAs
 	pragmas := []string{
@@ -62,6 +60,18 @@ func InitDB(dbPath string) (*sql.DB, error) {
 	// Backward compatibility column additions for existing databases
 	_, _ = db.Exec(`ALTER TABLE profiles ADD COLUMN isolate_saves INTEGER NOT NULL DEFAULT 0;`)
 	_, _ = db.Exec(`ALTER TABLE profiles ADD COLUMN parent_profile_id TEXT DEFAULT NULL;`)
+	_, _ = db.Exec(`ALTER TABLE mods ADD COLUMN external_id TEXT NOT NULL DEFAULT '';`)
+	_, _ = db.Exec(`ALTER TABLE mods ADD COLUMN version TEXT NOT NULL DEFAULT '';`)
+	_, _ = db.Exec(`ALTER TABLE mods ADD COLUMN update_url TEXT NOT NULL DEFAULT '';`)
+	_, _ = db.Exec(`ALTER TABLE profiles ADD COLUMN net_mode TEXT NOT NULL DEFAULT '';`)
+	_, _ = db.Exec(`ALTER TABLE profiles ADD COLUMN net_host TEXT NOT NULL DEFAULT '';`)
+	_, _ = db.Exec(`ALTER TABLE profiles ADD COLUMN net_port INTEGER NOT NULL DEFAULT 0;`)
+	_, _ = db.Exec(`ALTER TABLE profiles ADD COLUMN record_demo_path TEXT NOT NULL DEFAULT '';`)
+	_, _ = db.Exec(`ALTER TABLE profiles ADD COLUMN play_demo_path TEXT NOT NULL DEFAULT '';`)
+	_, _ = db.Exec(`ALTER TABLE launch_history ADD COLUMN demo_path TEXT NOT NULL DEFAULT '';`)
+	_, _ = db.Exec(`ALTER TABLE mods ADD COLUMN author TEXT NOT NULL DEFAULT '';`)
+	_, _ = db.Exec(`ALTER TABLE mods ADD COLUMN description TEXT NOT NULL DEFAULT '';`)
+	_, _ = db.Exec(`ALTER TABLE mods ADD COLUMN rating REAL NOT NULL DEFAULT 0;`)
 
 	return db, nil
 }

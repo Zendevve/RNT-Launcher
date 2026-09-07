@@ -53,6 +53,12 @@ export interface Mod {
   structures: string[]
   isFavorite: boolean
   is_favorite?: boolean
+  externalId?: string
+  author?: string
+  description?: string
+  rating?: number
+  version?: string
+  updateUrl?: string
   createdAt?: string
   created_at?: string
   updatedAt?: string
@@ -69,6 +75,14 @@ export interface ModFilter {
   favoritesOnly?: boolean
   limit?: number
   offset?: number
+}
+
+export interface ModUpdate {
+  modId: string
+  modName: string
+  externalId: string
+  catalogId: number
+  reason: string
 }
 
 export type EngineFamily =
@@ -156,6 +170,11 @@ export interface Profile {
   iwad_name?: string
   parentProfileId?: string
   parent_profile_id?: string
+  netMode?: 'off' | 'host' | 'join' | string
+  netHost?: string
+  netPort?: number
+  recordDemoPath?: string
+  playDemoPath?: string
   isolateSaves?: boolean
   isolate_saves?: boolean
   mods: ProfileMod[]
@@ -211,6 +230,35 @@ export interface LaunchRecord {
   status: 'success' | 'failed' | string
   commandLine?: string
   command_line?: string
+  demoPath?: string
+  demo_path?: string
+}
+
+export interface SnapshotInfo {
+  id: string
+  name?: string
+  path?: string
+  size?: number
+  modifiedAt?: string
+  modified_at?: string
+  createdAt?: string
+  created_at?: string
+  label?: string
+}
+
+export interface BundleResult {
+  zipPath: string
+  zip_path?: string
+  shareCode?: string
+  share_code?: string
+  path?: string
+}
+
+export interface ShareImportResult {
+  profile: Profile
+  warnings?: ValidationItem[]
+  missingHashes?: string[]
+  missing_hashes?: string[]
 }
 
 export interface ActiveLaunch {
@@ -285,6 +333,8 @@ export interface Settings {
   show_recent_launches?: number
   formatVisibility?: string[]
   format_visibility?: string[]
+  watchDirectories?: boolean
+  watch_directories?: boolean
   defaultView?: DefaultNavView
   default_view?: DefaultNavView
 }
@@ -300,6 +350,22 @@ export interface HistoryStats {
   last_played?: string
   mostPlayedProfileId?: string
   mostPlayedProfileName?: string
+  perProfile?: ProfileStats[]
+  per_profile?: ProfileStats[]
+}
+
+export interface ProfileStats {
+  profileId: string
+  profile_id?: string
+  profileName: string
+  profile_name?: string
+  runs: number
+  totalHours: number
+  total_hours?: number
+  lastPlayed?: string
+  last_played?: string
+  crashRate: number
+  crash_rate?: number
 }
 
 export interface DashboardStats {

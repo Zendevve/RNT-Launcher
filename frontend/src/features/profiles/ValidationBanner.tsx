@@ -21,13 +21,21 @@ export interface ValidationBannerProps {
   isValidating?: boolean;
   onValidate?: () => void;
   className?: string;
+  /** Move the item target mod last in load order (conflict quick-fix). */
+  onMoveLast?: (targetModId: string) => void;
+  /** Disable the item target mod (conflict quick-fix). */
+  onDisableMod?: (targetModId: string) => void;
 }
+
+const CONFLICT_CODES: Record<string, true> = { 'mod-lump-collision': true, 'mod-map-slot-collision': true };
 
 export const ValidationBanner: React.FC<ValidationBannerProps> = ({
   validation,
   isValidating = false,
   onValidate,
   className,
+  onMoveLast,
+  onDisableMod,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -206,8 +214,22 @@ export const ValidationBanner: React.FC<ValidationBannerProps> = ({
                       )}
                     </div>
                     <p className="text-[11px] text-zinc-300 mt-0.5 tracking-tight">{item.message}</p>
+                    {CONFLICT_CODES[item.code] && item.target && (onMoveLast || onDisableMod) && (
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        {onMoveLast && (
+                          <Button variant="ghost" size="xs" onClick={() => onMoveLast(item.target)} className="text-zinc-300 hover:text-white">
+                            Move last
+                          </Button>
+                        )}
+                        {onDisableMod && (
+                          <Button variant="ghost" size="xs" onClick={() => onDisableMod(item.target)} className="text-zinc-300 hover:text-white">
+                            Disable
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
+                 </div>
               ))}
             </div>
           </motion.div>

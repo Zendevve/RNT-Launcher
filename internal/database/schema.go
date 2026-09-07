@@ -35,6 +35,12 @@ CREATE TABLE IF NOT EXISTS mods (
     lump_count INTEGER NOT NULL DEFAULT 0,
     structures TEXT NOT NULL DEFAULT '[]',
     is_favorite INTEGER NOT NULL DEFAULT 0,
+    external_id TEXT NOT NULL DEFAULT '',
+    version TEXT NOT NULL DEFAULT '',
+    update_url TEXT NOT NULL DEFAULT '',
+    author TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    rating REAL NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL
 );
@@ -47,6 +53,11 @@ CREATE TABLE IF NOT EXISTS profiles (
     iwad_id TEXT,
     parent_profile_id TEXT,
     isolate_saves INTEGER NOT NULL DEFAULT 0,
+    net_mode TEXT NOT NULL DEFAULT '',
+    net_host TEXT NOT NULL DEFAULT '',
+    net_port INTEGER NOT NULL DEFAULT 0,
+    record_demo_path TEXT NOT NULL DEFAULT '',
+    play_demo_path TEXT NOT NULL DEFAULT '',
     arguments TEXT NOT NULL DEFAULT '[]',
     working_dir TEXT NOT NULL DEFAULT '',
     is_favorite INTEGER NOT NULL DEFAULT 0,
@@ -77,7 +88,8 @@ CREATE TABLE IF NOT EXISTS launch_history (
     duration_ms INTEGER NOT NULL DEFAULT 0,
     exit_code INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT '',
-    command_line TEXT NOT NULL DEFAULT ''
+    command_line TEXT NOT NULL DEFAULT '',
+    demo_path TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS settings (

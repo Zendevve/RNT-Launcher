@@ -293,6 +293,16 @@ func (s *ValidatorService) ValidateProfileEntity(ctx context.Context, p *domain.
 			}
 		}
 	}
+	// ----------------------------------------------------
+	// Rule 4b: Lump-level conflict intelligence + engine/IWAD compat
+	// ----------------------------------------------------
+	resolved := s.resolveConflictMods(p)
+	for _, item := range DetectConflicts(resolved) {
+		result.AddItem(item.Severity, item.Code, item.Message, item.Target)
+	}
+	for _, item := range CheckEngineCompat(result.Engine, result.IWAD, resolved) {
+		result.AddItem(item.Severity, item.Code, item.Message, item.Target)
+	}
 
 	// ----------------------------------------------------
 	// Rule 5: Working Directory Validation

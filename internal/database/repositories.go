@@ -330,12 +330,12 @@ func NewModRepository(db *sql.DB) ModRepository {
 }
 
 func (r *modRepo) List(filter domain.ModFilter) ([]domain.Mod, error) {
-	query := `SELECT id, name, path, format, category, size, modified_at, sha256, lump_count, structures, is_favorite, created_at, updated_at FROM mods WHERE 1=1`
+	query := `SELECT id, name, path, format, category, size, modified_at, sha256, lump_count, structures, is_favorite, external_id, version, update_url, author, description, rating, created_at, updated_at FROM mods WHERE 1=1`
 	args := make([]any, 0)
 	if filter.Search != "" {
-		query += ` AND (name LIKE ? OR path LIKE ?)`
+		query += ` AND (name LIKE ? OR path LIKE ? OR author LIKE ? OR description LIKE ?)`
 		likeArg := "%" + filter.Search + "%"
-		args = append(args, likeArg, likeArg)
+		args = append(args, likeArg, likeArg, likeArg, likeArg)
 	}
 	if filter.Category != "" && filter.Category != "All" {
 		query += ` AND category = ?`
@@ -344,6 +344,21 @@ func (r *modRepo) List(filter domain.ModFilter) ([]domain.Mod, error) {
 	if filter.Format != "" && filter.Format != "all" {
 		query += ` AND format = ?`
 		args = append(args, string(filter.Format))
+	}
+	if filter.Author != "" {
+		query += ` AND author LIKE ?`
+		args = append(args, "%"+filter.Author+"%")
+	}
+	if filter.MinRating > 0 {
+		query += ` AND rating >= ?`
+		args = append(args, filter.MinRating)
+	}
+	if filter.HasMaps != nil {
+		if *filter.HasMaps {
+			query += ` AND structures LIKE '%MAP%'`
+		} else {
+			query += ` AND structures NOT LIKE '%MAP%'`
+		}
 	}
 	if filter.IsFavorite != nil && *filter.IsFavorite {
 		query += ` AND is_favorite = 1`
@@ -375,7 +390,7 @@ func (r *modRepo) List(filter domain.ModFilter) ([]domain.Mod, error) {
 		if err := rows.Scan(
 			&m.ID, &m.Name, &m.Path, &formatStr, &catStr,
 			&m.Size, &m.ModifiedAt, &m.SHA256, &m.LumpCount,
-			&structuresJSON, &isFavInt, &m.CreatedAt, &m.UpdatedAt,
+			&structuresJSON, &isFavInt, &m.ExternalID, &m.Version, &m.UpdateURL, &m.Author, &m.Description, &m.Rating, &m.CreatedAt, &m.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan mod row: %w", err)
 		}
@@ -396,7 +411,7 @@ func (r *modRepo) List(filter domain.ModFilter) ([]domain.Mod, error) {
 }
 
 func (r *modRepo) Get(id string) (*domain.Mod, error) {
-	query := `SELECT id, name, path, format, category, size, modified_at, sha256, lump_count, structures, is_favorite, created_at, updated_at FROM mods WHERE id = ?`
+	query := `SELECT id, name, path, format, category, size, modified_at, sha256, lump_count, structures, is_favorite, external_id, version, update_url, author, description, rating, created_at, updated_at FROM mods WHERE id = ?`
 	var m domain.Mod
 	var formatStr, catStr, structuresJSON string
 	var isFavInt int
@@ -404,7 +419,7 @@ func (r *modRepo) Get(id string) (*domain.Mod, error) {
 	err := r.db.QueryRow(query, id).Scan(
 		&m.ID, &m.Name, &m.Path, &formatStr, &catStr,
 		&m.Size, &m.ModifiedAt, &m.SHA256, &m.LumpCount,
-		&structuresJSON, &isFavInt, &m.CreatedAt, &m.UpdatedAt,
+		&structuresJSON, &isFavInt, &m.ExternalID, &m.Version, &m.UpdateURL, &m.Author, &m.Description, &m.Rating, &m.CreatedAt, &m.UpdatedAt,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -428,7 +443,7 @@ func (r *modRepo) Get(id string) (*domain.Mod, error) {
 
 func (r *modRepo) GetByPath(path string) (*domain.Mod, error) {
 	path = cleanPath(path)
-	query := `SELECT id, name, path, format, category, size, modified_at, sha256, lump_count, structures, is_favorite, created_at, updated_at FROM mods WHERE path = ?`
+	query := `SELECT id, name, path, format, category, size, modified_at, sha256, lump_count, structures, is_favorite, external_id, version, update_url, author, description, rating, created_at, updated_at FROM mods WHERE path = ?`
 	var m domain.Mod
 	var formatStr, catStr, structuresJSON string
 	var isFavInt int
@@ -436,7 +451,7 @@ func (r *modRepo) GetByPath(path string) (*domain.Mod, error) {
 	err := r.db.QueryRow(query, path).Scan(
 		&m.ID, &m.Name, &m.Path, &formatStr, &catStr,
 		&m.Size, &m.ModifiedAt, &m.SHA256, &m.LumpCount,
-		&structuresJSON, &isFavInt, &m.CreatedAt, &m.UpdatedAt,
+		&structuresJSON, &isFavInt, &m.ExternalID, &m.Version, &m.UpdateURL, &m.Author, &m.Description, &m.Rating, &m.CreatedAt, &m.UpdatedAt,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -481,8 +496,8 @@ func (r *modRepo) Create(mod *domain.Mod) error {
 		favInt = 1
 	}
 
-	query := `INSERT INTO mods (id, name, path, format, category, size, modified_at, sha256, lump_count, structures, is_favorite, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err = r.db.Exec(query, mod.ID, mod.Name, mod.Path, string(mod.Format), string(mod.Category), mod.Size, mod.ModifiedAt, mod.SHA256, mod.LumpCount, string(structsJSON), favInt, mod.CreatedAt, mod.UpdatedAt)
+	query := `INSERT INTO mods (id, name, path, format, category, size, modified_at, sha256, lump_count, structures, is_favorite, external_id, version, update_url, author, description, rating, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err = r.db.Exec(query, mod.ID, mod.Name, mod.Path, string(mod.Format), string(mod.Category), mod.Size, mod.ModifiedAt, mod.SHA256, mod.LumpCount, string(structsJSON), favInt, mod.ExternalID, mod.Version, mod.UpdateURL, mod.Author, mod.Description, mod.Rating, mod.CreatedAt, mod.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to insert mod: %w", err)
 	}
@@ -505,8 +520,8 @@ func (r *modRepo) Update(mod *domain.Mod) error {
 		favInt = 1
 	}
 
-	query := `UPDATE mods SET name = ?, path = ?, format = ?, category = ?, size = ?, modified_at = ?, sha256 = ?, lump_count = ?, structures = ?, is_favorite = ?, updated_at = ? WHERE id = ?`
-	res, err := r.db.Exec(query, mod.Name, mod.Path, string(mod.Format), string(mod.Category), mod.Size, mod.ModifiedAt, mod.SHA256, mod.LumpCount, string(structsJSON), favInt, mod.UpdatedAt, mod.ID)
+	query := `UPDATE mods SET name = ?, path = ?, format = ?, category = ?, size = ?, modified_at = ?, sha256 = ?, lump_count = ?, structures = ?, is_favorite = ?, external_id = ?, version = ?, update_url = ?, author = ?, description = ?, rating = ?, updated_at = ? WHERE id = ?`
+	res, err := r.db.Exec(query, mod.Name, mod.Path, string(mod.Format), string(mod.Category), mod.Size, mod.ModifiedAt, mod.SHA256, mod.LumpCount, string(structsJSON), favInt, mod.ExternalID, mod.Version, mod.UpdateURL, mod.Author, mod.Description, mod.Rating, mod.UpdatedAt, mod.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update mod %s: %w", mod.ID, err)
 	}
@@ -611,6 +626,7 @@ func (r *profileRepo) List() ([]domain.Profile, error) {
 			COALESCE(p.engine_id, ''), COALESCE(e.name, ''),
 			COALESCE(p.iwad_id, ''), COALESCE(i.name, ''),
 			COALESCE(p.parent_profile_id, ''), p.isolate_saves,
+			p.net_mode, p.net_host, p.net_port, p.record_demo_path, p.play_demo_path,
 			p.arguments, p.working_dir, p.is_favorite,
 			p.created_at, p.updated_at
 		FROM profiles p
@@ -635,6 +651,7 @@ func (r *profileRepo) List() ([]domain.Profile, error) {
 			&p.EngineID, &p.EngineName,
 			&p.IWADID, &p.IWADName,
 			&p.ParentProfileID, &isolateSavesInt,
+			&p.NetMode, &p.NetHost, &p.NetPort, &p.RecordDemoPath, &p.PlayDemoPath,
 			&argsJSON, &p.WorkingDir, &isFavInt,
 			&p.CreatedAt, &p.UpdatedAt,
 		); err != nil {
@@ -676,6 +693,7 @@ func (r *profileRepo) Get(id string) (*domain.Profile, error) {
 			COALESCE(p.engine_id, ''), COALESCE(e.name, ''),
 			COALESCE(p.iwad_id, ''), COALESCE(i.name, ''),
 			COALESCE(p.parent_profile_id, ''), p.isolate_saves,
+			p.net_mode, p.net_host, p.net_port, p.record_demo_path, p.play_demo_path,
 			p.arguments, p.working_dir, p.is_favorite,
 			p.created_at, p.updated_at
 		FROM profiles p
@@ -692,6 +710,7 @@ func (r *profileRepo) Get(id string) (*domain.Profile, error) {
 		&p.EngineID, &p.EngineName,
 		&p.IWADID, &p.IWADName,
 		&p.ParentProfileID, &isolateSavesInt,
+		&p.NetMode, &p.NetHost, &p.NetPort, &p.RecordDemoPath, &p.PlayDemoPath,
 		&argsJSON, &p.WorkingDir, &isFavInt,
 		&p.CreatedAt, &p.UpdatedAt,
 	)
@@ -843,8 +862,8 @@ func (r *profileRepo) Create(profile *domain.Profile) error {
 		return fmt.Errorf("failed to clear old profile mods: %w", err)
 	}
 
-	query := `INSERT INTO profiles (id, name, description, engine_id, iwad_id, parent_profile_id, isolate_saves, arguments, working_dir, is_favorite, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err = tx.Exec(query, profile.ID, profile.Name, profile.Description, engineID, iwadID, parentProfileID, isolateSavesInt, string(argsJSON), profile.WorkingDir, favInt, profile.CreatedAt, profile.UpdatedAt)
+	query := `INSERT INTO profiles (id, name, description, engine_id, iwad_id, parent_profile_id, isolate_saves, net_mode, net_host, net_port, record_demo_path, play_demo_path, arguments, working_dir, is_favorite, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err = tx.Exec(query, profile.ID, profile.Name, profile.Description, engineID, iwadID, parentProfileID, isolateSavesInt, profile.NetMode, profile.NetHost, profile.NetPort, profile.RecordDemoPath, profile.PlayDemoPath, string(argsJSON), profile.WorkingDir, favInt, profile.CreatedAt, profile.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to insert profile: %w", err)
 	}
@@ -914,8 +933,8 @@ func (r *profileRepo) Update(profile *domain.Profile) error {
 	}
 	defer tx.Rollback()
 
-	query := `UPDATE profiles SET name = ?, description = ?, engine_id = ?, iwad_id = ?, parent_profile_id = ?, isolate_saves = ?, arguments = ?, working_dir = ?, is_favorite = ?, updated_at = ? WHERE id = ?`
-	res, err := tx.Exec(query, profile.Name, profile.Description, engineID, iwadID, parentProfileID, isolateSavesInt, string(argsJSON), profile.WorkingDir, favInt, profile.UpdatedAt, profile.ID)
+	query := `UPDATE profiles SET name = ?, description = ?, engine_id = ?, iwad_id = ?, parent_profile_id = ?, isolate_saves = ?, net_mode = ?, net_host = ?, net_port = ?, record_demo_path = ?, play_demo_path = ?, arguments = ?, working_dir = ?, is_favorite = ?, updated_at = ? WHERE id = ?`
+	res, err := tx.Exec(query, profile.Name, profile.Description, engineID, iwadID, parentProfileID, isolateSavesInt, profile.NetMode, profile.NetHost, profile.NetPort, profile.RecordDemoPath, profile.PlayDemoPath, string(argsJSON), profile.WorkingDir, favInt, profile.UpdatedAt, profile.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update profile %s: %w", profile.ID, err)
 	}
@@ -1081,7 +1100,7 @@ func (r *historyRepo) List(limit int) ([]domain.LaunchRecord, error) {
 		limit = 50
 	}
 	query := `
-		SELECT id, profile_id, profile_name, engine_name, iwad_name, started_at, finished_at, duration_ms, exit_code, status, command_line 
+		SELECT id, profile_id, profile_name, engine_name, iwad_name, started_at, finished_at, duration_ms, exit_code, status, command_line, demo_path
 		FROM launch_history 
 		ORDER BY started_at DESC 
 		LIMIT ?
@@ -1100,7 +1119,7 @@ func (r *historyRepo) List(limit int) ([]domain.LaunchRecord, error) {
 			&rec.EngineName, &rec.IWADName,
 			&rec.StartedAt, &rec.FinishedAt,
 			&rec.DurationMs, &rec.ExitCode,
-			&rec.Status, &rec.CommandLine,
+			&rec.Status, &rec.CommandLine, &rec.DemoPath,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan history record: %w", err)
 		}
@@ -1120,8 +1139,8 @@ func (r *historyRepo) Add(record domain.LaunchRecord) error {
 		}
 	}
 	query := `
-		INSERT INTO launch_history (id, profile_id, profile_name, engine_name, iwad_name, started_at, finished_at, duration_ms, exit_code, status, command_line)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO launch_history (id, profile_id, profile_name, engine_name, iwad_name, started_at, finished_at, duration_ms, exit_code, status, command_line, demo_path)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	_, err := r.db.Exec(
 		query,
@@ -1129,7 +1148,7 @@ func (r *historyRepo) Add(record domain.LaunchRecord) error {
 		record.EngineName, record.IWADName,
 		record.StartedAt, record.FinishedAt,
 		record.DurationMs, record.ExitCode,
-		record.Status, record.CommandLine,
+		record.Status, record.CommandLine, record.DemoPath,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to insert launch record: %w", err)
@@ -1260,6 +1279,8 @@ func (r *settingsRepo) GetSettings() (domain.Settings, error) {
 			defaults.AutoScanOnStartup = (val == "1" || val == "true")
 		case "close_on_launch":
 			defaults.CloseOnLaunch = (val == "1" || val == "true")
+		case "watch_directories":
+			defaults.WatchDirectories = (val == "1" || val == "true")
 		case "ui_density":
 			if val != "" {
 				defaults.UiDensity = val
@@ -1324,6 +1345,7 @@ func (r *settingsRepo) SaveSettings(settings domain.Settings) error {
 		{"confirm_launch", fmt.Sprintf("%t", settings.ConfirmLaunch)},
 		{"auto_scan_on_startup", fmt.Sprintf("%t", settings.AutoScanOnStartup)},
 		{"close_on_launch", fmt.Sprintf("%t", settings.CloseOnLaunch)},
+		{"watch_directories", fmt.Sprintf("%t", settings.WatchDirectories)},
 		{"ui_density", settings.UiDensity},
 		{"show_file_paths", fmt.Sprintf("%t", settings.ShowFilePaths)},
 		{"show_recent_launches", fmt.Sprintf("%d", settings.ShowRecentLaunches)},

@@ -479,7 +479,7 @@ func TestValidatorService_Rule3_ModValidation(t *testing.T) {
 	tempDir, svc, engineRepo, iwadRepo, _, _ := setupTestEnvironment(t)
 	enginePath := createTempFile(t, tempDir, "gzdoom.exe", "engine")
 	iwadPath := createTempFile(t, tempDir, "doom2.wad", "IWAD")
-	engineRepo.engines["eng-1"] = &domain.Engine{ID: "eng-1", Executable: enginePath}
+	engineRepo.engines["eng-1"] = &domain.Engine{ID: "eng-1", Executable: enginePath, Family: domain.EngineFamilyGZDoom}
 	iwadRepo.iwads["iwad-1"] = &domain.IWAD{ID: "iwad-1", Path: iwadPath}
 
 	missingModPath := filepath.Join(tempDir, "missing-mod.pk3")
@@ -586,7 +586,7 @@ func TestValidatorService_Rule4_DuplicateMods(t *testing.T) {
 	iwadPath := createTempFile(t, tempDir, "doom2.wad", "IWAD")
 	modPath := createTempFile(t, tempDir, "brutal.pk3", "brutal doom")
 
-	engineRepo.engines["eng-1"] = &domain.Engine{ID: "eng-1", Executable: enginePath}
+	engineRepo.engines["eng-1"] = &domain.Engine{ID: "eng-1", Executable: enginePath, Family: domain.EngineFamilyGZDoom}
 	iwadRepo.iwads["iwad-1"] = &domain.IWAD{ID: "iwad-1", Path: iwadPath}
 
 	// Duplicate mod in load order
@@ -716,7 +716,7 @@ func TestValidatorService_DBModHydration(t *testing.T) {
 	iwadPath := createTempFile(t, tempDir, "doom2.wad", "IWAD")
 	modPath := createTempFile(t, tempDir, "hydrated.pk3", "mod content")
 
-	engineRepo.engines["eng-1"] = &domain.Engine{ID: "eng-1", Executable: enginePath}
+	engineRepo.engines["eng-1"] = &domain.Engine{ID: "eng-1", Executable: enginePath, Family: domain.EngineFamilyGZDoom}
 	iwadRepo.iwads["iwad-1"] = &domain.IWAD{ID: "iwad-1", Path: iwadPath}
 
 	modRepo.mods["mod-hydrated"] = &domain.Mod{
@@ -873,7 +873,7 @@ func TestValidatorService_MovedAndDeletedFiles(t *testing.T) {
 
 	engPath := filepath.Join(tempDir, "engine.exe")
 	_ = os.WriteFile(engPath, []byte("dummy exe"), 0755)
-	eng := &domain.Engine{ID: "eng-1", Name: "Engine", Executable: engPath}
+	eng := &domain.Engine{ID: "eng-1", Name: "Engine", Executable: engPath, Family: domain.EngineFamilyGZDoom}
 	_ = engineRepo.Create(eng)
 
 	iwadPath := filepath.Join(tempDir, "doom2.wad")

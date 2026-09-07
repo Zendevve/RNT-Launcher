@@ -13,10 +13,15 @@ import type {
   LaunchRecord,
   Mod,
   ModFilter,
+  ModUpdate,
   Profile,
   ScanResult,
   Settings,
+  ValidationItem,
   ValidationResult,
+  BundleResult,
+  ShareImportResult,
+  SnapshotInfo,
   DiagnosticsReport,
   LogEntry,
   IdgamesFile,
@@ -577,6 +582,123 @@ async function mockCall<T>(methodName: string, ...args: unknown[]): Promise<T> {
       }
       return mockMod as T
     }
+    case 'checkmodupdates': {
+      return [] as T
+    }
+    case 'updatemod': {
+      const id = args[0] as string
+      const mods = getMockStorage<Mod[]>('mods', DEFAULT_MOCK_MODS)
+      const found = mods.find((m) => m.id === id)
+      if (!found) throw new Error(`Mod with id ${id} not found`)
+      return found as T
+    }
+    case 'importmodfromurl': {
+      const url = (args[0] as string) || 'https://example.com/mod.wad'
+      const filename = url.replace(/\?.*$/, '').split('/').pop() || 'downloaded-mod.wad'
+      const mockMod: Mod = {
+        id: `mock-mod-${Date.now()}`,
+        name: filename,
+        path: `C:/Games/Doom/Mods/${filename}`,
+        format: 'wad',
+        category: 'Other',
+        size: 1024 * 1024,
+        modifiedAt: new Date().toISOString(),
+        sha256: 'mock-sha256-hash',
+        lumpCount: 0,
+        structures: [],
+        isFavorite: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+      return mockMod as T
+    }
+    case 'getmissingdependencies': {
+      return [] as T
+    }
+    case 'ensureengine': {
+      const family = (args[0] as string) || 'gzdoom'
+      const engines = getMockStorage<Engine[]>('engines', DEFAULT_MOCK_ENGINES)
+      const found = engines.find((e) => e.family === family)
+      if (!found) throw new Error(`No ${family} engine registered; download it manually from the official site.`)
+      return found as T
+    }
+    case 'exportprofilebundle': {
+      const id = (args[0] as string) || 'profile'
+      return { zipPath: `profile-${id}.rntpack`, shareCode: `rnt://pack/${id}` } as T
+    }
+    case 'importprofilebundle':
+    case 'importprofilesharecode': {
+      const profiles = getMockStorage<Profile[]>('profiles', [])
+      const fallback: Profile = {
+        id: `prof-${Date.now()}`,
+        name: 'Imported Pack',
+        description: '',
+        engineId: '',
+        engineName: '',
+        iwadId: '',
+        iwadName: '',
+        mods: [],
+        arguments: [],
+        workingDir: '',
+        isFavorite: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+      const created = profiles.length > 0 ? profiles[profiles.length - 1] : fallback
+      return { profile: created, warnings: [], missingHashes: [] } as T
+    }
+    case 'createprofilefromtemplate': {
+      const template = (args[0] as string) || 'vanilla'
+      const profiles = getMockStorage<Profile[]>('profiles', [])
+      const created: Profile = {
+        id: `prof-${Date.now()}`,
+        name: template,
+        description: `Created from ${template} template`,
+        engineId: '',
+        engineName: '',
+        iwadId: '',
+        iwadName: '',
+        mods: [],
+        arguments: [],
+        workingDir: '',
+        isFavorite: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+      setMockStorage('profiles', [...profiles, created])
+      return created as T
+    }
+    case 'listprofilesnapshots': {
+      return [] as T
+    }
+    case 'createprofilesnapshot': {
+      const profileId = (args[0] as string) || 'profile'
+      const label = (args[1] as string) || `Snapshot ${new Date().toLocaleString()}`
+      return { id: `snap-${Date.now()}`, name: label, path: `saves/${profileId}/snapshots/${Date.now()}.zip`, size: 0, modifiedAt: new Date().toISOString() } as T
+    }
+    case 'restoreprofilesnapshot':
+    case 'createdesktopshortcut': {
+      return undefined as T
+    }
+    case 'getlaunchlogs': {
+      return [] as T
+    }
+    case 'replaydemo': {
+      const id = (args[0] as string) || 'record'
+      return {
+        id: `launch-${Date.now()}`,
+        profileId: id,
+        profileName: 'Demo Replay',
+        engineName: 'GZDoom',
+        iwadName: 'DOOM2.WAD',
+        startedAt: new Date().toISOString(),
+        durationMs: 0,
+        status: 'success',
+      } as T
+    }
+    case 'findduplicatemods': {
+      return [] as T
+    }
     default:
       return undefined as T
   }
@@ -598,6 +720,10 @@ export const api = {
   importModFile: (path: string): Promise<Mod> => callBackend<Mod>('ImportModFile', path),
   getModUsageCounts: (): Promise<Record<string, number>> =>
     callBackend<Record<string, number>>('GetModUsageCounts'),
+  checkModUpdates: (): Promise<ModUpdate[]> =>
+    callBackend<ModUpdate[]>('CheckModUpdates'),
+  updateMod: (modId: string): Promise<Mod> => callBackend<Mod>('UpdateMod', modId),
+  importModFromURL: (url: string): Promise<Mod> => callBackend<Mod>('ImportModFromURL', url),
   // IWADs
   listIWADs: (): Promise<IWAD[]> => callBackend<IWAD[]>('ListIWADs'),
   getIWAD: (id: string): Promise<IWAD> => callBackend<IWAD>('GetIWAD', id),
@@ -617,6 +743,8 @@ export const api = {
     callBackend<{ version: string; family: EngineFamily }>('DetectEngineVersion', execPath),
   validateEngineExecutable: (execPath: string): Promise<void> =>
     callBackend<void>('ValidateEngineExecutable', execPath),
+  ensureEngine: (family: EngineFamily, version: string): Promise<Engine> =>
+    callBackend<Engine>('EnsureEngine', family, version),
 
   // Profiles
   listProfiles: (): Promise<Profile[]> => callBackend<Profile[]>('ListProfiles'),
@@ -644,13 +772,39 @@ export const api = {
     callBackend<void>('OpenProfileSaveFolder', profileId),
   getProfileSaveDir: (profileId: string): Promise<string> =>
     callBackend<string>('GetProfileSaveDir', profileId),
+  exportProfileBundle: (profileId: string): Promise<BundleResult> =>
+    callBackend<BundleResult>('ExportProfileBundle', profileId),
+  importProfileBundle: (zipPath: string): Promise<ShareImportResult> =>
+    callBackend<ShareImportResult>('ImportProfileBundle', zipPath),
+  importProfileShareCode: (shareCode: string): Promise<ShareImportResult> =>
+    callBackend<ShareImportResult>('ImportProfileShareCode', shareCode),
+  createProfileFromTemplate: (template: string): Promise<Profile> =>
+    callBackend<Profile>('CreateProfileFromTemplate', template),
+  listProfileSnapshots: (profileId: string): Promise<SnapshotInfo[]> =>
+    callBackend<SnapshotInfo[]>('ListProfileSnapshots', profileId),
+  createProfileSnapshot: (profileId: string, label?: string): Promise<SnapshotInfo> =>
+    callBackend<SnapshotInfo>('CreateProfileSnapshot', profileId, label ?? ''),
+  restoreProfileSnapshot: (profileId: string, snapshotId: string): Promise<void> =>
+    callBackend<void>('RestoreProfileSnapshot', profileId, snapshotId),
+  createDesktopShortcut: (profileId: string): Promise<string> =>
+    callBackend<string>('CreateDesktopShortcut', profileId),
   // Validator & Launcher
   validateProfile: (profileId: string): Promise<ValidationResult> =>
     callBackend<ValidationResult>('ValidateProfile', profileId),
+  getProfileConflicts: (profileId: string): Promise<ValidationItem[]> =>
+    callBackend<ValidationItem[]>('GetProfileConflicts', profileId),
+  getMissingDependencies: (profileId: string): Promise<string[]> =>
+    callBackend<string[]>('GetMissingDependencies', profileId),
   launchProfile: (profileId: string): Promise<LaunchRecord> =>
     callBackend<LaunchRecord>('LaunchProfile', profileId),
   getActiveLaunches: (): Promise<ActiveLaunch[]> => callBackend<ActiveLaunch[]>('GetActiveLaunches'),
   killLaunch: (id: string): Promise<void> => callBackend<void>('KillLaunch', id),
+  getLaunchLogs: (launchId: string): Promise<string[]> =>
+    callBackend<string[]>('GetLaunchLogs', launchId),
+  replayDemo: (recordId: string): Promise<LaunchRecord> =>
+    callBackend<LaunchRecord>('ReplayDemo', recordId),
+  findDuplicateMods: (): Promise<Mod[][]> =>
+    callBackend<Mod[][]>('FindDuplicateMods'),
 
   // Scanner
   startScan: (): Promise<ScanResult> => callBackend<ScanResult>('StartScan'),
@@ -676,6 +830,10 @@ export const api = {
     callBackend<void>('RepairDiagnosticIssue', action, targetId),
   getSystemLogs: (): Promise<LogEntry[]> => callBackend<LogEntry[]>('GetSystemLogs'),
   clearSystemLogs: (): Promise<void> => callBackend<void>('ClearSystemLogs'),
+  exportLibraryBackup: (): Promise<string> => callBackend<string>('ExportLibraryBackup'),
+  importLibraryBackup: (zipPath: string): Promise<void> => callBackend<void>('ImportLibraryBackup', zipPath),
+  continueProfileSave: (profileId: string): Promise<{ launched: boolean; saveDir?: string }> =>
+    callBackend<{ launched: boolean; saveDir?: string }>('ContinueProfileSave', profileId),
   openPathInExplorer: (path: string): Promise<void> => callBackend<void>('OpenPathInExplorer', path),
 
   // /idgames Archive

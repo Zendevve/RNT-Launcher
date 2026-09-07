@@ -23,6 +23,114 @@ export interface ProfilesViewProps {
   onScanRequested?: () => void;
 }
 
+// Floating card listing unresolved profile dependencies (backend
+// GetMissingDependencies) with a one-click Fetch-all action. Numeric entries
+// resolve via DownloadIdgamesArchive, anything else via ImportModFile.
+const MissingDependenciesPanel: React.FC<{ profileId: string; onChanged: () => void }> = ({
+  profileId,
+  onChanged,
+}) => {
+  const toast = useToast();
+  const [missing, setMissing] = useState<string[] | null>(null);
+  const [isFetching, setIsFetching] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  const refresh = useCallback(async () => {
+    try {
+      const result = await api.getMissingDependencies(profileId);
+      setMissing(result || []);
+    } catch {
+      setMissing(null);
+    }
+  }, [profileId]);
+
+  useEffect(() => {
+    setMissing(null);
+    setDismissed(false);
+    refresh();
+  }, [refresh]);
+
+  const handleFetchAll = async () => {
+    if (!missing || missing.length === 0) return;
+    setIsFetching(true);
+    let fetched = 0;
+    try {
+      for (const name of missing) {
+        try {
+          const trimmed = name.trim();
+          if (/^\d+$/.test(trimmed)) {
+            await api.downloadIdgamesArchive(parseInt(trimmed, 10));
+          } else {
+            await api.importModFile(trimmed);
+          }
+          fetched++;
+        } catch (err) {
+          console.warn(`Failed to fetch dependency "${name}":`, err);
+        }
+      }
+      if (fetched > 0) {
+        toast.success('Dependencies Fetched', `Imported ${fetched} of ${missing.length} missing item(s).`);
+      } else {
+        toast.error('Fetch Failed', 'Could not fetch the missing dependencies.');
+      }
+      await refresh();
+      onChanged();
+    } finally {
+      setIsFetching(false);
+    }
+  };
+
+  if (!missing || missing.length === 0) return null;
+
+  if (dismissed) {
+    return (
+      <button
+        type="button"
+        onClick={() => setDismissed(false)}
+        title="Show missing dependencies"
+        className="absolute bottom-4 right-4 z-20 rounded-full border border-amber-800/50 bg-amber-950/80 px-3 py-1.5 text-[11px] font-semibold text-amber-200 hover:bg-amber-900/60 transition-colors"
+      >
+        {missing.length} missing
+      </button>
+    );
+  }
+
+  return (
+    <div className="absolute bottom-4 right-4 z-20 w-[380px] max-w-[calc(100%-2rem)] rounded-lg border border-amber-800/50 bg-[#14171c]/95 shadow-2xl">
+      <div className="flex items-center justify-between gap-2 px-3.5 py-2.5 border-b border-amber-800/30">
+        <span className="text-xs font-semibold text-amber-200">
+          Missing dependencies ({missing.length})
+        </span>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => void handleFetchAll()}
+            disabled={isFetching}
+            className="rounded-[6px] bg-amber-500/90 hover:bg-amber-400 px-2.5 py-1 text-[11px] font-semibold text-[#09090b] transition-colors disabled:opacity-60"
+          >
+            {isFetching ? 'Fetching…' : 'Fetch all'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setDismissed(true)}
+            title="Dismiss"
+            className="rounded p-1 text-zinc-500 hover:text-zinc-200 transition-colors"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+      <ul className="max-h-32 overflow-y-auto px-3.5 py-2 space-y-1">
+        {missing.map((name) => (
+          <li key={name} className="truncate font-mono text-[11px] text-zinc-400" title={name}>
+            {name}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
 export const ProfilesView: React.FC<ProfilesViewProps> = ({
   selectedProfileId: propSelectedProfileId,
   onSelectProfile,
@@ -139,6 +247,15 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
     setProfiles((prev) => [duplicated, ...prev]);
     setSelectedProfileId(duplicated.id);
   };
+  // Quiet profiles refresh (no loading spinner) after dependency fetches
+  const refreshProfilesQuiet = useCallback(async () => {
+    try {
+      const profs = await api.listProfiles();
+      if (profs) setProfiles(profs);
+    } catch (err) {
+      console.error('Failed to refresh profiles:', err);
+    }
+  }, []);
 
   // Handle Create Profile
   const handleOpenCreateModal = () => {
@@ -238,23 +355,26 @@ export const ProfilesView: React.FC<ProfilesViewProps> = ({
           </div>
         </div>
       ) : activeProfile ? (
-        /* Full-Width Profile Editor with integrated preset dropdown switcher */
-        <ProfileEditor
-          key={activeProfile.id}
-          profile={activeProfile}
-          profiles={profiles}
-          engines={engines}
-          iwads={iwads}
-          onProfileChange={handleProfileChange}
-          onProfileDeleted={handleProfileDeleted}
-          onProfileDuplicated={handleProfileDuplicated}
-          onSelectProfile={handleSelectPreset}
-          onCreateProfileClick={handleOpenCreateModal}
-          onImportClick={() => {
-            setImportModalFormat('yaml');
-            setIsImportModalOpen(true);
-          }}
-        />
+        /* Full-width stage: editor keeps its layout, missing-deps float above it */
+        <div className="flex-1 min-h-0 min-w-0 relative flex flex-col">
+          <MissingDependenciesPanel profileId={activeProfile.id} onChanged={refreshProfilesQuiet} />
+          <ProfileEditor
+            key={activeProfile.id}
+            profile={activeProfile}
+            profiles={profiles}
+            engines={engines}
+            iwads={iwads}
+            onProfileChange={handleProfileChange}
+            onProfileDeleted={handleProfileDeleted}
+            onProfileDuplicated={handleProfileDuplicated}
+            onSelectProfile={handleSelectPreset}
+            onCreateProfileClick={handleOpenCreateModal}
+            onImportClick={() => {
+              setImportModalFormat('yaml');
+              setIsImportModalOpen(true);
+            }}
+          />
+        </div>
       ) : (
         /* Empty State */
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-zinc-500 gap-3 select-none">

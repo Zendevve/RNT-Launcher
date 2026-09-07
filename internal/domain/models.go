@@ -125,19 +125,35 @@ func (c ModCategory) String() string {
 
 // Mod represents a Doom modification file (WAD, PK3, PK7, DEH, etc.) in the library.
 type Mod struct {
-	ID         string      `json:"id"`
-	Name       string      `json:"name"`
-	Path       string      `json:"path"`
-	Format     ModFormat   `json:"format"`
-	Category   ModCategory `json:"category"`
-	Size       int64       `json:"size"`
-	ModifiedAt time.Time   `json:"modifiedAt"`
-	SHA256     string      `json:"sha256"`
-	LumpCount  int         `json:"lumpCount"`
-	Structures []string    `json:"structures"`
-	IsFavorite bool        `json:"isFavorite"`
-	CreatedAt  time.Time   `json:"createdAt"`
-	UpdatedAt  time.Time   `json:"updatedAt"`
+	ID          string      `json:"id"`
+	Name        string      `json:"name"`
+	Path        string      `json:"path"`
+	Format      ModFormat   `json:"format"`
+	Category    ModCategory `json:"category"`
+	Size        int64       `json:"size"`
+	ModifiedAt  time.Time   `json:"modifiedAt"`
+	SHA256      string      `json:"sha256"`
+	LumpCount   int         `json:"lumpCount"`
+	Structures  []string    `json:"structures"`
+	IsFavorite  bool        `json:"isFavorite"`
+	Author      string      `json:"author,omitempty"`
+	Description string      `json:"description,omitempty"`
+	Rating      float64     `json:"rating,omitempty"`
+	ExternalID  string      `json:"externalId,omitempty"`
+	Version     string      `json:"version,omitempty"`
+	UpdateURL   string      `json:"updateUrl,omitempty"`
+	CreatedAt   time.Time   `json:"createdAt"`
+	UpdatedAt   time.Time   `json:"updatedAt"`
+}
+
+// ModUpdate describes an available update for a library mod linked to a
+// catalog entry via ExternalID.
+type ModUpdate struct {
+	ModID      string `json:"modId"`
+	ModName    string `json:"modName"`
+	ExternalID string `json:"externalId"`
+	CatalogID  int    `json:"catalogId"`
+	Reason     string `json:"reason"`
 }
 
 // Extension returns the file extension including the leading dot.
@@ -383,9 +399,15 @@ type Profile struct {
 	Arguments       []string     `json:"arguments"`
 	WorkingDir      string       `json:"workingDir"`
 	IsFavorite      bool         `json:"isFavorite"`
+	NetMode         string       `json:"netMode,omitempty"`
+	NetHost         string       `json:"netHost,omitempty"`
+	NetPort         int          `json:"netPort,omitempty"`
+	RecordDemoPath  string       `json:"recordDemoPath,omitempty"`
+	PlayDemoPath    string       `json:"playDemoPath,omitempty"`
 	CreatedAt       time.Time    `json:"createdAt"`
 	UpdatedAt       time.Time    `json:"updatedAt"`
 }
+
 // EnabledMods returns all enabled mods in the profile, sorted by Order ascending.
 func (p Profile) EnabledMods() []ProfileMod {
 	var enabled []ProfileMod
@@ -531,9 +553,9 @@ type ValidationItem struct {
 type ValidationStatus string
 
 const (
-	ValidationStatusReady            ValidationStatus = "READY"
+	ValidationStatusReady             ValidationStatus = "READY"
 	ValidationStatusReadyWithWarnings ValidationStatus = "READY_WITH_WARNINGS"
-	ValidationStatusCannotLaunch     ValidationStatus = "CANNOT_LAUNCH"
+	ValidationStatusCannotLaunch      ValidationStatus = "CANNOT_LAUNCH"
 )
 
 // ValidationResult contains the full outcome of validating a profile prior to launch.
@@ -637,6 +659,7 @@ type LaunchRecord struct {
 	ExitCode    int       `json:"exitCode"`
 	Status      string    `json:"status"` // "success" / "failed"
 	CommandLine string    `json:"commandLine"`
+	DemoPath    string    `json:"demoPath,omitempty"`
 }
 
 const (
@@ -687,6 +710,7 @@ type Settings struct {
 	Theme              string   `json:"theme"`
 	ConfirmLaunch      bool     `json:"confirmLaunch"`
 	AutoScanOnStartup  bool     `json:"autoScanOnStartup"`
+	WatchDirectories   bool     `json:"watchDirectories"`
 	CloseOnLaunch      bool     `json:"closeOnLaunch"`
 	UiDensity          string   `json:"uiDensity"`
 	ShowFilePaths      bool     `json:"showFilePaths"`
@@ -705,6 +729,7 @@ func DefaultSettings() Settings {
 		Theme:              "dark",
 		ConfirmLaunch:      false,
 		AutoScanOnStartup:  true,
+		WatchDirectories:   true,
 		CloseOnLaunch:      false,
 		UiDensity:          "compact",
 		ShowFilePaths:      false,
@@ -716,21 +741,35 @@ func DefaultSettings() Settings {
 
 // ModFilter provides query criteria for library filtering and search.
 type ModFilter struct {
-	Search     string       `json:"search,omitempty"`
-	Category   ModCategory  `json:"category,omitempty"`
-	Format     ModFormat    `json:"format,omitempty"`
-	IsFavorite *bool        `json:"isFavorite,omitempty"`
-	Limit      int          `json:"limit,omitempty"`
-	Offset     int          `json:"offset,omitempty"`
+	Search     string      `json:"search,omitempty"`
+	Category   ModCategory `json:"category,omitempty"`
+	Format     ModFormat   `json:"format,omitempty"`
+	IsFavorite *bool       `json:"isFavorite,omitempty"`
+	Author     string      `json:"author,omitempty"`
+	MinRating  float64     `json:"minRating,omitempty"`
+	HasMaps    *bool       `json:"hasMaps,omitempty"`
+	Limit      int         `json:"limit,omitempty"`
+	Offset     int         `json:"offset,omitempty"`
 }
 
 // HistoryStats aggregates overall gameplay statistics across launch records.
 type HistoryStats struct {
-	TotalLaunches        int        `json:"totalLaunches"`
-	TotalPlayTimeMs      int64      `json:"totalPlayTimeMs"`
-	LastLaunchedAt       *time.Time `json:"lastLaunchedAt,omitempty"`
-	MostPlayedProfileID  string     `json:"mostPlayedProfileId,omitempty"`
-	MostPlayedProfileName string    `json:"mostPlayedProfileName,omitempty"`
+	TotalLaunches         int            `json:"totalLaunches"`
+	TotalPlayTimeMs       int64          `json:"totalPlayTimeMs"`
+	LastLaunchedAt        *time.Time     `json:"lastLaunchedAt,omitempty"`
+	MostPlayedProfileID   string         `json:"mostPlayedProfileId,omitempty"`
+	MostPlayedProfileName string         `json:"mostPlayedProfileName,omitempty"`
+	PerProfile            []ProfileStats `json:"perProfile,omitempty"`
+}
+
+// ProfileStats aggregates gameplay statistics for a single profile.
+type ProfileStats struct {
+	ProfileID   string     `json:"profileId"`
+	ProfileName string     `json:"profileName"`
+	Runs        int        `json:"runs"`
+	TotalHours  float64    `json:"totalHours"`
+	LastPlayed  *time.Time `json:"lastPlayed,omitempty"`
+	CrashRate   float64    `json:"crashRate"`
 }
 
 // DashboardStats summarizes key metrics for the launcher dashboard.
