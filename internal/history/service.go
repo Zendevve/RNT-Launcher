@@ -81,6 +81,11 @@ func (s *HistoryService) GetStats(ctx context.Context) (*domain.HistoryStats, er
 	if err != nil {
 		return nil, fmt.Errorf("failed to get history stats: %w", err)
 	}
+	// Best effort: the per-profile breakdown rides along with the totals.
+	// A failure here must not fail the overall stats call.
+	if perProfile, perr := s.ProfileStats(ctx); perr == nil {
+		stats.PerProfile = perProfile
+	}
 	return &stats, nil
 }
 

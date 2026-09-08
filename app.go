@@ -7,16 +7,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
-	"strconv"
-	"strings"
-	"sync"
 	"rnt-launcher/internal/database"
 	"rnt-launcher/internal/diagnostics"
 	"rnt-launcher/internal/domain"
@@ -33,25 +30,29 @@ import (
 	"rnt-launcher/internal/scanner"
 	"rnt-launcher/internal/settings"
 	"rnt-launcher/internal/validator"
-	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	"runtime"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
 )
 
 // App struct manages application state and exposes bridge API to frontend
 type App struct {
-	ctx              context.Context
-	db               *sql.DB
-	dbPath           string
-	emitter          func(eventName string, data any)
-	engineRepo       database.EngineRepository
-	iwadRepo         database.IWADRepository
-	modRepo          database.ModRepository
-	profileRepo      database.ProfileRepository
-	historyRepo      database.HistoryRepository
-	settingsRepo     database.SettingsRepository
-	engineService    *engines.EngineService
-	iwadService      *iwads.IWADService
-	profileService   *profiles.ProfileService
-	validatorService *validator.ValidatorService
+	ctx                context.Context
+	db                 *sql.DB
+	dbPath             string
+	emitter            func(eventName string, data any)
+	engineRepo         database.EngineRepository
+	iwadRepo           database.IWADRepository
+	modRepo            database.ModRepository
+	profileRepo        database.ProfileRepository
+	historyRepo        database.HistoryRepository
+	settingsRepo       database.SettingsRepository
+	engineService      *engines.EngineService
+	iwadService        *iwads.IWADService
+	profileService     *profiles.ProfileService
+	validatorService   *validator.ValidatorService
 	launcherService    *launcher.LauncherService
 	savesService       *saves.SaveService
 	scannerService     *scanner.ScannerService
@@ -63,7 +64,9 @@ type App struct {
 	idgamesDownloader  *idgames.Downloader
 	isScanning         bool
 	scanMu             sync.Mutex
+	watchStop          func()
 }
+
 // NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{
@@ -71,8 +74,11 @@ func NewApp() *App {
 	}
 }
 
-// Close releases open resources such as active engine processes and SQLite DB handle
 func (a *App) Close() {
+	if a.watchStop != nil {
+		a.watchStop()
+		a.watchStop = nil
+	}
 	if a.launcherService != nil {
 		_ = a.launcherService.KillAll()
 	}
@@ -194,6 +200,38 @@ func (a *App) startup(ctx context.Context) {
 		if err == nil && s.AutoScanOnStartup {
 			_, _ = a.StartScan()
 		}
+	}()
+	// Background startup health: lightweight diagnostics pass surfacing a badge
+	// count; never blocks the window and never fails startup.
+	go func() {
+		if a.diagnosticsService == nil {
+			return
+		}
+		report, err := a.diagnosticsService.RunDiagnostics(context.Background())
+		if err != nil || report == nil {
+			return
+		}
+		a.emitSafe("diagnostics:background", map[string]any{
+			"overallStatus": report.OverallStatus,
+			"totalIssues":   report.Summary.TotalIssues,
+			"errorCount":    report.Summary.ErrorCount,
+			"warningCount":  report.Summary.WarningCount,
+		})
+	}()
+
+	// Directory watcher: poll scan folders every 30s triggering delta scans.
+	go func() {
+		if a.settingsService == nil || a.scannerService == nil {
+			return
+		}
+		s, err := a.settingsService.Get(context.Background())
+		if err != nil || !s.WatchDirectories {
+			return
+		}
+		dirs := append(append(append([]string{}, s.ModDirectories...), s.IWADDirectories...), s.EngineDirectories...)
+		a.watchStop = scanner.Watch(dirs, 30*time.Second, func() {
+			_, _ = a.StartScan()
+		})
 	}()
 }
 
@@ -703,8 +741,205 @@ func (a *App) DownloadIdgamesArchive(id int) (*domain.Mod, error) {
 	if err != nil {
 		return nil, fmt.Errorf("downloading idgames archive %d: %w", id, err)
 	}
+	mod.ExternalID = strconv.Itoa(item.ID)
+	mod.Version = item.Date
+	mod.UpdateURL = item.URL
+	if a.modRepo != nil {
+		_ = a.modRepo.Update(mod)
+	}
 
 	return mod, nil
+}
+
+// CheckModUpdates compares ExternalID-linked library mods against the catalog
+// and reports entries whose size or catalog revision changed. Unreachable
+// catalog entries degrade to quiet-offline skips, never hard failures.
+func (a *App) CheckModUpdates() ([]domain.ModUpdate, error) {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	updates := make([]domain.ModUpdate, 0)
+	if a.modRepo == nil {
+		return updates, nil
+	}
+	if a.idgamesRepo == nil {
+		a.idgamesRepo = idgames.NewCatalogRepository(a.db)
+	}
+	mods, err := a.modRepo.List(domain.ModFilter{})
+	if err != nil {
+		return nil, err
+	}
+	for _, mod := range mods {
+		catalogID, err := strconv.Atoi(strings.TrimSpace(mod.ExternalID))
+		if err != nil || catalogID <= 0 {
+			continue
+		}
+		item, err := a.idgamesRepo.GetByID(ctx, catalogID)
+		if err != nil || item == nil {
+			continue
+		}
+		// Catalog size is the archive (.zip) size while Mod.Size is the
+		// extracted file size, so sizes never match; compare only the
+		// catalog revision stamped at ingest.
+		reason := ""
+		if mod.Version != "" && item.Date != "" && mod.Version != item.Date {
+			reason = "catalog-revised"
+		}
+		if reason == "" {
+			continue
+		}
+		updates = append(updates, domain.ModUpdate{
+			ModID:      mod.ID,
+			ModName:    mod.Name,
+			ExternalID: mod.ExternalID,
+			CatalogID:  catalogID,
+			Reason:     reason,
+		})
+	}
+	return updates, nil
+}
+
+// UpdateMod re-downloads the catalog archive linked via ExternalID and
+// re-ingests it over the existing library entry.
+func (a *App) UpdateMod(id string) (*domain.Mod, error) {
+	if a.modRepo == nil {
+		return nil, errors.New("mod repository is not initialized")
+	}
+	mod, err := a.modRepo.Get(id)
+	if err != nil {
+		return nil, err
+	}
+	catalogID, err := strconv.Atoi(strings.TrimSpace(mod.ExternalID))
+	if err != nil || catalogID <= 0 {
+		return nil, fmt.Errorf("mod %s is not linked to a catalog entry", mod.Name)
+	}
+	return a.DownloadIdgamesArchive(catalogID)
+}
+
+// GetMissingDependencies returns declared dependency names for a profile's
+// enabled mods that resolve to no library entry, for one-click fetching.
+func (a *App) GetMissingDependencies(profileID string) ([]string, error) {
+	missing := make([]string, 0)
+	if a.profileService == nil || a.modRepo == nil {
+		return missing, nil
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	profile, err := a.profileService.Get(ctx, profileID)
+	if err != nil {
+		return nil, err
+	}
+	library, err := a.modRepo.List(domain.ModFilter{})
+	if err != nil {
+		return nil, err
+	}
+	index := make([]string, 0, len(library))
+	for _, m := range library {
+		stem := strings.ToLower(strings.TrimSuffix(filepath.Base(m.Path), filepath.Ext(m.Path)))
+		index = append(index, strings.ToLower(m.Name), stem)
+	}
+	satisfied := func(dep string) bool {
+		needle := strings.ToLower(strings.TrimSpace(dep))
+		if needle == "" {
+			return true
+		}
+		for _, entry := range index {
+			if entry == "" {
+				continue
+			}
+			if entry == needle || strings.Contains(entry, needle) || strings.Contains(needle, entry) {
+				return true
+			}
+		}
+		return false
+	}
+	seen := make(map[string]bool)
+	for _, pm := range profile.EnabledMods() {
+		var mod *domain.Mod
+		if pm.ModID != "" {
+			mod, _ = a.modRepo.Get(pm.ModID)
+		}
+		if mod == nil {
+			if strings.TrimSpace(pm.ModPath) == "" {
+				continue
+			}
+			format := pm.ModFormat
+			if !format.IsValid() || format == domain.ModFormatUnknown {
+				format = domain.DetectModFormat(pm.ModPath)
+			}
+			mod = &domain.Mod{ID: pm.ModID, Name: pm.ModName, Path: pm.ModPath, Format: format}
+		}
+		for _, dep := range scanner.ResolveDependencies(*mod) {
+			key := strings.ToLower(dep)
+			if seen[key] || satisfied(dep) {
+				continue
+			}
+			seen[key] = true
+			missing = append(missing, dep)
+		}
+	}
+	return missing, nil
+}
+
+// ImportModFromURL ingests a mod from an https:// file URL or an
+// idgames://<catalogID> reference, then registers it via the scanner.
+func (a *App) ImportModFromURL(rawURL string) (*domain.Mod, error) {
+	trimmed := strings.TrimSpace(rawURL)
+	if strings.HasPrefix(strings.ToLower(trimmed), "idgames://") {
+		id, err := strconv.Atoi(strings.TrimPrefix(strings.ToLower(trimmed), "idgames://"))
+		if err != nil || id <= 0 {
+			return nil, fmt.Errorf("invalid idgames reference %q: expected idgames://<catalogID>", trimmed)
+		}
+		return a.DownloadIdgamesArchive(id)
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" {
+		return nil, fmt.Errorf("unsupported URL %q: expected https:// file URL or idgames://<catalogID>", trimmed)
+	}
+	ext := strings.ToLower(filepath.Ext(strings.TrimSuffix(parsed.Path, "/")))
+	switch ext {
+	case ".wad", ".pk3", ".pk7", ".ipk3", ".zip", ".deh", ".bex", ".7z":
+	default:
+		return nil, fmt.Errorf("unsupported URL file type %q: expected a Doom mod archive", ext)
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, trimmed, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("downloading %s: %w", trimmed, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return nil, fmt.Errorf("downloading %s: HTTP %s", trimmed, resp.Status)
+	}
+	tmp, err := os.CreateTemp("", "rnt-url-import-*"+ext)
+	if err != nil {
+		return nil, err
+	}
+	tmpPath := tmp.Name()
+	if _, err := io.Copy(tmp, resp.Body); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		return nil, fmt.Errorf("downloading %s: %w", trimmed, err)
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return nil, err
+	}
+	if a.scannerService == nil {
+		_ = os.Remove(tmpPath)
+		return nil, errors.New("scanner service is not initialized")
+	}
+	return a.scannerService.ImportFile(ctx, tmpPath)
 }
 
 // -------------------------------------------------------------
@@ -725,7 +960,6 @@ func (a *App) RegisterIWADFile(path string) (*domain.IWAD, error) {
 func (a *App) InspectIWADFile(path string) (*domain.IWAD, error) {
 	return a.iwadService.InspectFile(a.ctx, path)
 }
-
 
 func (a *App) AddIWAD(iwad domain.IWAD) (*domain.IWAD, error) {
 	return a.iwadService.Add(a.ctx, iwad)
@@ -761,6 +995,42 @@ func (a *App) UpdateEngine(engine domain.Engine) error {
 
 func (a *App) DeleteEngine(id string) error {
 	return a.engineService.Delete(a.ctx, id)
+}
+
+// EnsureEngine provisions the requested engine family (latest or version) into
+// the configured engines directory and registers it. When provisioning is
+// impossible, the official download page opens instead of failing silently.
+func (a *App) EnsureEngine(family string, version string) (*domain.Engine, error) {
+	if a.engineService == nil {
+		return nil, errors.New("engine service is not initialized")
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	fam := domain.EngineFamily(strings.ToLower(strings.TrimSpace(family)))
+	enginesDir := ""
+	if a.settingsService != nil {
+		if s, err := a.settingsService.Get(ctx); err == nil && len(s.EngineDirectories) > 0 {
+			enginesDir = s.EngineDirectories[0]
+		}
+	}
+	if enginesDir == "" {
+		configDir, err := os.UserConfigDir()
+		if err == nil {
+			enginesDir = filepath.Join(configDir, "rnt-launcher", "engines")
+		} else {
+			enginesDir = "engines"
+		}
+	}
+	eng, err := a.engineService.Ensure(ctx, fam, version, enginesDir)
+	if err != nil {
+		if page := engines.DownloadPageURL(fam); page != "" && a.ctx != nil {
+			wailsRuntime.BrowserOpenURL(a.ctx, page)
+		}
+		return nil, err
+	}
+	return eng, nil
 }
 
 func (a *App) DetectEngineVersion(execPath string) (map[string]string, error) {
@@ -853,6 +1123,194 @@ func (a *App) ImportProfileZDL(zdlContent string) (map[string]any, error) {
 	}, nil
 }
 
+func (a *App) ExportProfileBundle(profileID string) (map[string]any, error) {
+	zipPath, shareCode, err := a.profileService.ExportBundle(a.ctx, profileID)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"zipPath":   zipPath,
+		"shareCode": shareCode,
+	}, nil
+}
+
+func (a *App) ImportProfileBundle(zipPath string) (*domain.Profile, error) {
+	return a.profileService.ImportBundle(a.ctx, zipPath)
+}
+
+// ImportProfileShareCode rebuilds a profile from an rnt://pack/... share code
+// by matching manifest hashes against the local library. Mods absent locally
+// are reported as missing hashes; nothing is downloaded.
+func (a *App) ImportProfileShareCode(code string) (map[string]any, error) {
+	manifest, err := profiles.ParseShareCode(code)
+	if err != nil {
+		return nil, err
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	byHash := make(map[string]domain.Mod)
+	if a.modRepo != nil {
+		if library, err := a.modRepo.List(domain.ModFilter{}); err == nil {
+			for _, m := range library {
+				if m.SHA256 != "" {
+					byHash[strings.ToUpper(m.SHA256)] = m
+				}
+			}
+		}
+	}
+	prof := domain.Profile{Name: manifest.Name, Description: "Imported via share code"}
+	if a.engineRepo != nil {
+		if list, err := a.engineRepo.List(); err == nil {
+			for _, e := range list {
+				if string(e.Family) == manifest.EngineFamily {
+					prof.EngineID, prof.EngineName = e.ID, e.Name
+					break
+				}
+			}
+		}
+	}
+	if a.iwadRepo != nil {
+		if list, err := a.iwadRepo.List(); err == nil {
+			for _, w := range list {
+				if string(w.Type) == manifest.IWADType {
+					prof.IWADID, prof.IWADName = w.ID, w.Name
+					break
+				}
+			}
+		}
+	}
+	missing := make([]string, 0)
+	for i, hash := range manifest.ModHashes {
+		m, ok := byHash[strings.ToUpper(hash)]
+		if !ok {
+			missing = append(missing, hash)
+			continue
+		}
+		prof.Mods = append(prof.Mods, domain.ProfileMod{
+			ModID: m.ID, ModName: m.Name, ModPath: m.Path, ModFormat: m.Format,
+			Enabled: true, Order: i,
+		})
+	}
+	created, err := a.profileService.Create(ctx, prof)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"profile":       created,
+		"missingHashes": missing,
+	}, nil
+}
+
+// profileTemplates seeds engine/IWAD families for one-click preset creation.
+var profileTemplates = map[string]struct {
+	description  string
+	engineFamily string
+	iwadType     string
+}{
+	"vanilla":       {description: "Unmodified classic play", engineFamily: "gzdoom", iwadType: "doom2"},
+	"brutal-doom":   {description: "Brutal Doom style gameplay (add the mod)", engineFamily: "gzdoom", iwadType: "doom2"},
+	"megawad-night": {description: "Long-map megawad session", engineFamily: "gzdoom", iwadType: "doom2"},
+	"multiplayer":   {description: "Online-ready netplay preset", engineFamily: "zandronum", iwadType: "doom2"},
+}
+
+// CreateProfileFromTemplate seeds a profile for a known play style.
+func (a *App) CreateProfileFromTemplate(template string) (*domain.Profile, error) {
+	tmpl, ok := profileTemplates[strings.ToLower(strings.TrimSpace(template))]
+	if !ok {
+		return nil, fmt.Errorf("unknown profile template %q: want vanilla, brutal-doom, megawad-night, or multiplayer", template)
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	prof := domain.Profile{
+		Name:         strings.Title(template) + " Preset",
+		Description:  tmpl.description,
+		IsolateSaves: true,
+	}
+	if a.engineRepo != nil {
+		if list, err := a.engineRepo.List(); err == nil {
+			for _, e := range list {
+				if string(e.Family) == tmpl.engineFamily {
+					prof.EngineID, prof.EngineName = e.ID, e.Name
+					break
+				}
+			}
+		}
+	}
+	if a.iwadRepo != nil {
+		if list, err := a.iwadRepo.List(); err == nil {
+			for _, w := range list {
+				if string(w.Type) == tmpl.iwadType {
+					prof.IWADID, prof.IWADName = w.ID, w.Name
+					break
+				}
+			}
+		}
+	}
+	return a.profileService.Create(ctx, prof)
+}
+
+// ListProfileSnapshots lists save snapshot zips for a profile, oldest first.
+func (a *App) ListProfileSnapshots(profileID string) ([]map[string]any, error) {
+	out := make([]map[string]any, 0)
+	if a.savesService == nil {
+		return out, nil
+	}
+	cleanID := strings.TrimSpace(profileID)
+	if cleanID == "" {
+		cleanID = "default"
+	}
+	dir := filepath.Join(a.savesService.BaseDir(), "snapshots", cleanID)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return out, nil
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".zip") {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		id := strings.TrimSuffix(e.Name(), filepath.Ext(e.Name()))
+		out = append(out, map[string]any{
+			"id":         id,
+			"name":       e.Name(),
+			"path":       filepath.Join(dir, e.Name()),
+			"size":       info.Size(),
+			"modifiedAt": info.ModTime(),
+		})
+	}
+	return out, nil
+}
+
+// CreateProfileSnapshot zips the profile save dir under the given label.
+func (a *App) CreateProfileSnapshot(profileID string, label string) (map[string]any, error) {
+	if a.savesService == nil {
+		return nil, fmt.Errorf("saves service is not initialized")
+	}
+	zipPath, err := a.savesService.Snapshot(profileID, label)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"id":   strings.TrimSuffix(filepath.Base(zipPath), filepath.Ext(zipPath)),
+		"path": zipPath,
+	}, nil
+}
+
+// RestoreProfileSnapshot restores the profile save dir from a snapshot ID.
+func (a *App) RestoreProfileSnapshot(profileID string, snapshotID string) error {
+	if a.savesService == nil {
+		return fmt.Errorf("saves service is not initialized")
+	}
+	return a.savesService.Restore(profileID, snapshotID)
+}
+
 func (a *App) OpenProfileSaveFolder(profileID string) error {
 	if a.savesService == nil {
 		return fmt.Errorf("saves service is not initialized")
@@ -878,6 +1336,21 @@ func (a *App) GetProfileSaveDir(profileID string) (string, error) {
 func (a *App) ValidateProfile(profileID string) (*domain.ValidationResult, error) {
 	return a.validatorService.ValidateProfile(a.ctx, profileID)
 }
+func (a *App) GetProfileConflicts(profileID string) ([]domain.ValidationItem, error) {
+	res, err := a.validatorService.ValidateProfile(a.ctx, profileID)
+	if err != nil {
+		return nil, err
+	}
+	conflicts := make([]domain.ValidationItem, 0)
+	for _, item := range res.Items {
+		switch item.Code {
+		case "mod-lump-collision", "mod-map-slot-collision", "engine-format-risk",
+			"engine-format-unsupported", "iwad-mismatch-suspect", "conflict-scan-truncated":
+			conflicts = append(conflicts, item)
+		}
+	}
+	return conflicts, nil
+}
 
 func (a *App) LaunchProfile(profileID string) (*domain.LaunchRecord, error) {
 	return a.launcherService.LaunchProfile(a.ctx, profileID)
@@ -891,18 +1364,148 @@ func (a *App) KillLaunch(id string) error {
 	return a.launcherService.KillLaunch(id)
 }
 
+// GetLaunchLogs returns the tailed stdout/stderr ring buffer for a launch.
+func (a *App) GetLaunchLogs(launchID string, limit int) ([]string, error) {
+	if a.launcherService == nil {
+		return []string{}, nil
+	}
+	return a.launcherService.GetLaunchLogs(launchID, limit), nil
+}
+
+// ReplayDemo relaunches a profile replaying a recorded demo from history.
+func (a *App) ReplayDemo(recordID string) (*domain.LaunchRecord, error) {
+	if a.historyService == nil || a.profileService == nil || a.launcherService == nil {
+		return nil, errors.New("launch services are not initialized")
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	records, err := a.historyService.List(ctx, 100000)
+	if err != nil {
+		return nil, err
+	}
+	var found *domain.LaunchRecord
+	for i := range records {
+		if records[i].ID == recordID {
+			found = &records[i]
+			break
+		}
+	}
+	if found == nil {
+		return nil, fmt.Errorf("launch record %s not found", recordID)
+	}
+	if strings.TrimSpace(found.DemoPath) == "" {
+		return nil, fmt.Errorf("launch record %s has no recorded demo", recordID)
+	}
+	prof, err := a.profileService.Get(ctx, found.ProfileID)
+	if err != nil {
+		return nil, err
+	}
+	prof.PlayDemoPath = found.DemoPath
+	return a.launcherService.LaunchProfileEntity(ctx, prof)
+}
+
+// FindDuplicateMods groups library mods sharing SHA-256 and size.
+func (a *App) FindDuplicateMods() ([][]domain.Mod, error) {
+	if a.modRepo == nil {
+		return [][]domain.Mod{}, nil
+	}
+	mods, err := a.modRepo.List(domain.ModFilter{})
+	if err != nil {
+		return nil, err
+	}
+	return database.FindDuplicateMods(mods), nil
+}
+
+// ExportLibraryBackup zips the database and profile exports for safekeeping.
+func (a *App) ExportLibraryBackup() (string, error) {
+	if a.diagnosticsService == nil {
+		return "", fmt.Errorf("diagnostics service is not initialized")
+	}
+	return a.diagnosticsService.ExportLibraryBackup()
+}
+
+// ImportLibraryBackup restores a backup zip; the app must restart afterwards.
+func (a *App) ImportLibraryBackup(zipPath string) error {
+	if a.diagnosticsService == nil {
+		return fmt.Errorf("diagnostics service is not initialized")
+	}
+	return a.diagnosticsService.ImportBackup(zipPath)
+}
+
+// CreateDesktopShortcut writes a desktop launcher for a profile that starts a
+// headless session (rnt-launcher --launch <id>).
+func (a *App) CreateDesktopShortcut(profileID string) (string, error) {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	prof, err := a.profileService.Get(ctx, profileID)
+	if err != nil {
+		return "", err
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	safe := strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == ' ' {
+			return r
+		}
+		return '_'
+	}, strings.TrimSpace(prof.Name))
+	if safe == "" {
+		safe = profileID
+	}
+	desktop := filepath.Join(home, "Desktop")
+	var path, content string
+	switch runtime.GOOS {
+	case "windows":
+		path = filepath.Join(desktop, safe+".bat")
+		content = "@echo off\r\nstart \"\" \"" + exe + "\" --launch " + profileID + "\r\n"
+	case "darwin":
+		path = filepath.Join(desktop, safe+".command")
+		content = "#!/bin/sh\n\"" + exe + "\" --launch " + profileID + "\n"
+	default:
+		path = filepath.Join(desktop, safe+".desktop")
+		content = "[Desktop Entry]\nType=Application\nName=" + safe + "\nExec=\"" + exe + "\" --launch " + profileID + "\nTerminal=false\n"
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(path, []byte(content), 0755); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
 // -------------------------------------------------------------
 // Scanner API
 // -------------------------------------------------------------
 
 func (a *App) StartScan() (scanRes *domain.ScanResult, scanErr error) {
-	a.scanMu.Lock()
-	if a.isScanning {
+	// A scan already in progress no longer errors: wait for it (up to a minute)
+	// so background auto-scans and manual/test scans serialize instead of
+	// colliding on the single-connection database.
+	deadline := time.Now().Add(time.Minute)
+	for {
+		a.scanMu.Lock()
+		if !a.isScanning {
+			a.isScanning = true
+			a.scanMu.Unlock()
+			break
+		}
 		a.scanMu.Unlock()
-		return nil, fmt.Errorf("scan is already in progress")
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("scan is already in progress")
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
-	a.isScanning = true
-	a.scanMu.Unlock()
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -1067,4 +1670,34 @@ func (a *App) GetSystemLogs() ([]logger.LogEntry, error) {
 func (a *App) ClearSystemLogs() error {
 	logger.ClearLogs()
 	return nil
+}
+
+// ContinueProfileSave relaunches a profile with -loadgame latest for families
+// supporting save-dir isolation, else reports the save dir for manual resume.
+func (a *App) ContinueProfileSave(profileID string) (map[string]any, error) {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	prof, err := a.profileService.Get(ctx, profileID)
+	if err != nil {
+		return nil, err
+	}
+	saveDir := ""
+	if a.savesService != nil {
+		saveDir, _ = a.savesService.EnsureProfileSaveDir(profileID)
+	}
+	if a.engineService != nil && a.launcherService != nil && strings.TrimSpace(prof.EngineID) != "" {
+		if eng, err := a.engineService.Get(ctx, prof.EngineID); err == nil && eng != nil {
+			if loadArgs := launcher.FormatLoadGame(eng.Family); len(loadArgs) > 0 {
+				next := *prof
+				next.Arguments = append(append([]string{}, prof.Arguments...), loadArgs...)
+				if _, err := a.launcherService.LaunchProfileEntity(ctx, &next); err != nil {
+					return nil, err
+				}
+				return map[string]any{"launched": true, "saveDir": saveDir}, nil
+			}
+		}
+	}
+	return map[string]any{"launched": false, "saveDir": saveDir}, nil
 }

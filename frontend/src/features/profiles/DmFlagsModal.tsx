@@ -182,6 +182,10 @@ export const DmFlagsModal: React.FC<DmFlagsModalProps> = ({
   const [selectedCompatflags, setSelectedCompatflags] = useState<Set<number>>(new Set());
   const [selectedCompatflags2, setSelectedCompatflags2] = useState<Set<number>>(new Set());
 
+  // Network / multiplayer quick-host preset (same arg convention as the backend builder)
+  const [netPreset, setNetPreset] = useState<'off' | 'host' | 'join'>('off');
+  const [netHost, setNetHost] = useState('');
+  const [netPort, setNetPort] = useState('');
   // Helper to extract flags from CLI argument list
   const extractFlagFromArgs = (args: string[], flagName: string): number => {
     for (let i = 0; i < args.length; i++) {
@@ -222,6 +226,21 @@ export const DmFlagsModal: React.FC<DmFlagsModalProps> = ({
     setSelectedDmflags2(parseBitmask(d2, DMFLAGS2_DATA));
     setSelectedCompatflags(parseBitmask(c1, COMPATFLAGS_DATA));
     setSelectedCompatflags2(parseBitmask(c2, COMPATFLAGS2_DATA));
+    // Restore any previously applied net preset from the arg list
+    const lower = argsToUse.map((a) => a.toLowerCase());
+    const connectIdx = lower.indexOf('+connect');
+    const hostIdx = lower.indexOf('-host');
+    const portIdx = lower.indexOf('-port');
+    if (connectIdx >= 0) {
+      setNetPreset('join');
+      setNetHost(argsToUse[connectIdx + 1] ?? '');
+    } else if (hostIdx >= 0) {
+      setNetPreset('host');
+    } else {
+      setNetPreset('off');
+    }
+    if (portIdx >= 0) setNetPort(argsToUse[portIdx + 1] ?? '');
+    else setNetPort('');
     setSearchQuery('');
   }, [isOpen, argsToUse, initialFlags]);
 
@@ -315,15 +334,22 @@ export const DmFlagsModal: React.FC<DmFlagsModalProps> = ({
     setSelectedCompatflags2(new Set());
   };
 
-  // Generated CLI arguments: only non-zero values
+  // Generated CLI arguments: only non-zero values, plus the net-play preset
   const generatedArgs = useMemo(() => {
     const args: string[] = [];
     if (dmflagsValue > 0) args.push('+set', 'dmflags', dmflagsValue.toString());
     if (dmflags2Value > 0) args.push('+set', 'dmflags2', dmflags2Value.toString());
     if (compatflagsValue > 0) args.push('+set', 'compatflags', compatflagsValue.toString());
     if (compatflags2Value > 0) args.push('+set', 'compatflags2', compatflags2Value.toString());
+    if (netPreset === 'host') {
+      args.push('-host', '2');
+      if (netPort.trim()) args.push('-port', netPort.trim());
+    } else if (netPreset === 'join') {
+      if (netHost.trim()) args.push('+connect', netHost.trim());
+      if (netPort.trim()) args.push('-port', netPort.trim());
+    }
     return args;
-  }, [dmflagsValue, dmflags2Value, compatflagsValue, compatflags2Value]);
+  }, [dmflagsValue, dmflags2Value, compatflagsValue, compatflags2Value, netPreset, netHost, netPort]);
 
   const commandLineString = useMemo(() => {
     if (generatedArgs.length === 0) return '';
@@ -436,6 +462,44 @@ export const DmFlagsModal: React.FC<DmFlagsModalProps> = ({
           variant="pills"
           size="sm"
         />
+        {/* Network / multiplayer quick-host presets (appends -host/+connect/-port) */}
+        <div className="flex items-center gap-2 flex-wrap bg-doom-surface/60 p-2.5 rounded-lg border border-doom-border">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-doom-muted">Net play</span>
+          {(['off', 'host', 'join'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setNetPreset(mode)}
+              className={`text-xs px-2.5 py-1 rounded font-medium transition-colors ${
+                netPreset === mode
+                  ? 'bg-doom-accent text-white'
+                  : 'bg-doom-card text-doom-muted hover:text-doom-text border border-doom-border'
+              }`}
+            >
+              {mode === 'off' ? 'Single player' : mode === 'host' ? 'Host (-host 2)' : 'Join (+connect)'}
+            </button>
+          ))}
+          {netPreset === 'join' && (
+            <input
+              type="text"
+              value={netHost}
+              onChange={(e) => setNetHost(e.target.value)}
+              placeholder="host address"
+              aria-label="Join host address"
+              className="bg-doom-card border border-doom-border rounded px-2 py-1 text-xs text-doom-text placeholder-doom-muted focus:outline-none w-40"
+            />
+          )}
+          {netPreset !== 'off' && (
+            <input
+              type="text"
+              value={netPort}
+              onChange={(e) => setNetPort(e.target.value)}
+              placeholder="port (optional)"
+              aria-label="Net port"
+              className="bg-doom-card border border-doom-border rounded px-2 py-1 text-xs text-doom-text placeholder-doom-muted focus:outline-none w-32"
+            />
+          )}
+        </div>
 
         {/* Filter and Quick Action Toolbar */}
         <div className="flex items-center justify-between gap-3 bg-doom-surface/60 p-2.5 rounded-lg border border-doom-border">

@@ -82,6 +82,46 @@ export const HistoryView: React.FC = () => {
     }
   };
 
+  // Replay a recorded demo attached to a history record
+  const handleReplayDemo = async (record: LaunchRecord) => {
+    setLaunchingId(record.id);
+    try {
+      toast.info('Replaying Demo', `Replaying demo from "${record.profileName || 'Doom'}"...`);
+      await api.replayDemo(record.id);
+      toast.success('Demo Replay Started', 'Demo playback launched.');
+      loadHistoryData();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Could not replay demo';
+      toast.error('Replay Error', message);
+    } finally {
+      setLaunchingId(null);
+    }
+  };
+
+  // Restore the latest save snapshot for the record's preset (crash recovery)
+  const handleRestoreLatestSnapshot = async (record: LaunchRecord) => {
+    if (!record.profileId) {
+      toast.error('Restore Error', 'Record has no associated preset.');
+      return;
+    }
+    setLaunchingId(record.id);
+    try {
+      const snapshots = await api.listProfileSnapshots(record.profileId);
+      if (!snapshots || snapshots.length === 0) {
+        toast.info('No Snapshots', `No save snapshots exist for "${record.profileName || 'Doom'}" yet.`);
+        return;
+      }
+      const latest = snapshots[snapshots.length - 1];
+      await api.restoreProfileSnapshot(record.profileId, latest.id);
+      toast.success('Snapshot Restored', `Rolled back "${record.profileName || 'Doom'}" to "${latest.name || latest.label || latest.id}".`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Could not restore snapshot';
+      toast.error('Restore Error', message);
+    } finally {
+      setLaunchingId(null);
+    }
+  };
+
   // Clear all history
   const handleClearHistory = async () => {
     setIsClearing(true);
@@ -418,6 +458,18 @@ export const HistoryView: React.FC = () => {
                             >
                               Details
                             </button>
+                            {(record.demoPath || record.demo_path) && (
+                              <button
+                                type="button"
+                                onClick={() => handleReplayDemo(record)}
+                                disabled={isLaunching}
+                                title={`Replay demo ${record.demoPath || record.demo_path}`}
+                                className="inline-flex items-center gap-1.5 rounded-[8px] border border-purple-800/40 bg-purple-950/30 hover:bg-purple-950/50 px-2.5 py-1 text-xs font-[600] text-purple-300 transition-colors disabled:opacity-50"
+                              >
+                                <RotateCw className="h-3 w-3" />
+                                <span>Replay</span>
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleLaunchAgain(record)}
@@ -530,6 +582,29 @@ export const HistoryView: React.FC = () => {
               {selectedRecord.finishedAt && (
                 <span>Finished: {formatDate(selectedRecord.finishedAt)}</span>
               )}
+            </div>
+            {/* Recovery + demo actions for this preset */}
+            <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-[#22262d]">
+              {(selectedRecord.demoPath || selectedRecord.demo_path) && (
+                <button
+                  type="button"
+                  onClick={() => handleReplayDemo(selectedRecord)}
+                  disabled={launchingId === selectedRecord.id}
+                  className="inline-flex items-center gap-1.5 rounded-[8px] border border-purple-800/40 bg-purple-950/30 hover:bg-purple-950/50 px-2.5 py-1 text-xs font-[600] text-purple-300 transition-colors disabled:opacity-50"
+                >
+                  <RotateCw className="h-3 w-3" />
+                  <span>Replay Demo</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => handleRestoreLatestSnapshot(selectedRecord)}
+                disabled={launchingId === selectedRecord.id}
+                className="inline-flex items-center gap-1.5 rounded-[8px] border border-amber-800/40 bg-amber-950/30 hover:bg-amber-950/50 px-2.5 py-1 text-xs font-[600] text-amber-300 transition-colors disabled:opacity-50"
+              >
+                <Clock className="h-3 w-3" />
+                <span>Restore Latest Snapshot</span>
+              </button>
             </div>
           </div>
         )}

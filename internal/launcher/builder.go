@@ -12,7 +12,8 @@ import (
 
 // BuildArguments constructs a structured command-line argument slice for running a Doom engine.
 // Arguments are structured as:
-//   -iwad <iwad_path> [-file <mod1_path> <mod2_path> ...] [...customArgs]
+//
+//	-iwad <iwad_path> [-file <mod1_path> <mod2_path> ...] [...customArgs]
 //
 // Mods are filtered to only enabled entries and sorted in ascending load order (Order field).
 // Custom arguments are appended directly without shell interpolation.
@@ -77,11 +78,24 @@ func BuildArguments(engine *domain.Engine, iwad *domain.IWAD, mods []domain.Prof
 }
 
 // BuildArgumentsForProfile builds command-line arguments using a Profile entity.
+// Multiplayer (net mode/host/port) and demo record/playback arguments from the
+// profile are appended via the engine family dialect after mods and custom args.
 func BuildArgumentsForProfile(profile *domain.Profile, engine *domain.Engine, iwad *domain.IWAD) ([]string, error) {
 	if profile == nil {
 		return nil, errors.New("profile is required")
 	}
-	return BuildArguments(engine, iwad, profile.Mods, profile.Arguments)
+	args, err := BuildArguments(engine, iwad, profile.Mods, profile.Arguments)
+	if err != nil {
+		return nil, err
+	}
+	dialect := GetDialect(engine.Family)
+	if netArgs := dialect.FormatNetArgs(profile.NetMode, profile.NetHost, profile.NetPort); len(netArgs) > 0 {
+		args = append(args, netArgs...)
+	}
+	if demoArgs := dialect.FormatDemoArgs(profile.RecordDemoPath, profile.PlayDemoPath); len(demoArgs) > 0 {
+		args = append(args, demoArgs...)
+	}
+	return args, nil
 }
 
 // FormatCommandLine produces a human-readable display string representing the executable and arguments.

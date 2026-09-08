@@ -20,6 +20,7 @@ import {
   Mod,
   IWAD,
   Engine,
+  ActiveLaunch,
   LaunchRecord,
   HistoryStats,
   Settings,
@@ -50,9 +51,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [history, setHistory] = useState<LaunchRecord[]>([]);
   const [historyStats, setHistoryStats] = useState<HistoryStats | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
-
   const [isScanning, setIsScanning] = useState(false);
   const [isLaunchingHero, setIsLaunchingHero] = useState(false);
+  const [continuingId, setContinuingId] = useState<string | null>(null);
+  const [activeLaunches, setActiveLaunches] = useState<ActiveLaunch[]>([]);
+  const [sessionLogs, setSessionLogs] = useState<Record<string, string[]>>({});
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+  const [killingId, setKillingId] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
   const [selectedHeroProfileId, setSelectedHeroProfileId] = useState<string>('');
 
   const toast = useToast();
@@ -77,6 +83,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         fetchedHistory,
         fetchedStats,
         fetchedSettings,
+        fetchedActive,
       ] = await Promise.all([
         api.listProfiles().catch(() => []),
         api.listMods().catch(() => []),
@@ -85,6 +92,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         api.listLaunchHistory(10).catch(() => []),
         api.getHistoryStats().catch(() => null),
         api.getSettings().catch(() => null),
+        api.getActiveLaunches().catch(() => []),
       ]);
 
       const profs = fetchedProfiles || [];
@@ -98,6 +106,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       setHistory(fetchedHistory || []);
       setHistoryStats(fetchedStats);
       setSettings(fetchedSettings);
+      setActiveLaunches(fetchedActive || []);
+
 
       if (profs.length > 0) {
         setSelectedHeroProfileId((prev) => {
@@ -128,9 +138,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
   };
 
+  // "Play in 1 click": validates the top setup (explicit pick, else favorite,
+  // else most-played, else first) before launching it.
   const handleLaunchHero = async () => {
     if (isLaunchingHero) return;
-    const target = profiles.find((p) => p.id === selectedHeroProfileId) || profiles[0];
+    const target =
+      profiles.find((p) => p.id === selectedHeroProfileId) ||
+      profiles.find((p) => p.isFavorite) ||
+      (historyStats?.mostPlayedProfileId
+        ? profiles.find((p) => p.id === historyStats.mostPlayedProfileId)
+        : undefined) ||
+      profiles[0];
     if (!target) {
       showNotification('error', 'No preset available to launch.');
       return;
@@ -138,6 +156,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
     setIsLaunchingHero(true);
     try {
+      showNotification('info', `Validating "${target.name}"...`);
+      const validation = await api.validateProfile(target.id);
+      if (validation.status === 'CANNOT_LAUNCH') {
+        const blocker = validation.items?.find((i) => i.severity === 'error');
+        showNotification(
+          'error',
+          blocker ? `Cannot launch: ${blocker.message}` : 'Cannot launch: validation failed.'
+        );
+        return;
+      }
       showNotification('info', `Launching "${target.name}"...`);
       await api.launchProfile(target.id);
       showNotification('success', 'Game launched successfully.');
@@ -147,6 +175,36 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       showNotification('error', `Launch failed: ${message}`);
     } finally {
       setIsLaunchingHero(false);
+    }
+  };
+
+  // "Continue save": resumes the latest save via the backend when available,
+  // otherwise falls back to opening the profile save folder.
+  const handleContinueSave = async (profileId: string) => {
+    if (continuingId) return;
+    setContinuingId(profileId);
+    try {
+      const bridge = api as unknown as {
+        continueProfileSave?: (id: string) => Promise<{ launched?: boolean; saveDir?: string }>;
+      };
+      if (typeof bridge.continueProfileSave === 'function') {
+        const result = await bridge.continueProfileSave(profileId);
+        if (result?.launched) {
+          showNotification('success', 'Continuing from your latest save.');
+          loadDashboardData();
+          return;
+        }
+      }
+      await api.openProfileSaveFolder(profileId);
+    } catch {
+      try {
+        await api.openProfileSaveFolder(profileId);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Could not open save folder';
+        showNotification('error', message);
+      }
+    } finally {
+      setContinuingId(null);
     }
   };
 
@@ -176,6 +234,65 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       setIsScanning(false);
     }
   };
+  // Live session control: kill a running launch and refresh the panel
+  const handleKillLaunch = async (launchId: string) => {
+    setKillingId(launchId);
+    try {
+      await api.killLaunch(launchId);
+      showNotification('success', 'Session terminated.');
+      setActiveLaunches((prev) => prev.filter((s) => s.id !== launchId));
+      setSessionLogs((prev) => {
+        const next = { ...prev };
+        delete next[launchId];
+        return next;
+      });
+      if (expandedLogId === launchId) setExpandedLogId(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not kill session';
+      showNotification('error', message);
+    } finally {
+      setKillingId(null);
+    }
+  };
+
+  // Expandable per-session log drawer fed by the backend ring-buffer tail
+  const handleToggleSessionLogs = async (launchId: string) => {
+    if (expandedLogId === launchId) {
+      setExpandedLogId(null);
+      return;
+    }
+    setExpandedLogId(launchId);
+    try {
+      const logs = await api.getLaunchLogs(launchId);
+      setSessionLogs((prev) => ({ ...prev, [launchId]: logs || [] }));
+    } catch {
+      setSessionLogs((prev) => ({ ...prev, [launchId]: [] }));
+    }
+  };
+
+  // Crash recovery: restore the latest snapshot for a crashed session's preset
+  const handleRestoreCrashSnapshot = async (record: LaunchRecord) => {
+    if (!record.profileId) {
+      showNotification('error', 'Record has no associated preset.');
+      return;
+    }
+    setRestoringId(record.id);
+    try {
+      const snapshots = await api.listProfileSnapshots(record.profileId);
+      if (!snapshots || snapshots.length === 0) {
+        showNotification('info', `No snapshots exist for "${record.profileName || 'Doom'}" yet.`);
+        return;
+      }
+      const latest = snapshots[snapshots.length - 1];
+      await api.restoreProfileSnapshot(record.profileId, latest.id);
+      showNotification('success', `Restored "${record.profileName || 'Doom'}" to latest snapshot.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not restore snapshot';
+      showNotification('error', message);
+    } finally {
+      setRestoringId(null);
+    }
+  };
 
   const isCompact = settings?.uiDensity === 'compact';
   const hasAssets = engines.length > 0 && iwads.length > 0;
@@ -184,6 +301,37 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     profiles.find((p) => p.id === selectedHeroProfileId) ||
     profiles.find((p) => p.isFavorite) ||
     profiles[0];
+
+  // Per-profile playtime comes from history stats when the backend provides
+  // a perProfile breakdown (lands via profile-stats work); absent → hidden.
+  // Both camelCase and snake_case keys are tolerated defensively.
+  interface PerProfileStat {
+    profileId?: string;
+    profile_id?: string;
+    totalHours?: number;
+    total_hours?: number;
+    totalPlayTimeMs?: number;
+    total_playtime_ms?: number;
+    playtimeMs?: number;
+    lastPlayed?: string;
+    last_played?: string;
+    lastLaunchedAt?: string;
+    last_launched_at?: string;
+  }
+  const perProfileStats: PerProfileStat[] =
+    (historyStats as unknown as { perProfile?: PerProfileStat[]; per_profile?: PerProfileStat[] } | null)
+      ?.perProfile ??
+    (historyStats as unknown as { per_profile?: PerProfileStat[] } | null)?.per_profile ??
+    [];
+  const heroStat = activeHeroProfile
+    ? perProfileStats.find((s) => (s.profileId ?? s.profile_id) === activeHeroProfile.id)
+    : undefined;
+  const heroHours = heroStat?.totalHours ?? heroStat?.total_hours;
+  const heroPlaytimeMs =
+    (typeof heroHours === 'number' ? heroHours * 3600000 : undefined) ??
+    heroStat?.totalPlayTimeMs ?? heroStat?.total_playtime_ms ?? heroStat?.playtimeMs;
+  const heroLastPlayed =
+    heroStat?.lastPlayed ?? heroStat?.last_played ?? heroStat?.lastLaunchedAt ?? heroStat?.last_launched_at;
 
   const sortedProfiles = [...profiles].sort((a, b) => {
     if (a.isFavorite && !b.isFavorite) return -1;
@@ -266,6 +414,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     : 'Vanilla (No Mods)'}
                 </span>
               </div>
+              {(heroPlaytimeMs != null || heroLastPlayed) && (
+                <div
+                  className="flex items-center gap-1.5 bg-[#0c0c0f] border border-[#2d2d34] px-2.5 py-1 rounded-[8px] transition-colors duration-[0.001s] ease-[ease]"
+                  title="Playtime on this setup"
+                >
+                  <Clock className="h-3.5 w-3.5 text-[#71717a]" />
+                  <span className="font-[500] text-[#a1a1aa]">
+                    {heroPlaytimeMs != null ? formatDuration(heroPlaytimeMs) : '—'}
+                    {heroLastPlayed ? ` • last played ${formatRelativeTime(heroLastPlayed)}` : ''}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -275,6 +435,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               type="button"
               onClick={handleLaunchHero}
               disabled={isLaunchingHero}
+              title="Play in 1 click — validates then launches your top setup"
+              aria-label="Play in 1 click"
               className="inline-flex items-center justify-center gap-2.5 rounded-[32px] bg-[#0f0f12] hover:bg-[#0c0c0f] text-[#f4f4f5] border border-[#2d2d34] hover:border-[#3a3a44] pt-[8px] pr-[14px] pb-[8px] pl-[18px] text-sm font-[500] transition-[background-color,color,border-color] duration-[0.001s] ease-[ease] disabled:opacity-50 shadow-none [font-family:var(--font-geist),Geist,sans-serif]"
             >
               {isLaunchingHero ? (
@@ -298,6 +460,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               >
                 <Sliders className="w-3.5 h-3.5" />
                 <span>Configure Setup</span>
+              </button>
+            )}
+            {activeHeroProfile && (
+              <button
+                type="button"
+                onClick={() => handleContinueSave(activeHeroProfile.id)}
+                disabled={continuingId === activeHeroProfile.id}
+                title="Continue save — resume this setup from its latest save"
+                className="inline-flex items-center justify-center gap-1.5 text-xs text-[#a1a1aa] hover:text-[#f4f4f5] py-1 transition-[color] duration-[0.001s] ease-[ease] font-[500] [font-family:var(--font-geist),Geist,sans-serif] disabled:opacity-50"
+              >
+                {continuingId === activeHeroProfile.id ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <FolderOpen className="w-3.5 h-3.5" />
+                )}
+                <span>{continuingId === activeHeroProfile.id ? 'Continuing…' : 'Continue save'}</span>
               </button>
             )}
           </div>
@@ -339,6 +517,75 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
       )}
+      {/* ACTIVE SESSIONS — live launches with kill + log drawer */}
+      <div className="space-y-3.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-[500] text-[#f4f4f5] tracking-tight [font-family:var(--font-geist),Geist,sans-serif]">Active Sessions</h2>
+            <span className="text-xs font-[500] text-[#71717a] [font-family:var(--font-geist),Geist,sans-serif]">({activeLaunches.length})</span>
+          </div>
+          <button
+            type="button"
+            onClick={loadDashboardData}
+            title="Refresh active sessions"
+            className="p-1 rounded-[8px] text-[#71717a] hover:text-[#f4f4f5] hover:bg-[#0c0c0f] transition-[background-color,color] duration-[0.001s] ease-[ease]"
+          >
+            <RotateCw className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {activeLaunches.length === 0 ? (
+          <div className="rounded-[12px] border border-[#2d2d34] bg-[#0f0f12] p-5 text-center text-xs text-[#71717a] font-[500]">
+            No game sessions running right now. Launch a preset to see it live here.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {activeLaunches.map((session) => {
+              const isExpanded = expandedLogId === session.id;
+              const logs = sessionLogs[session.id] || [];
+              const isKilling = killingId === session.id;
+              return (
+                <div key={session.id} className="rounded-[12px] border border-[#2d2d34] bg-[#0f0f12] p-4 space-y-2.5">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                      <span className="text-xs font-[500] text-[#f4f4f5] truncate">
+                        {session.profileName || session.profile_name || 'Game session'}
+                      </span>
+                      <span className="text-[11px] font-mono text-[#71717a] truncate">
+                        {session.engineName || session.engine_name} • pid {session.pid}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleSessionLogs(session.id)}
+                        className="inline-flex items-center gap-1 rounded-[14px] border border-[#2d2d34] bg-[#0c0c0f] hover:bg-[#0f0f12] px-2.5 py-1 text-[11px] font-[500] text-[#a1a1aa] hover:text-[#f4f4f5] transition-[background-color,color] duration-[0.001s] ease-[ease]"
+                      >
+                        <ChevronDown className={cn('h-3 w-3 transition-transform', isExpanded && 'rotate-180')} />
+                        <span>{isExpanded ? 'Hide logs' : 'View logs'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleKillLaunch(session.id)}
+                        disabled={isKilling}
+                        className="inline-flex items-center gap-1 rounded-[14px] border border-red-900/40 bg-red-950/20 hover:bg-red-950/40 px-2.5 py-1 text-[11px] font-[500] text-red-400 transition-[background-color,color] duration-[0.001s] ease-[ease] disabled:opacity-50"
+                      >
+                        {isKilling ? <Loader2 className="h-3 w-3 animate-spin" /> : <span>Kill</span>}
+                      </button>
+                    </div>
+                  </div>
+                  {isExpanded && (
+                    <div className="rounded-[8px] border border-[#2d2d34] bg-[#09090b] p-3 max-h-48 overflow-y-auto font-mono text-[11px] leading-relaxed text-[#a1a1aa] whitespace-pre-wrap">
+                      {logs.length === 0 ? 'No log output captured for this session yet.' : logs.join('\n')}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* SETUPS GALLERY — Slate */}
       <div className="space-y-3.5">
@@ -395,6 +642,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 onLaunch={handleLaunch}
                 onToggleFavorite={handleToggleFavorite}
                 onSelectProfile={onSelectProfile}
+                onContinueSave={handleContinueSave}
               />
             ))}
           </div>
@@ -462,14 +710,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             {formatRelativeTime(record.startedAt)}
                           </td>
                           <td className="px-3.5 py-2.5 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleLaunch(record.profileId)}
-                              className="inline-flex items-center gap-1 rounded-[14px] bg-[#0f0f12] hover:bg-[#0c0c0f] text-[#f4f4f5] hover:text-white border border-[#2d2d34] hover:border-[#3a3a44] px-2 py-1 text-[11px] font-[500] transition-[background-color,color,border-color] duration-[0.001s] ease-[ease] [font-family:var(--font-geist),Geist,sans-serif]"
-                            >
-                              <Play className="h-2.5 w-2.5 fill-current" />
-                              <span>Play</span>
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              {!isSuccess && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRestoreCrashSnapshot(record)}
+                                  disabled={restoringId === record.id}
+                                  title="Session crashed — roll saves back to the latest snapshot"
+                                  className="inline-flex items-center gap-1 rounded-[14px] border border-amber-800/40 bg-amber-950/20 hover:bg-amber-950/40 px-2 py-1 text-[11px] font-[500] text-amber-300 transition-[background-color,color] duration-[0.001s] ease-[ease] disabled:opacity-50 [font-family:var(--font-geist),Geist,sans-serif]"
+                                >
+                                  <RotateCw className="h-2.5 w-2.5" />
+                                  <span>{restoringId === record.id ? 'Restoring…' : 'Restore save'}</span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleLaunch(record.profileId)}
+                                className="inline-flex items-center gap-1 rounded-[14px] bg-[#0f0f12] hover:bg-[#0c0c0f] text-[#f4f4f5] hover:text-white border border-[#2d2d34] hover:border-[#3a3a44] px-2 py-1 text-[11px] font-[500] transition-[background-color,color,border-color] duration-[0.001s] ease-[ease] [font-family:var(--font-geist),Geist,sans-serif]"
+                              >
+                                <Play className="h-2.5 w-2.5 fill-current" />
+                                <span>Play</span>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );

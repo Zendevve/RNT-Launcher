@@ -35,6 +35,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showFilePaths: false,
   showRecentLaunches: 3,
   formatVisibility: ['.wad', '.pk3', '.pk7', '.ipk3', '.zip', '.deh', '.bex'],
+  watchDirectories: true,
   defaultView: 'dashboard',
 };
 
@@ -115,6 +116,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'direct
           confirmLaunch: Boolean(data.confirmLaunch),
           autoScanOnStartup: data.autoScanOnStartup ?? true,
           closeOnLaunch: Boolean(data.closeOnLaunch),
+          watchDirectories: data.watchDirectories ?? data.watch_directories ?? true,
           uiDensity: data.uiDensity || 'compact',
           showFilePaths: Boolean(data.showFilePaths),
           showRecentLaunches: typeof data.showRecentLaunches === 'number' ? data.showRecentLaunches : 3,

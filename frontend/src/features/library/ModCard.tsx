@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Star,
   Eye,
@@ -9,6 +9,7 @@ import {
 import { Mod, ModFormat, UiDensity } from '../../types';
 import { formatBytes } from '../../utils/formatters';
 import { cn } from '../../utils/cn';
+import { api } from '../../services/api';
 import { DeleteModConfirmModal } from './DeleteModConfirmModal';
 
 interface ModCardProps {
@@ -57,6 +58,33 @@ export const ModCard: React.FC<ModCardProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isFavLoading, setIsFavLoading] = useState(false);
+  const thumbRef = useRef<HTMLDivElement | null>(null);
+  const [artworkUri, setArtworkUri] = useState<string | null>(null);
+
+  // Lazy artwork: fetch only once the card scrolls into view; never fetch offscreen.
+  useEffect(() => {
+    const el = thumbRef.current;
+    if (!el) return;
+    let cancelled = false;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return;
+        observer.disconnect();
+        api
+          .getModArtwork(mod.id)
+          .then((art) => {
+            if (!cancelled && art && art.hasArt && art.dataUri) setArtworkUri(art.dataUri);
+          })
+          .catch(() => {});
+      },
+      { rootMargin: '64px' }
+    );
+    observer.observe(el);
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
+  }, [mod.id]);
   const handleFavorite = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsFavLoading(true);
@@ -130,6 +158,17 @@ export const ModCard: React.FC<ModCardProps> = ({
           </button>
         </div>
 
+        {/* Lazy artwork thumb (128px): neutral placeholder while loading or on miss */}
+        <div
+          ref={thumbRef}
+          className="mt-2 flex h-32 items-center justify-center overflow-hidden rounded-md border border-[#22262d] bg-[#0c0e12]"
+        >
+          {artworkUri ? (
+            <img src={artworkUri} alt="" loading="lazy" className="h-full w-full object-contain" />
+          ) : (
+            <div className="h-full w-full bg-[#171b21]" aria-hidden="true" />
+          )}
+        </div>
         {/* Mod Name & Filename */}
         <div className="mt-2">
           <h3

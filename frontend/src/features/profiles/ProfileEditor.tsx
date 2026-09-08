@@ -28,6 +28,7 @@ import {
   Engine,
   IWAD,
   Mod,
+  SnapshotInfo,
   ValidationResult,
 } from '../../types';
 import { api } from '../../services/api';
@@ -79,6 +80,26 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
   const [isolateSaves, setIsolateSaves] = useState(
     Boolean(profile.isolateSaves ?? profile.isolate_saves ?? false)
   );
+  const [netMode, setNetMode] = useState(profile.netMode || 'off');
+  const [netHost, setNetHost] = useState(profile.netHost || '');
+  const [netPort, setNetPort] = useState(
+    profile.netPort !== undefined && profile.netPort !== null ? String(profile.netPort) : ''
+  );
+  const [recordDemoPath, setRecordDemoPath] = useState(profile.recordDemoPath || '');
+  const [playDemoPath, setPlayDemoPath] = useState(profile.playDemoPath || '');
+  const [snapshotBeforeLaunch, setSnapshotBeforeLaunch] = useState(() => {
+    try {
+      return window.localStorage.getItem('rnt_snapshot_before_launch') !== 'off';
+    } catch {
+      return true;
+    }
+  });
+  const [snapshots, setSnapshots] = useState<SnapshotInfo[]>([]);
+  const [isSnapshotsLoading, setIsSnapshotsLoading] = useState(false);
+  const [isSnapshotBusy, setIsSnapshotBusy] = useState(false);
+  const [isTemplateBusy, setIsTemplateBusy] = useState(false);
+  const [isShortcutBusy, setIsShortcutBusy] = useState(false);
+  const [isBundleBusy, setIsBundleBusy] = useState(false);
   const [mods, setMods] = useState<ProfileMod[]>(profile.mods || []);
   const [argumentsText, setArgumentsText] = useState(
     (profile.arguments || []).join(' ')
@@ -132,11 +153,12 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
     setIwadId(profile.iwadId || '');
     setParentProfileId(profile.parentProfileId || profile.parent_profile_id || '');
     setIsolateSaves(Boolean(profile.isolateSaves ?? profile.isolate_saves ?? false));
+    setNetMode(profile.netMode || 'off');
+    setNetHost(profile.netHost || '');
+    setNetPort(profile.netPort !== undefined && profile.netPort !== null ? String(profile.netPort) : '');
+    setRecordDemoPath(profile.recordDemoPath || '');
+    setPlayDemoPath(profile.playDemoPath || '');
     setMods(profile.mods || []);
-    setArgumentsText((profile.arguments || []).join(' '));
-    setWorkingDir(profile.workingDir || '');
-    setIsFavorite(profile.isFavorite || false);
-    setHasUnsavedChanges(false);
   }, [
     profile.id,
     profile.name,
@@ -212,6 +234,11 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
       iwadName: iwads.find((w) => w.id === iwadId)?.name || '',
       parentProfileId: parentProfileId || undefined,
       isolateSaves,
+      netMode: netMode || 'off',
+      netHost: netHost.trim(),
+      netPort: netPort.trim() ? Number(netPort.trim()) : undefined,
+      recordDemoPath: recordDemoPath.trim(),
+      playDemoPath: playDemoPath.trim(),
       mods,
       arguments: parsedArguments,
       workingDir: workingDir.trim(),
@@ -302,6 +329,24 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
 
   const handleToggleMod = (modId: string, enabled: boolean) => {
     const updated = mods.map((m) => (m.modId === modId ? { ...m, enabled } : m));
+    setMods(updated);
+    handleSave({ mods: updated });
+  };
+  // Conflict quick-fix: move the overridden (first-claimant) mod last so it wins.
+  const handleConflictMoveLast = (targetModId: string) => {
+    const idx = mods.findIndex((m) => m.modId === targetModId || m.modPath === targetModId);
+    if (idx < 0) return;
+    const next = [...mods];
+    const [moved] = next.splice(idx, 1);
+    next.push(moved);
+    handleModsReorder(next.map((m, order) => ({ ...m, order })));
+  };
+
+  // Conflict quick-fix: disable the overridden mod to resolve the collision.
+  const handleConflictDisable = (targetModId: string) => {
+    const updated = mods.map((m) =>
+      m.modId === targetModId || m.modPath === targetModId ? { ...m, enabled: false } : m
+    );
     setMods(updated);
     handleSave({ mods: updated });
   };
@@ -443,6 +488,14 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
 
     setIsLaunching(true);
     try {
+      if (snapshotBeforeLaunch) {
+        try {
+          await api.createProfileSnapshot(profile.id, `Before launch ${new Date().toLocaleString()}`);
+          await loadSnapshots();
+        } catch {
+          // best-effort safety snapshot — never block the launch
+        }
+      }
       toast.info('Launching Game', `Starting "${profile.name}"...`);
       const record = await api.launchProfile(profile.id);
       if (record.status === 'success' || (record.exitCode !== undefined && record.exitCode === 0)) {
@@ -460,6 +513,112 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
       setIsLaunching(false);
     }
   };
+  // Snapshots: list / create / restore (backend lands behind List/Create/RestoreProfileSnapshot)
+  const loadSnapshots = async () => {
+    if (!profile.id) return;
+    setIsSnapshotsLoading(true);
+    try {
+      const list = await api.listProfileSnapshots(profile.id);
+      setSnapshots(list || []);
+    } catch {
+      setSnapshots([]);
+    } finally {
+      setIsSnapshotsLoading(false);
+    }
+  };
+
+  const handleCreateSnapshot = async (label?: string) => {
+    setIsSnapshotBusy(true);
+    try {
+      await api.createProfileSnapshot(profile.id, label || `Manual ${new Date().toLocaleString()}`);
+      toast.success('Snapshot Created', 'Save state captured for this preset');
+      await loadSnapshots();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to create snapshot';
+      toast.error('Snapshot Failed', msg);
+    } finally {
+      setIsSnapshotBusy(false);
+    }
+  };
+
+  const handleRestoreSnapshot = async (snapshotId: string) => {
+    setIsSnapshotBusy(true);
+    try {
+      await api.restoreProfileSnapshot(profile.id, snapshotId);
+      toast.success('Snapshot Restored', 'Save state rolled back to the selected snapshot');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to restore snapshot';
+      toast.error('Restore Failed', msg);
+    } finally {
+      setIsSnapshotBusy(false);
+    }
+  };
+
+  const handleToggleSnapshotBeforeLaunch = (checked: boolean) => {
+    setSnapshotBeforeLaunch(checked);
+    try {
+      window.localStorage.setItem('rnt_snapshot_before_launch', checked ? 'on' : 'off');
+    } catch {
+      // storage unavailable — session-only preference
+    }
+  };
+
+  // Profiles as shareable modpacks: seed a new profile from a built-in template
+  const handleCreateFromTemplate = async (template: string) => {
+    setIsTemplateBusy(true);
+    try {
+      const created = await api.createProfileFromTemplate(template);
+      toast.success('Preset Created', `Seeded "${created.name}" from the ${template} template`);
+      onProfileDuplicated(created);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to create preset from template';
+      toast.error('Template Failed', msg);
+    } finally {
+      setIsTemplateBusy(false);
+    }
+  };
+
+  // Bundle export (.rntpack + share code copied to clipboard)
+  const handleExportBundle = async () => {
+    setIsBundleBusy(true);
+    try {
+      const result = await api.exportProfileBundle(profile.id);
+      const shareCode = result.shareCode || result.share_code || '';
+      if (shareCode) {
+        try {
+          await navigator.clipboard.writeText(shareCode);
+        } catch {
+          // clipboard unavailable — share code still shown in the toast
+        }
+      }
+      toast.success('Modpack Exported', shareCode ? `Bundle saved; share code copied: ${shareCode.slice(0, 48)}…` : `Bundle saved to ${result.zipPath || result.path || 'disk'}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Export failed';
+      toast.error('Export Failed', msg);
+    } finally {
+      setIsBundleBusy(false);
+    }
+  };
+
+  // Desktop shortcut (backend lands with wave3; guarded so the UI never breaks)
+  const handleCreateShortcut = async () => {
+    setIsShortcutBusy(true);
+    try {
+      await api.createDesktopShortcut(profile.id);
+      toast.success('Shortcut Created', 'Desktop shortcut written for this preset');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to create desktop shortcut';
+      toast.error('Shortcut Failed', msg);
+    } finally {
+      setIsShortcutBusy(false);
+    }
+  };
+
+  // Refresh the snapshot list whenever the active preset changes
+  useEffect(() => {
+    loadSnapshots();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile.id]);
 
   const selectedEngineObj = engines.find((e) => e.id === engineId);
   const selectedIWADObj = iwads.find((w) => w.id === iwadId);
@@ -695,6 +854,30 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
                 >
                   <Download className="w-3.5 h-3.5 text-[#71717a]" />
                   <span>Export YAML</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsActionsOpen(false);
+                    handleExportBundle();
+                  }}
+                  disabled={isBundleBusy}
+                  className="w-full px-3 py-1.5 text-left text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.05)] flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#71717a]" />
+                  <span>{isBundleBusy ? 'Exporting Pack…' : 'Export .rntpack + Share Code'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsActionsOpen(false);
+                    handleCreateShortcut();
+                  }}
+                  disabled={isShortcutBusy}
+                  className="w-full px-3 py-1.5 text-left text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.05)] flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Plus className="w-3.5 h-3.5 text-[#71717a]" />
+                  <span>{isShortcutBusy ? 'Creating Shortcut…' : 'Create Desktop Shortcut'}</span>
                 </button>
                 <button
                   type="button"
@@ -946,6 +1129,149 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
                 Prevents save state corruption between complex mod configurations.
               </p>
             </div>
+            {/* Multiplayer / Net Play (persisted; builder appends -host/+connect/-port) */}
+            <div className="space-y-2 pt-4 border-t border-[#22262d]">
+              <label className="text-xs font-semibold text-zinc-200 uppercase tracking-wider flex items-center gap-2">
+                <Sliders className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Multiplayer / Net Play</span>
+              </label>
+              <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  value={netMode}
+                  onChange={(e) => {
+                    setNetMode(e.target.value);
+                    handleSave({ netMode: e.target.value });
+                  }}
+                  aria-label="Network play mode"
+                  className="bg-[#14171c] border border-[#22262d] rounded-lg px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-zinc-500 font-medium"
+                >
+                  <option value="off">Single player</option>
+                  <option value="host">Host game (-host)</option>
+                  <option value="join">Join game (+connect)</option>
+                </select>
+                {netMode === 'join' && (
+                  <input
+                    type="text"
+                    value={netHost}
+                    onChange={(e) => {
+                      setNetHost(e.target.value);
+                      setHasUnsavedChanges(true);
+                    }}
+                    onBlur={() => handleSave({ netHost: netHost.trim() })}
+                    placeholder="Host address"
+                    aria-label="Join host address"
+                    className="flex-1 min-w-[140px] bg-[#14171c] border border-[#22262d] rounded-lg px-3 py-2 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 font-mono"
+                  />
+                )}
+                {netMode !== 'off' && (
+                  <input
+                    type="text"
+                    value={netPort}
+                    onChange={(e) => {
+                      setNetPort(e.target.value);
+                      setHasUnsavedChanges(true);
+                    }}
+                    onBlur={() => handleSave({ netPort: netPort.trim() ? Number(netPort.trim()) : undefined })}
+                    placeholder="Port (optional)"
+                    aria-label="Network port"
+                    className="w-32 bg-[#14171c] border border-[#22262d] rounded-lg px-3 py-2 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 font-mono"
+                  />
+                )}
+              </div>
+              <p className="text-[11px] text-zinc-500">
+                Host appends -host 2 (-port when set); join appends +connect host (-port when set).
+              </p>
+            </div>
+
+            {/* Demo Recording / Playback (-record/-playdemo) */}
+            <div className="space-y-2 pt-4 border-t border-[#22262d]">
+              <label className="text-xs font-semibold text-zinc-200 uppercase tracking-wider flex items-center gap-2">
+                <Play className="w-3.5 h-3.5 text-purple-400" />
+                <span>Demo Recording / Playback</span>
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  value={recordDemoPath}
+                  onChange={(e) => {
+                    setRecordDemoPath(e.target.value);
+                    setHasUnsavedChanges(true);
+                  }}
+                  onBlur={() => handleSave({ recordDemoPath: recordDemoPath.trim() })}
+                  placeholder="Record demo to file (-record)"
+                  aria-label="Record demo path"
+                  className="bg-[#14171c] border border-[#22262d] rounded-lg px-3 py-2 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 font-mono"
+                />
+                <input
+                  type="text"
+                  value={playDemoPath}
+                  onChange={(e) => {
+                    setPlayDemoPath(e.target.value);
+                    setHasUnsavedChanges(true);
+                  }}
+                  onBlur={() => handleSave({ playDemoPath: playDemoPath.trim() })}
+                  placeholder="Play demo file (-playdemo)"
+                  aria-label="Play demo path"
+                  className="bg-[#14171c] border border-[#22262d] rounded-lg px-3 py-2 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 font-mono"
+                />
+              </div>
+            </div>
+
+            {/* Save Snapshots (snapshot before launch + one-click restore) */}
+            <div className="space-y-2 pt-4 border-t border-[#22262d]">
+              <label className="text-xs font-semibold text-zinc-200 uppercase tracking-wider flex items-center gap-2">
+                <FolderLock className="w-3.5 h-3.5 text-amber-400" />
+                <span>Save Snapshots</span>
+              </label>
+              <div className="flex items-center justify-between gap-3 bg-[#14171c] p-3 rounded-lg border border-[#22262d] flex-wrap">
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={snapshotBeforeLaunch}
+                    onChange={(e) => handleToggleSnapshotBeforeLaunch(e.target.checked)}
+                    className="w-4 h-4 rounded border-[#2d2d34] bg-[#09090b] text-[#5e7ce2] focus:ring-[#5e7ce2] cursor-pointer accent-[#5e7ce2]"
+                  />
+                  <span className="text-xs font-medium text-zinc-200">
+                    Snapshot saves before each launch
+                  </span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => handleCreateSnapshot()}
+                  disabled={isSnapshotBusy}
+                  className="inline-flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white px-2.5 py-1 rounded bg-[#1a1f28] border border-[#22262d] transition-colors disabled:opacity-50"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{isSnapshotBusy ? 'Working…' : 'Snapshot Now'}</span>
+                </button>
+              </div>
+              {isSnapshotsLoading ? (
+                <p className="text-[11px] text-zinc-500">Loading snapshots…</p>
+              ) : snapshots.length === 0 ? (
+                <p className="text-[11px] text-zinc-500">No snapshots yet — capture one before risky launches.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {snapshots.map((snap) => (
+                    <div
+                      key={snap.id}
+                      className="flex items-center justify-between gap-2 bg-[#14171c] px-3 py-1.5 rounded-lg border border-[#22262d]"
+                    >
+                      <span className="text-xs text-zinc-200 truncate" title={snap.path || snap.id}>
+                        {snap.name || snap.label || snap.id}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRestoreSnapshot(snap.id)}
+                        disabled={isSnapshotBusy}
+                        className="text-xs text-amber-300 hover:text-amber-100 transition-colors shrink-0 disabled:opacity-50"
+                      >
+                        Restore
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Custom Working Directory */}
             <div className="space-y-2 pt-4 border-t border-[#22262d]">
@@ -1022,6 +1348,20 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
               <p className="text-[11px] text-zinc-500">
                 Optionally inherit baseline mods or engine settings from another profile.
               </p>
+              <div className="flex items-center gap-2 flex-wrap pt-1">
+                <span className="text-[11px] text-zinc-500">Or seed a new preset from a template:</span>
+                {['vanilla', 'brutal-doom', 'megawad-night', 'multiplayer'].map((template) => (
+                  <button
+                    key={template}
+                    type="button"
+                    onClick={() => handleCreateFromTemplate(template)}
+                    disabled={isTemplateBusy}
+                    className="text-[11px] font-medium px-2.5 py-1 rounded bg-[#1a1f28] border border-[#22262d] text-zinc-300 hover:text-white transition-colors disabled:opacity-50"
+                  >
+                    {template}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -1146,6 +1486,8 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
                 validation={validation}
                 isValidating={isValidating}
                 onValidate={runValidation}
+                onMoveLast={handleConflictMoveLast}
+                onDisableMod={handleConflictDisable}
               />
             </div>
           </div>

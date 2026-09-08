@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"rnt-launcher/internal/domain"
@@ -237,6 +238,119 @@ func TestEndToEndUserWorkflow(t *testing.T) {
 	}
 	if revalRes.Status != domain.ValidationStatusReady {
 		t.Fatalf("Expected READY status for imported profile, got %s", revalRes.Status)
+	}
+	// 21. Conflict detection: two map WADs sharing MAP01 plus a shared TITLEPIC lump
+	conflictAPath := filepath.Join(modsDir, "conflict-a.wad")
+	createTestWAD(t, conflictAPath, false, []string{"MAP01", "TITLEPIC", "A_ONLY"})
+	conflictBPath := filepath.Join(modsDir, "conflict-b.wad")
+	createTestWAD(t, conflictBPath, false, []string{"MAP01", "TITLEPIC", "B_ONLY"})
+	conflictModA, err := app.ImportModFile(conflictAPath)
+	if err != nil {
+		t.Fatalf("ImportModFile conflict-a failed: %v", err)
+	}
+	conflictModB, err := app.ImportModFile(conflictBPath)
+	if err != nil {
+		t.Fatalf("ImportModFile conflict-b failed: %v", err)
+	}
+	conflictProf, err := app.CreateProfile(domain.Profile{
+		Name:     "Conflict Probe",
+		EngineID: engine.ID,
+		IWADID:   iwads[0].ID,
+	})
+	if err != nil {
+		t.Fatalf("CreateProfile conflict probe failed: %v", err)
+	}
+	if err := app.AddModToProfile(conflictProf.ID, conflictModA.ID); err != nil {
+		t.Fatalf("AddModToProfile conflict-a failed: %v", err)
+	}
+	if err := app.AddModToProfile(conflictProf.ID, conflictModB.ID); err != nil {
+		t.Fatalf("AddModToProfile conflict-b failed: %v", err)
+	}
+	confRes, err := app.ValidateProfile(conflictProf.ID)
+	if err != nil {
+		t.Fatalf("ValidateProfile conflict probe failed: %v", err)
+	}
+	hasSlotCollision, hasLumpCollision := false, false
+	for _, item := range confRes.Items {
+		if item.Code == "mod-map-slot-collision" && item.Severity == domain.ValidationSeverityError {
+			hasSlotCollision = true
+		}
+		if item.Code == "mod-lump-collision" && item.Severity == domain.ValidationSeverityWarning {
+			hasLumpCollision = true
+		}
+	}
+	if !hasSlotCollision {
+		t.Fatalf("Expected mod-map-slot-collision error, got %+v", confRes.Items)
+	}
+	if !hasLumpCollision {
+		t.Fatalf("Expected mod-lump-collision warning, got %+v", confRes.Items)
+	}
+	// 22. Bundle export/import round-trip preserves profile name and mod set
+	bundleRes, err := app.ExportProfileBundle(importedProf.ID)
+	if err != nil {
+		t.Fatalf("ExportProfileBundle failed: %v", err)
+	}
+	bundlePath, ok := bundleRes["zipPath"].(string)
+	if !ok || bundlePath == "" {
+		t.Fatalf("ExportProfileBundle missing zipPath: %+v", bundleRes)
+	}
+	reimportedProf, err := app.ImportProfileBundle(bundlePath)
+	if err != nil {
+		t.Fatalf("ImportProfileBundle failed: %v", err)
+	}
+	if strings.TrimSuffix(reimportedProf.Name, " (imported)") != importedProf.Name {
+		t.Fatalf("Expected reimported profile name %q, got %q", importedProf.Name, reimportedProf.Name)
+	}
+	if len(reimportedProf.Mods) != len(importedProf.Mods) {
+		t.Fatalf("Expected %d mods in reimported profile, got %d", len(importedProf.Mods), len(reimportedProf.Mods))
+	}
+	libraryMods, err := app.ListMods(domain.ModFilter{})
+	if err != nil {
+		t.Fatalf("ListMods for bundle hash check failed: %v", err)
+	}
+	shaByID := make(map[string]string, len(libraryMods))
+	for _, m := range libraryMods {
+		shaByID[m.ID] = m.SHA256
+	}
+	wantHashes := make(map[string]bool, len(importedProf.Mods))
+	for _, pm := range importedProf.Mods {
+		wantHashes[shaByID[pm.ModID]] = true
+	}
+	for _, pm := range reimportedProf.Mods {
+		if !wantHashes[shaByID[pm.ModID]] {
+			t.Fatalf("Reimported mod %q hash not in original set", pm.ModID)
+		}
+	}
+	// 23. Snapshot round-trip: mutate save dir, restore byte-equal
+	saveDir, err := app.GetProfileSaveDir(importedProf.ID)
+	if err != nil {
+		t.Fatalf("GetProfileSaveDir failed: %v", err)
+	}
+	probePath := filepath.Join(saveDir, "savegame.dat")
+	originalSave := []byte("doom-save-slot-1-payload")
+	if err := os.WriteFile(probePath, originalSave, 0644); err != nil {
+		t.Fatalf("failed to seed save file: %v", err)
+	}
+	snapRes, err := app.CreateProfileSnapshot(importedProf.ID, "e2e-probe")
+	if err != nil {
+		t.Fatalf("CreateProfileSnapshot failed: %v", err)
+	}
+	snapID, ok := snapRes["id"].(string)
+	if !ok || snapID == "" {
+		t.Fatalf("CreateProfileSnapshot missing id: %+v", snapRes)
+	}
+	if err := os.WriteFile(probePath, []byte("mutated-after-snapshot"), 0644); err != nil {
+		t.Fatalf("failed to mutate save file: %v", err)
+	}
+	if err := app.RestoreProfileSnapshot(importedProf.ID, snapID); err != nil {
+		t.Fatalf("RestoreProfileSnapshot failed: %v", err)
+	}
+	restoredSave, err := os.ReadFile(probePath)
+	if err != nil {
+		t.Fatalf("failed to read restored save file: %v", err)
+	}
+	if !bytes.Equal(restoredSave, originalSave) {
+		t.Fatalf("Restored save mismatch: got %q, want %q", restoredSave, originalSave)
 	}
 }
 

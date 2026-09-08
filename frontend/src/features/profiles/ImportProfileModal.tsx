@@ -22,7 +22,7 @@ import { useToast } from '../../components/ui/Toast';
 
 export interface ImportProfileModalProps {
   isOpen: boolean;
-  initialFormat?: 'yaml' | 'zdl';
+  initialFormat?: 'yaml' | 'zdl' | 'pack';
   onClose: () => void;
   onImportSuccess: (profile: Profile, warnings: ValidationItem[]) => void;
 }
@@ -49,7 +49,7 @@ export const ImportProfileModal: React.FC<ImportProfileModalProps> = ({
   onImportSuccess,
 }) => {
   const toast = useToast();
-  const [importFormat, setImportFormat] = useState<'yaml' | 'zdl'>(initialFormat);
+  const [importFormat, setImportFormat] = useState<'yaml' | 'zdl' | 'pack'>(initialFormat);
   const [fileContent, setFileContent] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [activeTab, setActiveTab] = useState<'paste' | 'file'>('paste');
@@ -84,11 +84,26 @@ export const ImportProfileModal: React.FC<ImportProfileModalProps> = ({
     }
   }, [isOpen, initialFormat]);
 
+  // Pasted modpack share codes (rnt://pack/...) bypass YAML/ZDL parsing entirely
+  const trimmedContent = fileContent.trim();
+  const isShareCode = trimmedContent.startsWith('rnt://pack/');
+
   // Parse content client-side for live preview
   const parseResult = useMemo<{
     data: ParsedProfileData | null;
     error: string | null;
   }>(() => {
+    if (isShareCode) {
+      return {
+        data: {
+          name: 'Modpack (share code)',
+          engineQuery: '',
+          iwadQuery: '',
+          mods: [],
+        },
+        error: null,
+      };
+    }
     if (!fileContent.trim()) {
       return { data: null, error: null };
     }
@@ -222,7 +237,7 @@ export const ImportProfileModal: React.FC<ImportProfileModalProps> = ({
         return { data: null, error: msg };
       }
     }
-  }, [fileContent, importFormat]);
+  }, [fileContent, importFormat, isShareCode]);
 
   // Match resolutions for preview
   const previewMatching = useMemo(() => {
@@ -305,6 +320,23 @@ export const ImportProfileModal: React.FC<ImportProfileModalProps> = ({
 
     setIsImporting(true);
     try {
+      // Modpack share codes paste straight through to the bundle importer
+      if (isShareCode) {
+        const result = await api.importProfileShareCode(trimmedContent);
+        const missing = result.missingHashes || result.missing_hashes || [];
+        if (missing.length > 0) {
+          toast.warning(
+            'Pack Imported With Gaps',
+            `"${result.profile.name}" imported, but ${missing.length} mod hash(es) had no local match: ${missing.slice(0, 3).join(', ')}${missing.length > 3 ? '…' : ''}`
+          );
+        } else {
+          toast.success('Pack Imported', `Successfully imported modpack "${result.profile.name}"`);
+        }
+        onImportSuccess(result.profile, result.warnings || []);
+        onClose();
+        return;
+      }
+
       let result: { profile: Profile; warnings: ValidationItem[] };
       if (importFormat === 'zdl') {
         result = await api.importProfileZDL(fileContent);
@@ -326,6 +358,57 @@ export const ImportProfileModal: React.FC<ImportProfileModalProps> = ({
     }
   };
 
+  // Import a .rntpack bundle file by disk path (zip payloads cannot travel through a text reader)
+  const handleImportPackPath = async (zipPath: string) => {
+    if (!zipPath) return;
+    setIsImporting(true);
+    try {
+      const result = await api.importProfileBundle(zipPath);
+      const missing = result.missingHashes || result.missing_hashes || [];
+      if (missing.length > 0) {
+        toast.warning(
+          'Pack Imported With Gaps',
+          `"${result.profile.name}" imported, but ${missing.length} mod hash(es) had no local match: ${missing.slice(0, 3).join(', ')}${missing.length > 3 ? '…' : ''}`
+        );
+      } else {
+        toast.success('Pack Imported', `Successfully imported modpack "${result.profile.name}"`);
+      }
+      onImportSuccess(result.profile, result.warnings || []);
+      onClose();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Pack import failed';
+      toast.error('Pack Import Failed', msg);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleBrowsePackFile = async () => {
+    try {
+      const selected = await api.openFileDialog('Select Modpack Bundle', '', ['rntpack', 'zip']);
+      if (selected) await handleImportPackPath(selected);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Could not open file dialog';
+      toast.error('Browse Failed', msg);
+    }
+  };
+
+  const handlePackDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const files = Array.from(e.dataTransfer.files || []);
+    const pack = files.find((f) => f.name.toLowerCase().endsWith('.rntpack'));
+    const packPath =
+      pack && typeof pack === 'object' && 'path' in pack && typeof pack.path === 'string'
+        ? pack.path
+        : '';
+    if (packPath) {
+      await handleImportPackPath(packPath);
+    } else if (pack) {
+      toast.error('Pack Drop Failed', 'Dropped bundle has no disk path in this runtime — use Browse instead.');
+    }
+  };
+
   return (
     <>
       <Modal
@@ -337,12 +420,14 @@ export const ImportProfileModal: React.FC<ImportProfileModalProps> = ({
             <span className="rounded-[8px] bg-[#0c0c0f] border border-[#2d2d34] p-1.5 text-[#5e7ce2]">
               <FileUp className="w-4 h-4" />
             </span>
-            <span>{importFormat === 'zdl' ? 'Import .zdl Configuration' : 'Import Profile YAML'}</span>
+            <span>{importFormat === 'zdl' ? 'Import .zdl Configuration' : importFormat === 'pack' ? 'Import Modpack Bundle' : 'Import Profile YAML'}</span>
           </div>
         }
         description={
           importFormat === 'zdl'
             ? 'Import a legacy qZDL or ZDL-3 preset configuration directly into a native profile.'
+            : importFormat === 'pack'
+            ? 'Paste an rnt://pack/... share code or drop a .rntpack bundle to recreate the full preset with mods.'
             : 'Import a portable Doom profile specification conforming to version 1 schema.'
         }
         size="2xl"
@@ -401,6 +486,18 @@ export const ImportProfileModal: React.FC<ImportProfileModalProps> = ({
               <FileText className="w-3.5 h-3.5" />
               qZDL / ZDL-3 (.zdl)
             </button>
+            <button
+              type="button"
+              onClick={() => setImportFormat('pack')}
+              className={`text-xs px-3 py-1.5 rounded font-medium transition-colors flex items-center gap-1.5 ${
+                importFormat === 'pack'
+                  ? 'bg-doom-red text-white'
+                  : 'bg-doom-card text-doom-muted hover:text-doom-text border border-doom-border'
+              }`}
+            >
+              <FileUp className="w-3.5 h-3.5" />
+              Modpack (.rntpack)
+            </button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -439,7 +536,9 @@ export const ImportProfileModal: React.FC<ImportProfileModalProps> = ({
               value={fileContent}
               onChange={(e) => setFileContent(e.target.value)}
               placeholder={
-                importFormat === 'zdl'
+                importFormat === 'pack'
+                  ? `Paste an rnt://pack/... share code here, or switch to Upload File to browse for a .rntpack bundle`
+                  : importFormat === 'zdl'
                   ? `[zdl.save]\nport=GZDoom\niwad=DOOM2.WAD\nfile_0=C:\\mods\\brutal.pk3\nfile_0_enabled=1\ncustom_params=-fast\nwarp=MAP01`
                   : `version: 1\nprofile:\n  name: "My Doom Setup"\n  engine:\n    name: "GZDoom"\n  iwad:\n    name: "DOOM2.WAD"\n  mods:\n    - name: "smoothdoom.pk3"\n      enabled: true`
               }
@@ -453,22 +552,39 @@ export const ImportProfileModal: React.FC<ImportProfileModalProps> = ({
             )}
           </div>
         ) : (
-          <div className="border-2 border-dashed border-doom-border rounded-lg p-6 text-center hover:border-doom-red/60 transition-colors bg-doom-surface/40">
-            <input
-              type="file"
-              accept={importFormat === 'zdl' ? '.zdl,.ini,.txt' : '.yaml,.yml,.txt'}
-              id="profile-file-input"
-              className="hidden"
-              onChange={handleFileInputChange}
-            />
-            <label
-              htmlFor="profile-file-input"
-              className="cursor-pointer flex flex-col items-center gap-2 text-doom-muted hover:text-doom-text"
-            >
-              <FileUp className="w-8 h-8 text-doom-red/80" />
-              <span className="text-sm font-medium">Click to select {importFormat === 'zdl' ? '.zdl' : '.yaml'} file</span>
-              <span className="text-xs text-doom-muted">or drag and drop here</span>
-            </label>
+          <div
+            className="border-2 border-dashed border-doom-border rounded-lg p-6 text-center hover:border-doom-red/60 transition-colors bg-doom-surface/40"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={importFormat === 'pack' ? handlePackDrop : undefined}
+          >
+            {importFormat === 'pack' ? (
+              <div className="flex flex-col items-center gap-2 text-doom-muted">
+                <FileUp className="w-8 h-8 text-doom-red/80" />
+                <span className="text-sm font-medium text-doom-text">Import a .rntpack modpack bundle</span>
+                <span className="text-xs text-doom-muted">drop the bundle here, or browse by disk path</span>
+                <Button variant="outline" size="sm" onClick={handleBrowsePackFile} disabled={isImporting} className="mt-1">
+                  Browse .rntpack File
+                </Button>
+              </div>
+            ) : (
+              <>
+                <input
+                  type="file"
+                  accept={importFormat === 'zdl' ? '.zdl,.ini,.txt' : '.yaml,.yml,.txt'}
+                  id="profile-file-input"
+                  className="hidden"
+                  onChange={handleFileInputChange}
+                />
+                <label
+                  htmlFor="profile-file-input"
+                  className="cursor-pointer flex flex-col items-center gap-2 text-doom-muted hover:text-doom-text"
+                >
+                  <FileUp className="w-8 h-8 text-doom-red/80" />
+                  <span className="text-sm font-medium">Click to select {importFormat === 'zdl' ? '.zdl' : '.yaml'} file</span>
+                  <span className="text-xs text-doom-muted">or drag and drop here</span>
+                </label>
+              </>
+            )}
           </div>
         )}
 

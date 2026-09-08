@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 
 	"rnt-launcher/internal/domain"
@@ -15,6 +16,8 @@ type EngineDialect interface {
 	FormatSaveDir(dir string) []string
 	FormatConfig(configPath string) []string
 	FormatCompatibilityLevel(level string) []string
+	FormatNetArgs(netMode, netHost string, netPort int) []string
+	FormatDemoArgs(recordPath, playPath string) []string
 }
 
 var (
@@ -367,6 +370,97 @@ func (d *GenericDialect) FormatConfig(configPath string) []string {
 
 func (d *GenericDialect) FormatCompatibilityLevel(level string) []string {
 	return nil
+}
+
+// formatNetArgs builds generic Doom multiplayer arguments shared by all
+// dialects: host mode starts a 2-player session (-host 2) with an optional
+// -port, join mode connects to a host (+connect) with an optional -port.
+// Unknown or empty modes yield no arguments; it never fails.
+func formatNetArgs(netMode, netHost string, netPort int) []string {
+	switch strings.ToLower(strings.TrimSpace(netMode)) {
+	case "host":
+		args := []string{"-host", "2"}
+		if netPort > 0 {
+			args = append(args, "-port", strconv.Itoa(netPort))
+		}
+		return args
+	case "join":
+		host := strings.TrimSpace(netHost)
+		if host == "" {
+			return nil
+		}
+		args := []string{"+connect", host}
+		if netPort > 0 {
+			args = append(args, "-port", strconv.Itoa(netPort))
+		}
+		return args
+	default:
+		return nil
+	}
+}
+
+// formatDemoArgs builds generic Doom demo arguments shared by all dialects:
+// record maps to -record and playback maps to -playdemo. Empty paths yield
+// no arguments; it never fails.
+func formatDemoArgs(recordPath, playPath string) []string {
+	var args []string
+	if p := strings.TrimSpace(recordPath); p != "" {
+		args = append(args, "-record", p)
+	}
+	if p := strings.TrimSpace(playPath); p != "" {
+		args = append(args, "-playdemo", p)
+	}
+	return args
+}
+
+// FormatNetArgs returns multiplayer arguments for the ZDoom family.
+func (d *ZDoomDialect) FormatNetArgs(netMode, netHost string, netPort int) []string {
+	return formatNetArgs(netMode, netHost, netPort)
+}
+
+// FormatDemoArgs returns demo record/playback arguments for the ZDoom family.
+func (d *ZDoomDialect) FormatDemoArgs(recordPath, playPath string) []string {
+	return formatDemoArgs(recordPath, playPath)
+}
+
+// FormatNetArgs returns multiplayer arguments for the Chocolate/Crispy family.
+func (d *ChocolateDialect) FormatNetArgs(netMode, netHost string, netPort int) []string {
+	return formatNetArgs(netMode, netHost, netPort)
+}
+
+// FormatDemoArgs returns demo record/playback arguments for the Chocolate/Crispy family.
+func (d *ChocolateDialect) FormatDemoArgs(recordPath, playPath string) []string {
+	return formatDemoArgs(recordPath, playPath)
+}
+
+// FormatNetArgs returns multiplayer arguments for the PrBoom+/DSDA family.
+func (d *PrBoomDialect) FormatNetArgs(netMode, netHost string, netPort int) []string {
+	return formatNetArgs(netMode, netHost, netPort)
+}
+
+// FormatDemoArgs returns demo record/playback arguments for the PrBoom+/DSDA family.
+func (d *PrBoomDialect) FormatDemoArgs(recordPath, playPath string) []string {
+	return formatDemoArgs(recordPath, playPath)
+}
+
+// FormatNetArgs returns multiplayer arguments for the Woof family.
+func (d *WoofDialect) FormatNetArgs(netMode, netHost string, netPort int) []string {
+	return formatNetArgs(netMode, netHost, netPort)
+}
+
+// FormatDemoArgs returns demo record/playback arguments for the Woof family.
+func (d *WoofDialect) FormatDemoArgs(recordPath, playPath string) []string {
+	return formatDemoArgs(recordPath, playPath)
+}
+
+// FormatNetArgs returns generic multiplayer arguments for unknown families.
+func (d *GenericDialect) FormatNetArgs(netMode, netHost string, netPort int) []string {
+	return formatNetArgs(netMode, netHost, netPort)
+}
+
+// FormatDemoArgs returns generic demo arguments for unknown families.
+func (d *GenericDialect) FormatDemoArgs(recordPath, playPath string) []string {
+	return formatDemoArgs(recordPath, playPath)
 }
 
 // GetDialect returns the appropriate EngineDialect based on engine family.

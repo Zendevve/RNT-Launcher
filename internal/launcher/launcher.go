@@ -1,10 +1,14 @@
 package launcher
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -76,6 +80,44 @@ func (h *osProcessHandle) Wait() (int, error) {
 }
 
 func (r *OSProcessRunner) Start(ctx context.Context, executable string, args []string, workingDir string) (ProcessHandle, error) {
+	return r.StartWithOutput(ctx, executable, args, workingDir, nil)
+}
+
+// streamingRunner is implemented by process runners that can stream per-line
+// stdout/stderr output to a callback while the process runs.
+type streamingRunner interface {
+	StartWithOutput(ctx context.Context, executable string, args []string, workingDir string, onOutput func(stream, line string)) (ProcessHandle, error)
+}
+
+// osStreamingHandle wraps osProcessHandle and additionally waits for the
+// stdout/stderr scanner goroutines to drain before Wait returns.
+type osStreamingHandle struct {
+	osProcessHandle
+	wg *sync.WaitGroup
+}
+
+// Wait waits for the process to exit and for streamed output to drain.
+func (h *osStreamingHandle) Wait() (int, error) {
+	code, err := h.osProcessHandle.Wait()
+	if h.wg != nil {
+		h.wg.Wait()
+	}
+	return code, err
+}
+
+// scanLines feeds each scanned line to fn until the reader is exhausted.
+func scanLines(reader io.Reader, fn func(line string)) {
+	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		fn(scanner.Text())
+	}
+}
+
+// StartWithOutput starts the process and streams per-line stdout/stderr output
+// to onOutput ("stdout"/"stderr" stream names). A nil callback disables
+// streaming; the launch never fails because of output capture.
+func (r *OSProcessRunner) StartWithOutput(ctx context.Context, executable string, args []string, workingDir string, onOutput func(stream, line string)) (ProcessHandle, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -83,10 +125,27 @@ func (r *OSProcessRunner) Start(ctx context.Context, executable string, args []s
 	if workingDir != "" {
 		cmd.Dir = workingDir
 	}
+	var wg sync.WaitGroup
+	if onOutput != nil {
+		if stdout, err := cmd.StdoutPipe(); err == nil {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				scanLines(stdout, func(line string) { onOutput("stdout", line) })
+			}()
+		}
+		if stderr, err := cmd.StderrPipe(); err == nil {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				scanLines(stderr, func(line string) { onOutput("stderr", line) })
+			}()
+		}
+	}
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
-	return &osProcessHandle{cmd: cmd}, nil
+	return &osStreamingHandle{osProcessHandle: osProcessHandle{cmd: cmd}, wg: &wg}, nil
 }
 
 // EventEmitter defines a callback for emitting asynchronous lifecycle events to the UI.
@@ -105,9 +164,23 @@ type ActiveLaunch struct {
 
 	handle ProcessHandle
 }
+
 // GetPid returns the process ID of the active launch.
 func (a *ActiveLaunch) GetPid() int {
 	return a.Pid
+}
+
+// maxLaunchLogLines bounds how many trailing output lines are retained per
+// launch for crash diagnostics.
+const maxLaunchLogLines = 200
+
+// CrashReport describes a nonzero-exit launch for the launcher:crashed event.
+type CrashReport struct {
+	LaunchID    string `json:"launchId"`
+	ProfileID   string `json:"profileId"`
+	ProfileName string `json:"profileName"`
+	ExitCode    int    `json:"exitCode"`
+	LogPath     string `json:"logPath"`
 }
 
 // LauncherService orchestrates profile validation, command-line argument construction,
@@ -122,6 +195,11 @@ type LauncherService struct {
 
 	active map[string]*ActiveLaunch
 	mu     sync.RWMutex
+
+	// launchLogs retains the trailing output lines per launch for crash
+	// diagnostics; drained when the process exits.
+	launchLogs map[string][]string
+	logsMu     sync.Mutex
 }
 
 // New creates a new LauncherService instance.
@@ -147,18 +225,138 @@ func NewLauncherService(
 		runner = NewOSProcessRunner()
 	}
 	return &LauncherService{
-		validator: validator,
-		profiles:  profiles,
-		history:   history,
-		runner:    runner,
-		emitter:   emitter,
-		active:    make(map[string]*ActiveLaunch),
+		validator:  validator,
+		profiles:   profiles,
+		history:    history,
+		runner:     runner,
+		emitter:    emitter,
+		active:     make(map[string]*ActiveLaunch),
+		launchLogs: make(map[string][]string),
 	}
 }
 
 // SetSaveService configures the SaveService for per-profile save isolation.
 func (s *LauncherService) SetSaveService(saves *saves.SaveService) {
 	s.saves = saves
+}
+
+// AppendLaunchLog buffers one line of process output for a launch, retaining
+// only the last maxLaunchLogLines lines for crash diagnostics.
+func (s *LauncherService) AppendLaunchLog(launchID, line string) {
+	if s == nil || strings.TrimSpace(launchID) == "" {
+		return
+	}
+	s.logsMu.Lock()
+	defer s.logsMu.Unlock()
+	if s.launchLogs == nil {
+		s.launchLogs = make(map[string][]string)
+	}
+	buf := append(s.launchLogs[launchID], line)
+	if len(buf) > maxLaunchLogLines {
+		buf = append([]string(nil), buf[len(buf)-maxLaunchLogLines:]...)
+	}
+	s.launchLogs[launchID] = buf
+}
+
+// takeLaunchLogs drains and returns the buffered output lines for a launch.
+func (s *LauncherService) takeLaunchLogs(launchID string) []string {
+	s.logsMu.Lock()
+	defer s.logsMu.Unlock()
+	buf := s.launchLogs[launchID]
+	delete(s.launchLogs, launchID)
+	return buf
+}
+
+// emitOutput buffers one line of launch output and emits it on the
+// per-launch stream event (launcher:stdout:<launchID> or
+// launcher:stderr:<launchID>). Unknown stream names fall back to stdout.
+// It never fails the launch.
+func (s *LauncherService) emitOutput(launchID, stream, line string) {
+	if s == nil {
+		return
+	}
+	s.AppendLaunchLog(launchID, line)
+	if s.emitter == nil {
+		return
+	}
+	if stream == "stderr" {
+		s.emitter("launcher:stderr:"+launchID, line)
+		return
+	}
+	s.emitter("launcher:stdout:"+launchID, line)
+}
+
+// GetLaunchLogs returns a copy of the retained output tail for a launch,
+// oldest first. A limit <= 0 returns the last maxLaunchLogLines lines.
+// Buffers are drained on process exit, so post-exit calls may return nil.
+func (s *LauncherService) GetLaunchLogs(launchID string, limit int) []string {
+	if s == nil {
+		return nil
+	}
+	if limit <= 0 {
+		limit = maxLaunchLogLines
+	}
+	s.logsMu.Lock()
+	defer s.logsMu.Unlock()
+	buf := s.launchLogs[launchID]
+	if len(buf) > limit {
+		buf = buf[len(buf)-limit:]
+	}
+	out := make([]string, len(buf))
+	copy(out, buf)
+	return out
+}
+
+// crashLogDir resolves where crash_<launchID>.log files are written:
+// <saves-base>/crashes when a SaveService is configured, otherwise the OS
+// temp directory. The directory is created on demand by writeCrashLog.
+func (s *LauncherService) crashLogDir() string {
+	if s != nil && s.saves != nil && strings.TrimSpace(s.saves.BaseDir()) != "" {
+		return filepath.Join(s.saves.BaseDir(), "crashes")
+	}
+	return filepath.Join(os.TempDir(), "rnt-launcher-crashes")
+}
+
+// sanitizeCrashComponent keeps only [A-Za-z0-9_-] for crash log file names.
+func sanitizeCrashComponent(v string) string {
+	var b strings.Builder
+	b.Grow(len(v))
+	for _, r := range v {
+		if r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' || r == '_' {
+			b.WriteRune(r)
+		}
+	}
+	if b.Len() == 0 {
+		return "unknown"
+	}
+	return b.String()
+}
+
+// writeCrashLog persists the last buffered output lines for a failed launch
+// to crash_<launchID>.log. It never returns an error: failures yield an empty
+// path so the exit path stays infallible.
+func (s *LauncherService) writeCrashLog(launchID string, record domain.LaunchRecord, lines []string) string {
+	if len(lines) > maxLaunchLogLines {
+		lines = lines[len(lines)-maxLaunchLogLines:]
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "RNT Launcher crash log\nlaunch: %s\nprofile: %s (%s)\nengine: %s\ncommand: %s\nexit code: %d\n--- last %d output line(s) ---\n",
+		launchID, record.ProfileName, record.ProfileID, record.EngineName, record.CommandLine, record.ExitCode, len(lines))
+	for _, line := range lines {
+		b.WriteString(line)
+		if !strings.HasSuffix(line, "\n") {
+			b.WriteByte('\n')
+		}
+	}
+	dir := s.crashLogDir()
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return ""
+	}
+	logPath := filepath.Join(dir, "crash_"+sanitizeCrashComponent(launchID)+".log")
+	if err := os.WriteFile(logPath, []byte(b.String()), 0644); err != nil {
+		return ""
+	}
+	return logPath
 }
 
 // LaunchProfile validates a profile by ID, builds its launch arguments, starts the source port process,
@@ -243,10 +441,26 @@ func (s *LauncherService) LaunchProfileEntity(ctx context.Context, p *domain.Pro
 		}
 	}
 
+	// Append multiplayer and demo arguments from the profile via the engine
+	// family dialect. Unknown families receive generic flags; this never
+	// fails the launch.
+	launchDialect := GetDialect(engine.Family)
+	if netArgs := launchDialect.FormatNetArgs(p.NetMode, p.NetHost, p.NetPort); len(netArgs) > 0 {
+		args = append(args, netArgs...)
+	}
+	if demoArgs := launchDialect.FormatDemoArgs(p.RecordDemoPath, p.PlayDemoPath); len(demoArgs) > 0 {
+		args = append(args, demoArgs...)
+	}
+
 	// 3. Record start time & initialize LaunchRecord
 	startTime := time.Now().UTC()
 	launchID := uuid.NewString()
 	cmdLine := FormatCommandLine(engine.Executable, args)
+
+	demoPath := strings.TrimSpace(p.RecordDemoPath)
+	if demoPath == "" {
+		demoPath = strings.TrimSpace(p.PlayDemoPath)
+	}
 
 	record := &domain.LaunchRecord{
 		ID:          launchID,
@@ -256,10 +470,20 @@ func (s *LauncherService) LaunchProfileEntity(ctx context.Context, p *domain.Pro
 		IWADName:    iwad.Name,
 		StartedAt:   startTime,
 		CommandLine: cmdLine,
+		DemoPath:    demoPath,
 	}
 
-	// 4. Start external process
-	handle, err := s.runner.Start(ctx, engine.Executable, args, p.WorkingDir)
+	// 4. Start external process, streaming stdout/stderr per line when the
+	// runner supports it. Runners without streaming keep the previous
+	// behavior; the launch never fails because of output capture.
+	var handle ProcessHandle
+	if sr, ok := s.runner.(streamingRunner); ok {
+		handle, err = sr.StartWithOutput(ctx, engine.Executable, args, p.WorkingDir, func(stream, line string) {
+			s.emitOutput(launchID, stream, line)
+		})
+	} else {
+		handle, err = s.runner.Start(ctx, engine.Executable, args, p.WorkingDir)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to start process %s: %w", engine.Executable, err)
 	}
@@ -324,9 +548,27 @@ func (s *LauncherService) monitorProcess(launchID string, handle ProcessHandle, 
 		_ = s.history.Add(record)
 	}
 
-	// Emit exit event
+	// Emit exit events: the historical launch:exit name is preserved, and a
+	// launcher:exit alias carries the same final record for live session UI.
 	if s.emitter != nil {
 		s.emitter("launch:exit", &record)
+		s.emitter("launcher:exit", &record)
+	}
+
+	// On nonzero exit, persist the last buffered output lines and emit a
+	// crash event. Buffered logs are drained for every exit to bound memory.
+	lines := s.takeLaunchLogs(launchID)
+	if record.Status == domain.LaunchStatusFailed {
+		logPath := s.writeCrashLog(launchID, record, lines)
+		if s.emitter != nil {
+			s.emitter("launcher:crashed", &CrashReport{
+				LaunchID:    launchID,
+				ProfileID:   record.ProfileID,
+				ProfileName: record.ProfileName,
+				ExitCode:    exitCode,
+				LogPath:     logPath,
+			})
+		}
 	}
 }
 

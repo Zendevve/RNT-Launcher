@@ -1,4 +1,4 @@
-import { Activity, Minimize2, RotateCw, ShieldCheck } from 'lucide-react';
+import { Activity, FolderOpen, Minimize2, RotateCw, ShieldCheck } from 'lucide-react';
 import type { Settings } from '../../../types/domain';
 import { SettingCard } from '../components/SettingCard';
 import { ToggleSwitch } from '../components/ToggleSwitch';
@@ -28,12 +28,20 @@ export function BehaviorTab({ settings, update, filter }: BehaviorTabProps) {
     'Automatic Background Scan on Startup Silently checks configured folders in the background for newly added WAD, PK3, and engine files upon application launch. autoScanOnStartup scan startup',
     filter,
   );
+  const showWatch = matchesFilter(
+    'Auto-scan folders Periodically re-scans configured library folders for newly added files while the launcher is open. watchDirectories watcher auto-scan folders',
+    filter,
+  );
+  const showWatchSub = matchesFilter(
+    'Watch subfolders Subfolder coverage follows the configured Mod IWAD Engine directory lists watch subfolders',
+    filter,
+  );
   const showTelemetry = matchesFilter(
     'Process Supervisor Telemetry stdout stderr stream capture exit code monitoring session playtime telemetry logging',
     filter,
   );
 
-  const visible = [showConfirm, showClose, showAutoScan, showTelemetry].filter(Boolean).length;
+  const visible = [showConfirm, showClose, showAutoScan, showWatch, showWatchSub, showTelemetry].filter(Boolean).length;
   if (visible === 0) {
     return (
       <div className="rounded-[12px] border border-[#2d2d34] bg-[#0f0f12] p-8 text-center">
@@ -88,6 +96,29 @@ export function BehaviorTab({ settings, update, filter }: BehaviorTabProps) {
           }
         />
       )}
+      {showWatch && (
+        <SettingCard
+          title="Auto-scan folders"
+          description="Periodically re-scans your configured library folders for newly added files while the launcher is open."
+          icon={<FolderOpen className="h-4 w-4 text-zinc-400" />}
+          control={
+            <ToggleSwitch
+              checked={settings.watchDirectories ?? true}
+              onChange={(v) => update({ watchDirectories: v })}
+              label="Auto-scan folders"
+            />
+          }
+        />
+      )}
+
+      {showWatchSub && (
+        <SettingCard
+          title="Watch subfolders"
+          description="Subfolder coverage follows the Mod, IWAD, and Engine directory lists configured under Directories — no extra paths to manage."
+          icon={<FolderOpen className="h-4 w-4 text-zinc-500" />}
+        />
+      )}
+
 
       {showTelemetry && (
         <SettingCard

@@ -7,9 +7,6 @@ import {
   ScanBanner,
   ToastProvider,
   useToast,
-  Modal,
-  Input,
-  Badge,
 } from './components';
 import { DashboardView } from './features/dashboard';
 import { LibraryView } from './features/library';
@@ -20,18 +17,12 @@ import { HistoryView } from './features/history';
 import { DiagnosticsView } from './features/diagnostics';
 import { SettingsView } from './features/settings';
 import { api } from './services/api';
-import { Mod, Profile, Engine, IWAD, ScanResult, LaunchRecord, ScanProgress, UiDensity, Settings } from './types';
-import {
-  Search,
-  Crosshair,
-  Library as LibraryIcon,
-  Cpu,
-  Disc,
-  Play,
-  Flame,
-} from 'lucide-react';
+import { SearchPalette } from './features/search/SearchPalette';
+import { useCrashRecoveryToast } from './hooks/useCrashRecoveryToast';
+import type { ScanResult, ScanProgress, LaunchRecord, Engine, IWAD, UiDensity, Settings, Mod, Profile } from './types';
 function AppContent() {
   const toast = useToast();
+  useCrashRecoveryToast();
   const notify = (message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     if (type === 'success') toast.success(message);
     else if (type === 'error') toast.error(message);
@@ -249,6 +240,12 @@ function AppContent() {
   // Keyboard Shortcuts (Ctrl+K -> Search, Ctrl+Enter -> Quick Launch)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Never hijack keystrokes typed into editable fields.
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || target?.isContentEditable) {
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setIsSearchModalOpen((prev) => !prev);
@@ -277,101 +274,30 @@ function AppContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [allProfiles, selectedProfileId, refreshData, toast]);
 
-  // Filtered global search results
-  const filteredSearch = useMemo(() => {
-    if (!globalSearchQuery.trim()) {
-      return { mods: [], profiles: [], engines: [], iwads: [] };
-    }
-    const q = globalSearchQuery.toLowerCase();
-    return {
-      profiles: allProfiles.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.engine_name?.toLowerCase().includes(q) ||
-          p.iwad_name?.toLowerCase().includes(q)
-      ),
-      mods: allMods.filter(
-        (m) =>
-          m.name.toLowerCase().includes(q) ||
-          m.path.toLowerCase().includes(q) ||
-          m.category.toLowerCase().includes(q)
-      ),
-      engines: allEngines.filter(
-        (e) =>
-          e.name.toLowerCase().includes(q) ||
-          e.family.toLowerCase().includes(q) ||
-          e.executable.toLowerCase().includes(q)
-      ),
-      iwads: allIwads.filter(
-        (i) =>
-          i.name.toLowerCase().includes(q) ||
-          i.type.toLowerCase().includes(q) ||
-          i.path.toLowerCase().includes(q)
-      ),
-    };
-  }, [globalSearchQuery, allMods, allProfiles, allEngines, allIwads]);
-  // Command-palette keyboard nav (query/grouping above unchanged)
-  const [searchActiveIndex, setSearchActiveIndex] = useState(0);
-  useEffect(() => {
-    setSearchActiveIndex(0);
-  }, [globalSearchQuery]);
-  useEffect(() => {
-    if (isSearchModalOpen) {
-      setSearchActiveIndex(0);
-    }
-  }, [isSearchModalOpen]);
-  const searchModOffset = filteredSearch.profiles.length;
-  const searchEngineOffset = searchModOffset + Math.min(filteredSearch.mods.length, 10);
-  const searchIwadOffset = searchEngineOffset + filteredSearch.engines.length;
-  const searchPaletteEntries: { key: string; run: () => void }[] = [
-    ...filteredSearch.profiles.map((p) => ({
-      key: `profile-${p.id}`,
-      run: () => {
-        setSelectedProfileId(p.id);
-        setActiveView('profiles');
-        setIsSearchModalOpen(false);
-      },
-    })),
-    ...filteredSearch.mods.slice(0, 10).map((m) => ({
-      key: `mod-${m.id}`,
-      run: () => {
-        setActiveView('library');
-        setIsSearchModalOpen(false);
-      },
-    })),
-    ...filteredSearch.engines.map((e) => ({
-      key: `engine-${e.id}`,
-      run: () => {
-        setActiveView('engines');
-        setIsSearchModalOpen(false);
-      },
-    })),
-    ...filteredSearch.iwads.map((i) => ({
-      key: `iwad-${i.id}`,
-      run: () => {
-        setActiveView('iwads');
-        setIsSearchModalOpen(false);
-      },
-    })),
-  ];
-  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setSearchActiveIndex((prev) =>
-        searchPaletteEntries.length === 0 ? 0 : (prev + 1) % searchPaletteEntries.length
-      );
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setSearchActiveIndex((prev) =>
-        searchPaletteEntries.length === 0
-          ? 0
-          : (prev - 1 + searchPaletteEntries.length) % searchPaletteEntries.length
-      );
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      searchPaletteEntries[searchActiveIndex]?.run();
-    }
-  };
+  // Global search palette lives in features/search/SearchPalette; Enter on a
+  // profile entry launches it, other entries navigate to their views.
+  const handlePaletteLaunchProfile = useCallback(
+    (profileId: string) => {
+      const target = allProfiles.find((p) => p.id === profileId);
+      toast.info('Launching Profile', `Launching ${target?.name || 'profile'}...`);
+      setIsSearchModalOpen(false);
+      api
+        .launchProfile(profileId)
+        .then(() => refreshData())
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          toast.error('Launch Failed', msg || 'Validation error');
+        });
+    },
+    [allProfiles, refreshData, toast]
+  );
+  const handlePaletteNavigate = useCallback(
+    (view: NavViewId) => {
+      setActiveView(view);
+      refreshData();
+    },
+    [refreshData]
+  );
 
   const viewTitles: Record<NavViewId, string> = {
     dashboard: 'Dashboard',
@@ -598,210 +524,22 @@ function AppContent() {
           </AnimatePresence>
         </main>
       </div>
-      {isSearchModalOpen && (
-        <Modal
-          isOpen={isSearchModalOpen}
-          onClose={() => {
-            setIsSearchModalOpen(false);
-            setGlobalSearchQuery('');
-          }}
-          title="Global Search"
-          size="lg"
-        >
-          <div className="space-y-3">
-            <Input
-              autoFocus
-              leftIcon={<Search className="w-4 h-4" />}
-              placeholder="Filter..."
-              value={globalSearchQuery}
-              onChange={(e) => setGlobalSearchQuery(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-            />
-            <div className="max-h-96 overflow-y-auto space-y-4 pr-1">
-              {/* Profiles section */}
-              {filteredSearch.profiles.length > 0 && (
-                <div>
-                  <h4 className="text-[11px] uppercase text-[#71717a] tracking-wide mb-2 flex items-center gap-1.5">
-                    <Crosshair className="w-3.5 h-3.5 text-[#ef4444]" />
-                    Profiles ({filteredSearch.profiles.length})
-                  </h4>
-                  <div className="space-y-1">
-                    {filteredSearch.profiles.map((p, idx) => {
-                      const rowIndex = idx;
-                      const isActive = rowIndex === searchActiveIndex;
-                      return (
-                        <div
-                          key={p.id}
-                          onClick={() => {
-                            setSelectedProfileId(p.id);
-                            setActiveView('profiles');
-                            setIsSearchModalOpen(false);
-                          }}
-                          onMouseEnter={() => setSearchActiveIndex(rowIndex)}
-                          className={`flex items-center justify-between rounded-[8px] px-3 py-2 hover:bg-[#0c0c0f] hover:border-[#3a3a45] border cursor-pointer transition-colors ${
-                            isActive ? 'bg-[#0c0c0f] border-[#3a3a45]' : 'border-transparent'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <Badge variant="outline" size="sm">
-                              PROFILE
-                            </Badge>
-                            <Flame className="w-3.5 h-3.5 text-[#ef4444] shrink-0" />
-                            <span className="text-sm text-[#f4f4f5] truncate">{p.name}</span>
-                            <span className="mono-meta text-xs text-[#71717a] truncate">
-                              {p.engine_name || 'No engine'} • {p.iwad_name || 'No IWAD'}
-                            </span>
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              api.launchProfile(p.id);
-                              setIsSearchModalOpen(false);
-                            }}
-                            className="px-2.5 py-1 text-xs bg-[#5e7ce2] hover:bg-[#4d6bd4] text-[#09090b] font-[600] rounded-[6px] flex items-center gap-1 transition-colors shrink-0"
-                          >
-                            <Play className="w-3 h-3 fill-current" /> Play
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {/* Mods section */}
-              {filteredSearch.mods.length > 0 && (
-                <div>
-                  <h4 className="text-[11px] uppercase text-[#71717a] tracking-wide mb-2 flex items-center gap-1.5">
-                    <LibraryIcon className="w-3.5 h-3.5 text-blue-400" />
-                    Mods ({filteredSearch.mods.length})
-                  </h4>
-                  <div className="space-y-1">
-                    {filteredSearch.mods.slice(0, 10).map((m, i) => {
-                      const rowIndex = searchModOffset + i;
-                      const isActive = rowIndex === searchActiveIndex;
-                      return (
-                        <div
-                          key={m.id}
-                          onClick={() => {
-                            setActiveView('library');
-                            setIsSearchModalOpen(false);
-                          }}
-                          onMouseEnter={() => setSearchActiveIndex(rowIndex)}
-                          className={`flex items-center justify-between gap-3 rounded-[8px] px-3 py-2 hover:bg-[#0c0c0f] hover:border-[#3a3a45] border cursor-pointer transition-colors ${
-                            isActive ? 'bg-[#0c0c0f] border-[#3a3a45]' : 'border-transparent'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <Badge variant="outline" size="sm">
-                              {m.format.toUpperCase()}
-                            </Badge>
-                            <span className="text-sm text-[#f4f4f5] truncate">{m.name}</span>
-                            <span className="mono-meta text-xs text-[#71717a] truncate">
-                              {m.category}
-                            </span>
-                          </div>
-                          <span className="mono-meta text-xs text-[#71717a] truncate max-w-xs shrink-0">
-                            {m.path}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {/* Engines section */}
-              {filteredSearch.engines.length > 0 && (
-                <div>
-                  <h4 className="text-[11px] uppercase text-[#71717a] tracking-wide mb-2 flex items-center gap-1.5">
-                    <Cpu className="w-3.5 h-3.5 text-amber-400" />
-                    Engines ({filteredSearch.engines.length})
-                  </h4>
-                  <div className="space-y-1">
-                    {filteredSearch.engines.map((e, i) => {
-                      const rowIndex = searchEngineOffset + i;
-                      const isActive = rowIndex === searchActiveIndex;
-                      return (
-                        <div
-                          key={e.id}
-                          onClick={() => {
-                            setActiveView('engines');
-                            setIsSearchModalOpen(false);
-                          }}
-                          onMouseEnter={() => setSearchActiveIndex(rowIndex)}
-                          className={`flex items-center justify-between gap-3 rounded-[8px] px-3 py-2 hover:bg-[#0c0c0f] hover:border-[#3a3a45] border cursor-pointer transition-colors ${
-                            isActive ? 'bg-[#0c0c0f] border-[#3a3a45]' : 'border-transparent'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <Badge variant="outline" size="sm">
-                              {e.family.toUpperCase()}
-                            </Badge>
-                            <span className="text-sm text-[#f4f4f5] truncate">{e.name}</span>
-                          </div>
-                          <span className="mono-meta text-xs text-[#71717a] truncate shrink-0">
-                            {e.version || 'Unknown'} ({e.family})
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {/* IWADs section */}
-              {filteredSearch.iwads.length > 0 && (
-                <div>
-                  <h4 className="text-[11px] uppercase text-[#71717a] tracking-wide mb-2 flex items-center gap-1.5">
-                    <Disc className="w-3.5 h-3.5 text-emerald-400" />
-                    IWADs ({filteredSearch.iwads.length})
-                  </h4>
-                  <div className="space-y-1">
-                    {filteredSearch.iwads.map((i, idx) => {
-                      const rowIndex = searchIwadOffset + idx;
-                      const isActive = rowIndex === searchActiveIndex;
-                      return (
-                        <div
-                          key={i.id}
-                          onClick={() => {
-                            setActiveView('iwads');
-                            setIsSearchModalOpen(false);
-                          }}
-                          onMouseEnter={() => setSearchActiveIndex(rowIndex)}
-                          className={`flex items-center justify-between gap-3 rounded-[8px] px-3 py-2 hover:bg-[#0c0c0f] hover:border-[#3a3a45] border cursor-pointer transition-colors ${
-                            isActive ? 'bg-[#0c0c0f] border-[#3a3a45]' : 'border-transparent'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <Badge variant="outline" size="sm">
-                              {i.type.toUpperCase()}
-                            </Badge>
-                            <span className="text-sm text-[#f4f4f5] truncate">{i.name}</span>
-                          </div>
-                          <span className="mono-meta text-xs text-[#71717a] truncate shrink-0">
-                            {i.type.toUpperCase()} ({i.lump_count} lumps)
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {/* Empty state */}
-              {globalSearchQuery.trim() &&
-                filteredSearch.profiles.length === 0 &&
-                filteredSearch.mods.length === 0 &&
-                filteredSearch.engines.length === 0 &&
-                filteredSearch.iwads.length === 0 && (
-                  <div className="text-center py-8 text-[13px] text-[#71717a]">
-                    No results for &ldquo;{globalSearchQuery}&rdquo;
-                  </div>
-                )}
-            </div>
-            <div className="flex items-center gap-2 border-t border-[#2d2d34] pt-2.5 text-[11px] text-[#71717a]">
-              <span>↑↓ navigate · Enter open · Esc close</span>
-            </div>
-          </div>
-        </Modal>
-      )}
+      <SearchPalette
+        open={isSearchModalOpen}
+        query={globalSearchQuery}
+        onQueryChange={setGlobalSearchQuery}
+        onClose={() => {
+          setIsSearchModalOpen(false);
+          setGlobalSearchQuery('');
+        }}
+        mods={allMods}
+        profiles={allProfiles}
+        engines={allEngines}
+        iwads={allIwads}
+        onSelectProfile={(id) => setSelectedProfileId(id)}
+        onLaunchProfile={handlePaletteLaunchProfile}
+        onNavigate={handlePaletteNavigate}
+      />
     </div>
   );
 }

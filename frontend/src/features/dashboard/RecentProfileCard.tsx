@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Star, Disc, Cpu, Layers, Loader2, ArrowUpRight } from 'lucide-react';
+import { Play, Star, Disc, Cpu, Layers, Loader2, ArrowUpRight, Save } from 'lucide-react';
 import { Profile } from '../../types';
 import { cn } from '../../utils/cn';
 
@@ -8,6 +8,7 @@ interface RecentProfileCardProps {
   onLaunch: (profileId: string) => Promise<void>;
   onToggleFavorite: (profileId: string) => Promise<void>;
   onSelectProfile?: (profileId: string) => void;
+  onContinueSave?: (profileId: string) => Promise<void>;
 }
 
 /**
@@ -21,9 +22,11 @@ export const RecentProfileCard: React.FC<RecentProfileCardProps> = ({
   onLaunch,
   onToggleFavorite,
   onSelectProfile,
+  onContinueSave,
 }) => {
   const [isLaunching, setIsLaunching] = useState(false);
   const [isFavLoading, setIsFavLoading] = useState(false);
+  const [isContinuing, setIsContinuing] = useState(false);
 
   const activeModsCount = profile.mods?.filter((m) => m.enabled).length || 0;
   const totalModsCount = profile.mods?.length || 0;
@@ -36,6 +39,16 @@ export const RecentProfileCard: React.FC<RecentProfileCardProps> = ({
       await onLaunch(profile.id);
     } finally {
       setIsLaunching(false);
+    }
+  };
+  const handleContinueSave = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isContinuing || !onContinueSave) return;
+    setIsContinuing(true);
+    try {
+      await onContinueSave(profile.id);
+    } finally {
+      setIsContinuing(false);
     }
   };
 
@@ -114,6 +127,21 @@ export const RecentProfileCard: React.FC<RecentProfileCardProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5">
+          {onContinueSave && (
+            <button
+              type="button"
+              onClick={handleContinueSave}
+              disabled={isContinuing}
+              title="Continue save — resume from the latest save"
+              className="p-1.5 text-[#71717a] hover:text-[#f4f4f5] rounded-[8px] hover:bg-[#0c0c0f] transition-[color,background-color] duration-[0.001s] ease-[ease] disabled:opacity-50"
+            >
+              {isContinuing ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Save className="w-3.5 h-3.5" />
+              )}
+            </button>
+          )}
           <button
             type="button"
             onClick={(e) => {

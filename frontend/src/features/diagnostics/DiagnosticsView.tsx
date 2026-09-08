@@ -17,11 +17,31 @@ import {
   Disc,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { events } from '../../lib/events';
 import { DiagnosticsReport, DiagnosticIssue, LogEntry } from '../../types';
 import { cn } from '../../utils/cn';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
 
+interface BackgroundHealth {
+  overallStatus: string;
+  totalIssues: number;
+  errorCount: number;
+  warningCount: number;
+}
+
+async function callBackupBackend<T>(method: 'ExportLibraryBackup' | 'ImportLibraryBackup', ...args: unknown[]): Promise<T> {
+  // Wails injects window.go.main.App at runtime; shape is external so narrow before use.
+  const root: unknown = window;
+  const go: unknown = typeof root === 'object' && root !== null && 'go' in root ? root.go : undefined;
+  const main: unknown = typeof go === 'object' && go !== null && 'main' in go ? go.main : undefined;
+  const app: unknown = typeof main === 'object' && main !== null && 'App' in main ? main.App : undefined;
+  const fn: unknown = typeof app === 'object' && app !== null && method in app ? app[method as keyof typeof app] : undefined;
+  if (typeof fn === 'function') {
+    return (await (fn as (...a: unknown[]) => Promise<T>)(...args)) as T;
+  }
+  throw new Error(`Backend method "${method}" is not available: Wails App bridge is not initialized.`);
+}
 interface DiagnosticsViewProps {
   onNotify?: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
 }
@@ -33,7 +53,8 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onNotify }) =>
   const [logFilter, setLogFilter] = useState('');
   const [repairingId, setRepairingId] = useState<string | null>(null);
   const [showPruneConfirm, setShowPruneConfirm] = useState(false);
-
+  const [backgroundHealth, setBackgroundHealth] = useState<BackgroundHealth | null>(null);
+  const [backupBusy, setBackupBusy] = useState(false);
   const fetchDiagnostics = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -54,6 +75,43 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onNotify }) =>
   useEffect(() => {
     fetchDiagnostics();
   }, [fetchDiagnostics]);
+
+  useEffect(() => {
+    return events.on<BackgroundHealth>('diagnostics:background', (payload) => {
+      if (payload && typeof payload === 'object') {
+        setBackgroundHealth(payload);
+      }
+    });
+  }, []);
+
+  const handleExportBackup = async () => {
+    setBackupBusy(true);
+    try {
+      const zipPath = await callBackupBackend<string>('ExportLibraryBackup');
+      onNotify?.(`Library backup saved to ${zipPath ?? 'backup archive'}`, 'success');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to export library backup';
+      onNotify?.(message, 'error');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const handleImportBackup = async () => {
+    try {
+      const picked = await api.openFileDialog('Select Library Backup', '', ['zip']);
+      if (!picked || !picked.trim()) return;
+      setBackupBusy(true);
+      await callBackupBackend<void>('ImportLibraryBackup', picked.trim());
+      onNotify?.('Library backup restored. Please restart the app to apply it.', 'success');
+      await fetchDiagnostics();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to import library backup';
+      onNotify?.(message, 'error');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
 
   const handleRepair = async (issue: DiagnosticIssue) => {
     if (!issue.repairAction) return;
@@ -133,6 +191,14 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onNotify }) =>
               {report.overallStatus}
             </span>
           )}
+          {backgroundHealth && (
+            <span
+              title={`Background check: ${backgroundHealth.errorCount ?? 0} errors, ${backgroundHealth.warningCount ?? 0} warnings`}
+              className="rounded px-2 py-0.5 text-[11px] font-mono font-medium uppercase tracking-wider border border-[#2d2d34] bg-[#181c21] text-zinc-400"
+            >
+              Background: {backgroundHealth.overallStatus} ({backgroundHealth.totalIssues ?? 0})
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
@@ -157,6 +223,24 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onNotify }) =>
               <span>Prune Missing Resources</span>
             </button>
           )}
+          <button
+            type="button"
+            onClick={handleExportBackup}
+            disabled={isLoading || backupBusy}
+            className="inline-flex items-center gap-1.5 rounded border border-[#22262d] bg-[#181c21] hover:bg-[#1f242e] px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white transition-colors disabled:opacity-50"
+          >
+            <Database className="w-3.5 h-3.5" />
+            <span>Export Library Backup</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleImportBackup}
+            disabled={isLoading || backupBusy}
+            className="inline-flex items-center gap-1.5 rounded border border-[#22262d] bg-[#181c21] hover:bg-[#1f242e] px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white transition-colors disabled:opacity-50"
+          >
+            <HardDrive className="w-3.5 h-3.5" />
+            <span>Import Library Backup</span>
+          </button>
         </div>
       </div>
 
