@@ -12,13 +12,23 @@ export function AddIWAD(arg1:domain.IWAD):Promise<domain.IWAD>;
 
 export function AddModToProfile(arg1:string,arg2:string):Promise<void>;
 
+export function CheckModUpdates():Promise<Array<domain.ModUpdate>>;
+
 export function ClearLaunchHistory():Promise<void>;
 
 export function ClearSystemLogs():Promise<void>;
 
 export function Close():Promise<void>;
 
+export function ContinueProfileSave(arg1:string):Promise<Record<string, any>>;
+
+export function CreateDesktopShortcut(arg1:string):Promise<string>;
+
 export function CreateProfile(arg1:domain.Profile):Promise<domain.Profile>;
+
+export function CreateProfileFromTemplate(arg1:string):Promise<domain.Profile>;
+
+export function CreateProfileSnapshot(arg1:string,arg2:string):Promise<Record<string, any>>;
 
 export function DeleteEngine(arg1:string):Promise<void>;
 
@@ -36,7 +46,15 @@ export function DownloadIdgamesMod(arg1:idgames.IdgamesFile):Promise<domain.Mod>
 
 export function DuplicateProfile(arg1:string,arg2:string):Promise<domain.Profile>;
 
+export function EnsureEngine(arg1:string,arg2:string):Promise<domain.Engine>;
+
+export function ExportLibraryBackup():Promise<string>;
+
+export function ExportProfileBundle(arg1:string):Promise<Record<string, any>>;
+
 export function ExportProfileYAML(arg1:string):Promise<string>;
+
+export function FindDuplicateMods():Promise<Array<any>>;
 
 export function GetActiveLaunches():Promise<Array<launcher.ActiveLaunch>>;
 
@@ -48,6 +66,10 @@ export function GetIWAD(arg1:string):Promise<domain.IWAD>;
 
 export function GetIdgamesCuratedShowcase():Promise<idgames.ShowcaseResult>;
 
+export function GetLaunchLogs(arg1:string,arg2:number):Promise<Array<string>>;
+
+export function GetMissingDependencies(arg1:string):Promise<Array<string>>;
+
 export function GetMod(arg1:string):Promise<domain.Mod>;
 
 export function GetModArtwork(arg1:string):Promise<Record<string, any>>;
@@ -56,13 +78,23 @@ export function GetModUsageCounts():Promise<Record<string, number>>;
 
 export function GetProfile(arg1:string):Promise<domain.Profile>;
 
+export function GetProfileConflicts(arg1:string):Promise<Array<domain.ValidationItem>>;
+
 export function GetProfileSaveDir(arg1:string):Promise<string>;
 
 export function GetSettings():Promise<domain.Settings>;
 
 export function GetSystemLogs():Promise<Array<logger.LogEntry>>;
 
+export function ImportLibraryBackup(arg1:string):Promise<void>;
+
 export function ImportModFile(arg1:string):Promise<domain.Mod>;
+
+export function ImportModFromURL(arg1:string):Promise<domain.Mod>;
+
+export function ImportProfileBundle(arg1:string):Promise<domain.Profile>;
+
+export function ImportProfileShareCode(arg1:string):Promise<Record<string, any>>;
 
 export function ImportProfileYAML(arg1:string):Promise<Record<string, any>>;
 
@@ -86,6 +118,8 @@ export function ListLaunchHistory(arg1:number):Promise<Array<domain.LaunchRecord
 
 export function ListMods(arg1:domain.ModFilter):Promise<Array<domain.Mod>>;
 
+export function ListProfileSnapshots(arg1:string):Promise<Array<Record<string, any>>>;
+
 export function ListProfiles():Promise<Array<domain.Profile>>;
 
 export function OpenDirectoryDialog(arg1:string,arg2:string):Promise<string>;
@@ -103,6 +137,10 @@ export function RemoveModFromProfile(arg1:string,arg2:string):Promise<void>;
 export function ReorderProfileMods(arg1:string,arg2:Array<string>):Promise<void>;
 
 export function RepairDiagnosticIssue(arg1:string,arg2:string):Promise<void>;
+
+export function ReplayDemo(arg1:string):Promise<domain.LaunchRecord>;
+
+export function RestoreProfileSnapshot(arg1:string,arg2:string):Promise<void>;
 
 export function RunDiagnostics():Promise<domain.DiagnosticsReport>;
 
@@ -127,6 +165,8 @@ export function ToggleProfileMod(arg1:string,arg2:string,arg3:boolean):Promise<v
 export function UpdateEngine(arg1:domain.Engine):Promise<void>;
 
 export function UpdateIWAD(arg1:domain.IWAD):Promise<void>;
+
+export function UpdateMod(arg1:string):Promise<domain.Mod>;
 
 export function UpdateProfile(arg1:domain.Profile):Promise<void>;
 

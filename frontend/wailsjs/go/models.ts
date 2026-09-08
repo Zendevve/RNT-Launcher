@@ -158,6 +158,47 @@ export namespace domain {
 		    return a;
 		}
 	}
+	export class ProfileStats {
+	    profileId: string;
+	    profileName: string;
+	    runs: number;
+	    totalHours: number;
+	    // Go type: time
+	    lastPlayed?: any;
+	    crashRate: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProfileStats(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.profileId = source["profileId"];
+	        this.profileName = source["profileName"];
+	        this.runs = source["runs"];
+	        this.totalHours = source["totalHours"];
+	        this.lastPlayed = this.convertValues(source["lastPlayed"], null);
+	        this.crashRate = source["crashRate"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class HistoryStats {
 	    totalLaunches: number;
 	    totalPlayTimeMs: number;
@@ -165,6 +206,7 @@ export namespace domain {
 	    lastLaunchedAt?: any;
 	    mostPlayedProfileId?: string;
 	    mostPlayedProfileName?: string;
+	    perProfile?: ProfileStats[];
 	
 	    static createFrom(source: any = {}) {
 	        return new HistoryStats(source);
@@ -177,6 +219,7 @@ export namespace domain {
 	        this.lastLaunchedAt = this.convertValues(source["lastLaunchedAt"], null);
 	        this.mostPlayedProfileId = source["mostPlayedProfileId"];
 	        this.mostPlayedProfileName = source["mostPlayedProfileName"];
+	        this.perProfile = this.convertValues(source["perProfile"], ProfileStats);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -259,6 +302,7 @@ export namespace domain {
 	    exitCode: number;
 	    status: string;
 	    commandLine: string;
+	    demoPath?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new LaunchRecord(source);
@@ -277,6 +321,7 @@ export namespace domain {
 	        this.exitCode = source["exitCode"];
 	        this.status = source["status"];
 	        this.commandLine = source["commandLine"];
+	        this.demoPath = source["demoPath"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -310,6 +355,12 @@ export namespace domain {
 	    lumpCount: number;
 	    structures: string[];
 	    isFavorite: boolean;
+	    author?: string;
+	    description?: string;
+	    rating?: number;
+	    externalId?: string;
+	    version?: string;
+	    updateUrl?: string;
 	    // Go type: time
 	    createdAt: any;
 	    // Go type: time
@@ -332,6 +383,12 @@ export namespace domain {
 	        this.lumpCount = source["lumpCount"];
 	        this.structures = source["structures"];
 	        this.isFavorite = source["isFavorite"];
+	        this.author = source["author"];
+	        this.description = source["description"];
+	        this.rating = source["rating"];
+	        this.externalId = source["externalId"];
+	        this.version = source["version"];
+	        this.updateUrl = source["updateUrl"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);
 	    }
@@ -359,6 +416,9 @@ export namespace domain {
 	    category?: string;
 	    format?: string;
 	    isFavorite?: boolean;
+	    author?: string;
+	    minRating?: number;
+	    hasMaps?: boolean;
 	    limit?: number;
 	    offset?: number;
 	
@@ -372,8 +432,31 @@ export namespace domain {
 	        this.category = source["category"];
 	        this.format = source["format"];
 	        this.isFavorite = source["isFavorite"];
+	        this.author = source["author"];
+	        this.minRating = source["minRating"];
+	        this.hasMaps = source["hasMaps"];
 	        this.limit = source["limit"];
 	        this.offset = source["offset"];
+	    }
+	}
+	export class ModUpdate {
+	    modId: string;
+	    modName: string;
+	    externalId: string;
+	    catalogId: number;
+	    reason: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ModUpdate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.modId = source["modId"];
+	        this.modName = source["modName"];
+	        this.externalId = source["externalId"];
+	        this.catalogId = source["catalogId"];
+	        this.reason = source["reason"];
 	    }
 	}
 	export class ProfileMod {
@@ -416,6 +499,11 @@ export namespace domain {
 	    arguments: string[];
 	    workingDir: string;
 	    isFavorite: boolean;
+	    netMode?: string;
+	    netHost?: string;
+	    netPort?: number;
+	    recordDemoPath?: string;
+	    playDemoPath?: string;
 	    // Go type: time
 	    createdAt: any;
 	    // Go type: time
@@ -440,6 +528,11 @@ export namespace domain {
 	        this.arguments = source["arguments"];
 	        this.workingDir = source["workingDir"];
 	        this.isFavorite = source["isFavorite"];
+	        this.netMode = source["netMode"];
+	        this.netHost = source["netHost"];
+	        this.netPort = source["netPort"];
+	        this.recordDemoPath = source["recordDemoPath"];
+	        this.playDemoPath = source["playDemoPath"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.updatedAt = this.convertValues(source["updatedAt"], null);
 	    }
@@ -462,6 +555,7 @@ export namespace domain {
 		    return a;
 		}
 	}
+	
 	
 	export class ScanResult {
 	    discoveredMods: number;
@@ -489,6 +583,7 @@ export namespace domain {
 	    theme: string;
 	    confirmLaunch: boolean;
 	    autoScanOnStartup: boolean;
+	    watchDirectories: boolean;
 	    closeOnLaunch: boolean;
 	    uiDensity: string;
 	    showFilePaths: boolean;
@@ -509,6 +604,7 @@ export namespace domain {
 	        this.theme = source["theme"];
 	        this.confirmLaunch = source["confirmLaunch"];
 	        this.autoScanOnStartup = source["autoScanOnStartup"];
+	        this.watchDirectories = source["watchDirectories"];
 	        this.closeOnLaunch = source["closeOnLaunch"];
 	        this.uiDensity = source["uiDensity"];
 	        this.showFilePaths = source["showFilePaths"];

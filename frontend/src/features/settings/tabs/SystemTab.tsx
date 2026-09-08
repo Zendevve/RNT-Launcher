@@ -1,7 +1,9 @@
 import {
   AlertTriangle,
   AppWindow,
+  Coffee,
   Database,
+  ExternalLink,
   HardDrive,
   Palette,
   RotateCcw,
@@ -11,6 +13,7 @@ import type { Settings } from '../../../types';
 import { FULL_VERSION } from '../../../version';
 import { SettingCard } from '../components/SettingCard';
 import { Button } from '../../../components/ui/Button';
+import { openDonatePage } from '../../../lib/donate';
 
 export interface SystemTabProps {
   settings: Settings;
@@ -68,6 +71,16 @@ export function SystemTab({ settings, onResetRequest, filter }: SystemTabProps) 
     'database integrity',
     'working directory',
   );
+  const showSupport = matches(
+    'support',
+    'donate',
+    'donation',
+    'coffee',
+    'buy me a coffee',
+    'sponsor',
+    'about',
+    'thanks',
+  );
   const showDanger = matches(
     'factory reset',
     'reset defaults',
@@ -76,7 +89,7 @@ export function SystemTab({ settings, onResetRequest, filter }: SystemTabProps) 
     'factory defaults',
   );
 
-  if (query.length > 0 && !showEnv && !showStorage && !showDanger) {
+  if (query.length > 0 && !showEnv && !showStorage && !showSupport && !showDanger) {
     return (
       <div className="rounded-[12px] border border-dashed border-[#2d2d34] bg-[#0f0f12] px-5 py-10 text-center">
         <p className="text-sm font-medium text-zinc-300">No system settings match &ldquo;{filter.trim()}&rdquo;.</p>
@@ -143,6 +156,24 @@ export function SystemTab({ settings, onResetRequest, filter }: SystemTabProps) 
           <p className="text-[11px] leading-relaxed text-zinc-500">
             For a full integrity report, open the Diagnostics view from the sidebar.
           </p>
+        </SettingCard>
+      )}
+
+      {showSupport && (
+        <SettingCard
+          title="Support development"
+          description="RNT Launcher is free and developed in spare time. If it organizes your Doom setup well, consider buying me a coffee to keep development going."
+          icon={<Coffee className="h-4 w-4 text-[#FFDD00]" />}
+        >
+          <Button
+            variant="secondary"
+            size="xs"
+            onClick={openDonatePage}
+            leftIcon={<Coffee className="h-3 w-3" />}
+            rightIcon={<ExternalLink className="h-3 w-3" />}
+          >
+            Buy me a coffee
+          </Button>
         </SettingCard>
       )}
 

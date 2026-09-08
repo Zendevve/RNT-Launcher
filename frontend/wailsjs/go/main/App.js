@@ -14,6 +14,10 @@ export function AddModToProfile(arg1, arg2) {
   return window['go']['main']['App']['AddModToProfile'](arg1, arg2);
 }
 
+export function CheckModUpdates() {
+  return window['go']['main']['App']['CheckModUpdates']();
+}
+
 export function ClearLaunchHistory() {
   return window['go']['main']['App']['ClearLaunchHistory']();
 }
@@ -26,8 +30,24 @@ export function Close() {
   return window['go']['main']['App']['Close']();
 }
 
+export function ContinueProfileSave(arg1) {
+  return window['go']['main']['App']['ContinueProfileSave'](arg1);
+}
+
+export function CreateDesktopShortcut(arg1) {
+  return window['go']['main']['App']['CreateDesktopShortcut'](arg1);
+}
+
 export function CreateProfile(arg1) {
   return window['go']['main']['App']['CreateProfile'](arg1);
+}
+
+export function CreateProfileFromTemplate(arg1) {
+  return window['go']['main']['App']['CreateProfileFromTemplate'](arg1);
+}
+
+export function CreateProfileSnapshot(arg1, arg2) {
+  return window['go']['main']['App']['CreateProfileSnapshot'](arg1, arg2);
 }
 
 export function DeleteEngine(arg1) {
@@ -62,8 +82,24 @@ export function DuplicateProfile(arg1, arg2) {
   return window['go']['main']['App']['DuplicateProfile'](arg1, arg2);
 }
 
+export function EnsureEngine(arg1, arg2) {
+  return window['go']['main']['App']['EnsureEngine'](arg1, arg2);
+}
+
+export function ExportLibraryBackup() {
+  return window['go']['main']['App']['ExportLibraryBackup']();
+}
+
+export function ExportProfileBundle(arg1) {
+  return window['go']['main']['App']['ExportProfileBundle'](arg1);
+}
+
 export function ExportProfileYAML(arg1) {
   return window['go']['main']['App']['ExportProfileYAML'](arg1);
+}
+
+export function FindDuplicateMods() {
+  return window['go']['main']['App']['FindDuplicateMods']();
 }
 
 export function GetActiveLaunches() {
@@ -86,6 +122,14 @@ export function GetIdgamesCuratedShowcase() {
   return window['go']['main']['App']['GetIdgamesCuratedShowcase']();
 }
 
+export function GetLaunchLogs(arg1, arg2) {
+  return window['go']['main']['App']['GetLaunchLogs'](arg1, arg2);
+}
+
+export function GetMissingDependencies(arg1) {
+  return window['go']['main']['App']['GetMissingDependencies'](arg1);
+}
+
 export function GetMod(arg1) {
   return window['go']['main']['App']['GetMod'](arg1);
 }
@@ -102,6 +146,10 @@ export function GetProfile(arg1) {
   return window['go']['main']['App']['GetProfile'](arg1);
 }
 
+export function GetProfileConflicts(arg1) {
+  return window['go']['main']['App']['GetProfileConflicts'](arg1);
+}
+
 export function GetProfileSaveDir(arg1) {
   return window['go']['main']['App']['GetProfileSaveDir'](arg1);
 }
@@ -114,8 +162,24 @@ export function GetSystemLogs() {
   return window['go']['main']['App']['GetSystemLogs']();
 }
 
+export function ImportLibraryBackup(arg1) {
+  return window['go']['main']['App']['ImportLibraryBackup'](arg1);
+}
+
 export function ImportModFile(arg1) {
   return window['go']['main']['App']['ImportModFile'](arg1);
+}
+
+export function ImportModFromURL(arg1) {
+  return window['go']['main']['App']['ImportModFromURL'](arg1);
+}
+
+export function ImportProfileBundle(arg1) {
+  return window['go']['main']['App']['ImportProfileBundle'](arg1);
+}
+
+export function ImportProfileShareCode(arg1) {
+  return window['go']['main']['App']['ImportProfileShareCode'](arg1);
 }
 
 export function ImportProfileYAML(arg1) {
@@ -162,6 +226,10 @@ export function ListMods(arg1) {
   return window['go']['main']['App']['ListMods'](arg1);
 }
 
+export function ListProfileSnapshots(arg1) {
+  return window['go']['main']['App']['ListProfileSnapshots'](arg1);
+}
+
 export function ListProfiles() {
   return window['go']['main']['App']['ListProfiles']();
 }
@@ -196,6 +264,14 @@ export function ReorderProfileMods(arg1, arg2) {
 
 export function RepairDiagnosticIssue(arg1, arg2) {
   return window['go']['main']['App']['RepairDiagnosticIssue'](arg1, arg2);
+}
+
+export function ReplayDemo(arg1) {
+  return window['go']['main']['App']['ReplayDemo'](arg1);
+}
+
+export function RestoreProfileSnapshot(arg1, arg2) {
+  return window['go']['main']['App']['RestoreProfileSnapshot'](arg1, arg2);
 }
 
 export function RunDiagnostics() {
@@ -244,6 +320,10 @@ export function UpdateEngine(arg1) {
 
 export function UpdateIWAD(arg1) {
   return window['go']['main']['App']['UpdateIWAD'](arg1);
+}
+
+export function UpdateMod(arg1) {
+  return window['go']['main']['App']['UpdateMod'](arg1);
 }
 
 export function UpdateProfile(arg1) {

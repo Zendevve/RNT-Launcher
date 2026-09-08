@@ -10,11 +10,14 @@ import {
   Settings,
   ChevronLeft,
   Flame,
+  Coffee,
+  ExternalLink,
 } from 'lucide-react';
 import { motion, LayoutGroup, useReducedMotion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { UiDensity } from '../../types';
 import { springDefault, springSheet } from '../../lib/springs';
+import { openDonatePage } from '../../lib/donate';
 
 export type NavViewId =
   | 'dashboard'
@@ -377,6 +380,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </motion.span>
             )}
           </AnimatePresence>
+        </motion.button>
+        <motion.button
+          type="button"
+          onClick={openDonatePage}
+          title="Buy me a coffee — support development"
+          whileTap={{ scale: 0.97 }}
+          transition={{ duration: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
+          className={cn(
+            'w-full flex items-center rounded-[8px] font-medium relative text-left transition-colors duration-150 gap-2',
+            isCompact ? 'px-2 py-2 text-xs' : 'px-3 py-2 text-xs',
+            collapsed ? 'justify-center px-0 py-2' : 'justify-between',
+            'text-[#a1a1aa] hover:text-[#f4f4f5] hover:bg-[rgba(244,244,245,0.05)] border border-transparent'
+          )}
+          style={{ fontFamily: 'var(--font-sans)' }}
+        >
+          <div className="flex items-center gap-2 min-w-0 truncate relative z-10">
+            <span className="flex-shrink-0 transition-colors duration-100">
+              <Coffee className="w-4 h-4 text-[#FFDD00]" />
+            </span>
+            <AnimatePresence initial={false}>
+              {!collapsed && (
+                <motion.span
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: 'auto' }}
+                  exit={{ opacity: 0, width: 0 }}
+                  transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                  className="truncate tracking-tight font-medium overflow-hidden whitespace-nowrap text-[#a1a1aa]"
+                >
+                  Buy me a coffee
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </div>
+          {!collapsed && <ExternalLink className="h-3 w-3 text-[#71717a] relative z-10 flex-shrink-0" />}
         </motion.button>
       </div>
     </motion.aside>
