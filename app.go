@@ -289,6 +289,131 @@ func (a *App) DeleteMod(id string) error {
 func (a *App) ImportModFile(path string) (*domain.Mod, error) {
 	return a.scannerService.ImportFile(a.ctx, path)
 }
+
+// OrganizeDirectory classifies files under srcDir into the managed library
+// folders (engines/iwads/wads/mods) under libDir. With dryRun it only reports
+// planned moves without touching the filesystem. Otherwise it moves files
+// (skipping name collisions and no-op moves), imports library files into the
+// database, and emits library:organize:complete.
+func (a *App) OrganizeDirectory(srcDir, libDir string, dryRun bool) (*domain.OrganizeReport, error) {
+	report := &domain.OrganizeReport{
+		DryRun: dryRun,
+		Moves:  []domain.OrganizeMove{},
+		Errors: []string{},
+	}
+	cleanSrc := filepath.Clean(srcDir)
+	cleanLib := filepath.Clean(libDir)
+	if cleanLib == "" || cleanLib == "." {
+		return nil, errors.New("library directory must be specified")
+	}
+	srcStat, err := os.Stat(cleanSrc)
+	if err != nil || !srcStat.IsDir() {
+		return nil, fmt.Errorf("source directory invalid or not found: %s", srcDir)
+	}
+	// Refuse to organize a tree into itself or a child of itself.
+	if cleanLib == cleanSrc || strings.HasPrefix(cleanLib, cleanSrc+string(os.PathSeparator)) {
+		return nil, fmt.Errorf("library directory must not be the source or inside it: %s", libDir)
+	}
+
+	// Collect candidate files recursively, mirroring scanner dotfile rules.
+	var candidates []string
+	walkErr := filepath.WalkDir(cleanSrc, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if strings.HasPrefix(d.Name(), ".") && path != cleanSrc {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.HasPrefix(d.Name(), ".") {
+			return nil
+		}
+		candidates = append(candidates, filepath.Clean(path))
+		return nil
+	})
+	if walkErr != nil {
+		return nil, fmt.Errorf("failed to scan source directory: %w", walkErr)
+	}
+
+	// Classify and resolve destinations, detecting collisions up front so a
+	// second same-named file never overwrites the first.
+	type planned struct {
+		src, dest, folder string
+	}
+	claimed := make(map[string]bool)
+	var plans []planned
+	for _, src := range candidates {
+		folder, err := filesystem.ClassifyPath(src)
+		if err != nil {
+			report.Errors = append(report.Errors, fmt.Sprintf("cannot classify %s: %v", src, err))
+			continue
+		}
+		dest := filepath.Join(cleanLib, folder, filepath.Base(src))
+		if dest == src {
+			continue
+		}
+		if claimed[dest] {
+			report.Errors = append(report.Errors, fmt.Sprintf("name collision, skipped %s (dest %s already claimed)", src, dest))
+			continue
+		}
+		if _, err := os.Stat(dest); err == nil {
+			report.Errors = append(report.Errors, fmt.Sprintf("destination exists, skipped %s: %s", src, dest))
+			continue
+		}
+		claimed[dest] = true
+		plans = append(plans, planned{src: src, dest: dest, folder: folder})
+	}
+	for _, p := range plans {
+		report.Moves = append(report.Moves, domain.OrganizeMove{Source: p.src, Destination: p.dest, Folder: p.folder})
+	}
+	if dryRun {
+		return report, nil
+	}
+
+	// Move via the tested batch path, preserving plan order.
+	srcs := make([]string, 0, len(plans))
+	for _, p := range plans {
+		srcs = append(srcs, p.src)
+	}
+	dests, err := filesystem.OrganizeBatch(srcs, cleanLib)
+	if err != nil {
+		report.Errors = append(report.Errors, fmt.Sprintf("organize batch stopped early: %v", err))
+	}
+	moved := make(map[string]bool, len(dests))
+	for _, d := range dests {
+		moved[d] = true
+	}
+	report.MovedCount = len(dests)
+
+	// Import moved library files (engines register through their own flow).
+	if a.scannerService == nil {
+		report.Errors = append(report.Errors, "scanner service is not initialized, files moved but not imported")
+	} else {
+		for _, p := range plans {
+			if !moved[p.dest] {
+				continue
+			}
+			if p.folder == "engines" {
+				continue
+			}
+			mod, err := a.scannerService.ImportFile(a.ctx, p.dest)
+			if err != nil {
+				report.Errors = append(report.Errors, fmt.Sprintf("failed to import %s: %v", p.dest, err))
+				continue
+			}
+			if mod != nil {
+				report.ImportedMods++
+				if p.folder == "iwads" {
+					report.ImportedIWADs++
+				}
+			}
+		}
+	}
+	a.emitSafe("library:organize:complete", report)
+	return report, nil
+}
 func (a *App) GetModUsageCounts() (map[string]int, error) {
 	if a.modRepo == nil {
 		return make(map[string]int), nil

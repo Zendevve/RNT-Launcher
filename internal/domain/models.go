@@ -783,3 +783,20 @@ type DashboardStats struct {
 	RecentProfiles  []Profile      `json:"recentProfiles"`
 	RecentLaunches  []LaunchRecord `json:"recentLaunches"`
 }
+
+// OrganizeMove is a single classified file move produced by library organization.
+type OrganizeMove struct {
+	Source      string `json:"source"`
+	Destination string `json:"destination"`
+	Folder      string `json:"folder"`
+}
+
+// OrganizeReport summarizes a library organization run over a source directory.
+type OrganizeReport struct {
+	DryRun        bool           `json:"dryRun"`
+	Moves         []OrganizeMove `json:"moves"`
+	Errors        []string       `json:"errors"`
+	MovedCount    int            `json:"movedCount"`
+	ImportedMods  int            `json:"importedMods"`
+	ImportedIWADs int            `json:"importedIWADs"`
+}

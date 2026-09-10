@@ -63,11 +63,12 @@ func ClassifyAsset(filename string, header []byte) string {
 	}
 	return "mods"
 }
+
 // OrganizeFile moves srcPath into the classified subfolder of libDir,
 // creating it if needed. Same-volume moves use os.Rename (metadata only);
 // cross-volume falls back to copy+remove. It returns the destination path.
 func OrganizeFile(srcPath, libDir string) (string, error) {
-	folder, err := sniffFolder(srcPath)
+	folder, err := ClassifyPath(srcPath)
 	if err != nil {
 		return "", err
 	}
@@ -94,7 +95,7 @@ func OrganizeBatch(srcPaths []string, libDir string) ([]string, error) {
 	}
 	dests := make([]string, 0, len(srcPaths))
 	for _, src := range srcPaths {
-		folder, err := sniffFolder(src)
+		folder, err := ClassifyPath(src)
 		if err != nil {
 			return dests, err
 		}
@@ -118,11 +119,11 @@ func needsHeader(filename string) bool {
 	return strings.ToLower(filepath.Ext(lower)) == ".wad"
 }
 
-// sniffFolder classifies srcPath, reading at most 16 header bytes and only
-// when the filename alone cannot decide. Existence is reported by the open
-// or by the later rename itself; no separate pre-check (which would race the
-// move anyway).
-func sniffFolder(srcPath string) (string, error) {
+// ClassifyPath maps an on-disk file to its library folder name, reading at
+// most 16 header bytes and only when the filename alone cannot decide
+// (generic .wad files). Existence is reported by the open or by the later
+// rename itself; no separate pre-check (which would race the move anyway).
+func ClassifyPath(srcPath string) (string, error) {
 	if !needsHeader(srcPath) {
 		return ClassifyAsset(srcPath, nil), nil
 	}
