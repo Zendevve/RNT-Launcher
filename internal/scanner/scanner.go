@@ -516,15 +516,54 @@ func inspectFilesParallel(ctx context.Context, files []string) ([]*filesystem.Fi
 }
 // storeInspectedMod routes an already-inspected file into the IWAD or Mod
 // repository. It is the sequential store half used after inspectFilesParallel
-// so bulk scans keep deterministic ordering.
+// so bulk scans keep deterministic ordering. Mod rows go through the
+// single-statement path upsert; user-managed columns stay untouched.
 func (s *ScannerService) storeInspectedMod(filePath string, info *filesystem.FileInfo) (bool, error) {
 	if info.IsIWAD || IsKnownIWADName(filePath) {
 		err := s.upsertIWAD(filePath, info)
 		return true, err
 	}
+	if s.modRepo == nil {
+		return false, errors.New("mod repository is not configured")
+	}
 
-	_, err := s.upsertMod(filePath, info)
-	return false, err
+	return false, s.modRepo.UpsertByPath(s.buildScannedMod(filePath, info))
+}
+
+// buildScannedMod constructs the Mod record a scan would store for filePath,
+// mirroring the insert branch of upsertMod.
+func (s *ScannerService) buildScannedMod(filePath string, info *filesystem.FileInfo) *domain.Mod {
+	cleanPath := filepath.Clean(filePath)
+	base := filepath.Base(cleanPath)
+	nameStem := strings.TrimSuffix(base, filepath.Ext(base))
+
+	format := domain.DetectModFormat(cleanPath)
+	category := domain.ModCategory(info.Category)
+	if !category.IsValid() {
+		category = domain.ModCategoryOther
+	}
+
+	structures := info.Structures
+	if structures == nil {
+		structures = []string{}
+	}
+
+	now := time.Now().UTC()
+	return &domain.Mod{
+		ID:         uuid.NewString(),
+		Name:       nameStem,
+		Path:       cleanPath,
+		Format:     format,
+		Category:   category,
+		Size:       info.Size,
+		ModifiedAt: info.ModTime,
+		SHA256:     info.SHA256,
+		LumpCount:  info.LumpCount,
+		Structures: structures,
+		IsFavorite: false,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
 }
 
 func (s *ScannerService) upsertIWAD(filePath string, info *filesystem.FileInfo) error {
@@ -572,8 +611,6 @@ func (s *ScannerService) upsertMod(filePath string, info *filesystem.FileInfo) (
 	}
 
 	cleanPath := filepath.Clean(filePath)
-	base := filepath.Base(cleanPath)
-	nameStem := strings.TrimSuffix(base, filepath.Ext(base))
 
 	format := domain.DetectModFormat(cleanPath)
 	category := domain.ModCategory(info.Category)
@@ -606,25 +643,11 @@ func (s *ScannerService) upsertMod(filePath string, info *filesystem.FileInfo) (
 		return nil, err
 	}
 
-	newMod := domain.Mod{
-		ID:         uuid.NewString(),
-		Name:       nameStem,
-		Path:       cleanPath,
-		Format:     format,
-		Category:   category,
-		Size:       info.Size,
-		ModifiedAt: info.ModTime,
-		SHA256:     info.SHA256,
-		LumpCount:  info.LumpCount,
-		Structures: structures,
-		IsFavorite: false,
-		CreatedAt:  time.Now().UTC(),
-		UpdatedAt:  time.Now().UTC(),
-	}
-	if err := s.modRepo.Create(&newMod); err != nil {
+	newMod := s.buildScannedMod(filePath, info)
+	if err := s.modRepo.Create(newMod); err != nil {
 		return nil, err
 	}
-	return &newMod, nil
+	return newMod, nil
 }
 
 // isModCandidate checks if a filename extension matches recognized mod formats.

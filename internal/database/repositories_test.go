@@ -899,3 +899,73 @@ func TestModRepository_GetUsageCounts(t *testing.T) {
 		t.Errorf("expected mod3 usage count to be 0, got %d", counts[mod3.ID])
 	}
 }
+
+func TestModRepository_UpsertByPath(t *testing.T) {
+	repos := setupTestDB(t)
+
+	first := &domain.Mod{
+		Name: "scan-name", Path: filepath.Join("mods", "bulk.pk3"),
+		Format: domain.ModFormat("PK3"), Category: domain.ModCategory("Maps"),
+		Size: 100, SHA256: "aaa", LumpCount: 3, Structures: []string{"MAPS"},
+	}
+	if err := repos.Mods.UpsertByPath(first); err != nil {
+		t.Fatalf("initial upsert failed: %v", err)
+	}
+	if first.ID == "" {
+		t.Error("expected ID assignment on insert")
+	}
+
+	stored, err := repos.Mods.GetByPath(first.Path)
+	if err != nil {
+		t.Fatalf("GetByPath failed: %v", err)
+	}
+	origID, origCreated := stored.ID, stored.CreatedAt
+
+	// Simulate user-managed columns diverging from scan data.
+	stored.Name = "My Custom Title"
+	stored.IsFavorite = true
+	if err := repos.Mods.Update(stored); err != nil {
+		t.Fatalf("user update failed: %v", err)
+	}
+
+	// Rescan with refreshed scan-managed columns.
+	second := &domain.Mod{
+		Name: "scan-name", Path: first.Path,
+		Format: domain.ModFormat("PK3"), Category: domain.ModCategory("Gameplay"),
+		Size: 200, SHA256: "bbb", LumpCount: 9, Structures: []string{"ZSCRIPT"},
+	}
+	if err := repos.Mods.UpsertByPath(second); err != nil {
+		t.Fatalf("conflict upsert failed: %v", err)
+	}
+
+	got, err := repos.Mods.GetByPath(first.Path)
+	if err != nil {
+		t.Fatalf("GetByPath after upsert failed: %v", err)
+	}
+	if got.ID != origID {
+		t.Errorf("ID changed: %q -> %q", origID, got.ID)
+	}
+	if !got.CreatedAt.Equal(origCreated) {
+		t.Errorf("CreatedAt changed: %v -> %v", origCreated, got.CreatedAt)
+	}
+	if got.Name != "My Custom Title" {
+		t.Errorf("user name overwritten: %q", got.Name)
+	}
+	if !got.IsFavorite {
+		t.Error("favorite flag lost")
+	}
+	if string(got.Category) != "Gameplay" || got.Size != 200 || got.SHA256 != "bbb" || got.LumpCount != 9 {
+		t.Errorf("scan columns not refreshed: %+v", got)
+	}
+	if len(got.Structures) != 1 || got.Structures[0] != "ZSCRIPT" {
+		t.Errorf("structures not refreshed: %v", got.Structures)
+	}
+
+	mods, err := repos.Mods.List(domain.ModFilter{})
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+	if len(mods) != 1 {
+		t.Errorf("expected 1 row after conflict upsert, got %d", len(mods))
+	}
+}

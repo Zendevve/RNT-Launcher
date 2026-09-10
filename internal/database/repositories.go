@@ -44,6 +44,7 @@ type ModRepository interface {
 	GetByPath(path string) (*domain.Mod, error)
 	Create(mod *domain.Mod) error
 	Update(mod *domain.Mod) error
+	UpsertByPath(mod *domain.Mod) error
 	Delete(id string) error
 	ToggleFavorite(id string) (bool, error)
 	GetUsageCounts() (map[string]int, error)
@@ -531,6 +532,42 @@ func (r *modRepo) Update(mod *domain.Mod) error {
 	}
 	if rowsAffected == 0 {
 		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// UpsertByPath inserts mod or, on path conflict, refreshes exactly the
+// scan-managed columns (format, category, size, modified_at, sha256,
+// lump_count, structures, updated_at). Identity and user-managed columns
+// (id, name, favorite, external metadata, created_at) are preserved, matching
+// the update branch of the historical GetByPath/Create/Update sequence in a
+// single statement.
+func (r *modRepo) UpsertByPath(mod *domain.Mod) error {
+	if mod.ID == "" {
+		mod.ID = uuid.NewString()
+	}
+	now := time.Now().UTC()
+	if mod.CreatedAt.IsZero() {
+		mod.CreatedAt = now
+	}
+	mod.UpdatedAt = now
+	mod.Path = cleanPath(mod.Path)
+	if mod.Structures == nil {
+		mod.Structures = []string{}
+	}
+	structsJSON, err := json.Marshal(mod.Structures)
+	if err != nil {
+		structsJSON = []byte("[]")
+	}
+
+	favInt := 0
+	if mod.IsFavorite {
+		favInt = 1
+	}
+
+	query := `INSERT INTO mods (id, name, path, format, category, size, modified_at, sha256, lump_count, structures, is_favorite, external_id, version, update_url, author, description, rating, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(path) DO UPDATE SET format = excluded.format, category = excluded.category, size = excluded.size, modified_at = excluded.modified_at, sha256 = excluded.sha256, lump_count = excluded.lump_count, structures = excluded.structures, updated_at = excluded.updated_at`
+	if _, err := r.db.Exec(query, mod.ID, mod.Name, mod.Path, string(mod.Format), string(mod.Category), mod.Size, mod.ModifiedAt, mod.SHA256, mod.LumpCount, string(structsJSON), favInt, mod.ExternalID, mod.Version, mod.UpdateURL, mod.Author, mod.Description, mod.Rating, mod.CreatedAt, mod.UpdatedAt); err != nil {
+		return fmt.Errorf("failed to upsert mod by path %s: %w", mod.Path, err)
 	}
 	return nil
 }
