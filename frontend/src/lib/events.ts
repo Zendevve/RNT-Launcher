@@ -3,7 +3,7 @@
  * Safe wrappers for runtime events emitted by backend services.
  */
 
-import type { LaunchRecord, ScanProgress, ScanResult } from '../types/domain'
+import type { LaunchRecord, OrganizeReport, ScanProgress, ScanResult } from '../types/domain'
 
 export type EventCallback<T = unknown> = (data: T) => void
 
@@ -138,6 +138,10 @@ export function onScanProgress(callback: (progress: ScanProgress) => void): () =
 
 export function onScanComplete(callback: (result: ScanResult) => void): () => void {
   return events.on<ScanResult>('scan:complete', (data) => callback(data))
+}
+
+export function onOrganizeComplete(callback: (result: OrganizeReport) => void): () => void {
+  return events.on<OrganizeReport>('library:organize:complete', (data) => callback(data))
 }
 
 export function onLaunchStart(callback: (record: LaunchRecord) => void): () => void {

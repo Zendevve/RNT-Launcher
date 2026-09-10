@@ -130,6 +130,8 @@ export function OpenPathInExplorer(arg1:string):Promise<void>;
 
 export function OpenProfileSaveFolder(arg1:string):Promise<void>;
 
+export function OrganizeDirectory(arg1:string,arg2:string,arg3:boolean):Promise<domain.OrganizeReport>;
+
 export function RegisterIWADFile(arg1:string):Promise<domain.IWAD>;
 
 export function RemoveModFromProfile(arg1:string,arg2:string):Promise<void>;

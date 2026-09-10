@@ -250,6 +250,10 @@ export function OpenProfileSaveFolder(arg1) {
   return window['go']['main']['App']['OpenProfileSaveFolder'](arg1);
 }
 
+export function OrganizeDirectory(arg1, arg2, arg3) {
+  return window['go']['main']['App']['OrganizeDirectory'](arg1, arg2, arg3);
+}
+
 export function RegisterIWADFile(arg1) {
   return window['go']['main']['App']['RegisterIWADFile'](arg1);
 }

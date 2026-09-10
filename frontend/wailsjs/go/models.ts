@@ -575,6 +575,44 @@ export namespace domain {
 	        this.errors = source["errors"];
 	    }
 	}
+	export class OrganizeMove {
+	    source: string;
+	    destination: string;
+	    folder: string;
+
+	    static createFrom(source: any = {}) {
+	        return new OrganizeMove(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source = source["source"];
+	        this.destination = source["destination"];
+	        this.folder = source["folder"];
+	    }
+	}
+	export class OrganizeReport {
+	    dryRun: boolean;
+	    moves: OrganizeMove[];
+	    errors: string[];
+	    movedCount: number;
+	    importedMods: number;
+	    importedIWADs: number;
+
+	    static createFrom(source: any = {}) {
+	        return new OrganizeReport(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dryRun = source["dryRun"];
+	        this.moves = source["moves"];
+	        this.errors = source["errors"];
+	        this.movedCount = source["movedCount"];
+	        this.importedMods = source["importedMods"];
+	        this.importedIWADs = source["importedIWADs"];
+	    }
+	}
 	export class Settings {
 	    modDirectories: string[];
 	    iwadDirectories: string[];
