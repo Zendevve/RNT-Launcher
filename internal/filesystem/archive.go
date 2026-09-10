@@ -46,8 +46,17 @@ func IsZip(data []byte) bool {
 			(data[2] == 5 && data[3] == 6) ||
 			(data[2] == 7 && data[3] == 8))
 }
+// isUpperASCII reports whether s needs no case folding: pure ASCII with no
+// lowercase letters, so strings.ToUpper would return an identical copy.
+func isUpperASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if c := s[i]; c >= 'a' && c <= 'z' || c >= 128 {
+			return false
+		}
+	}
+	return true
+}
 
-// InspectArchive opens and inspects an archive file from disk.
 func InspectArchive(path string) (*ArchiveInfo, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -129,22 +138,41 @@ func InspectArchiveReader(r io.ReaderAt, size int64, filenameOrExt string) (*Arc
 			continue
 		}
 
-		cleanPath := strings.ReplaceAll(f.Name, "\\", "/")
-		cleanPath = strings.Trim(cleanPath, "/")
+		// Normalize separators and trim slashes without allocating when the
+		// name is already clean (the common case).
+		cleanPath := f.Name
+		if strings.Contains(cleanPath, "\\") {
+			cleanPath = strings.ReplaceAll(cleanPath, "\\", "/")
+		}
+		if strings.HasPrefix(cleanPath, "/") || strings.HasSuffix(cleanPath, "/") {
+			cleanPath = strings.Trim(cleanPath, "/")
+		}
 		if cleanPath == "" {
 			continue
 		}
 
 		info.Entries = append(info.Entries, cleanPath)
 		lowerPath := strings.ToLower(cleanPath)
-		parts := strings.Split(lowerPath, "/")
-		fileName := parts[len(parts)-1]
-		baseName := strings.TrimSuffix(fileName, filepath.Ext(fileName))
-		upperBase := strings.ToUpper(baseName)
-
+		// First and last components via index scans: no Split allocation,
+		// substrings share lowerPath's backing store.
+		fileName := lowerPath
+		topDir := ""
+		if i := strings.IndexByte(lowerPath, '/'); i >= 0 {
+			topDir = lowerPath[:i]
+			fileName = lowerPath[strings.LastIndexByte(lowerPath, '/')+1:]
+		}
+		baseName := fileName
+		if dot := strings.LastIndexByte(fileName, '.'); dot >= 0 {
+			baseName = fileName[:dot]
+		}
+		// Entry names from real archives are usually already uppercase;
+		// skip the redundant ToUpper copy then.
+		upperBase := baseName
+		if !isUpperASCII(baseName) {
+			upperBase = strings.ToUpper(baseName)
+		}
 		// 1. Directory Structure check
-		if len(parts) > 1 {
-			topDir := parts[0]
+		if topDir != "" {
 			switch topDir {
 			case "maps":
 				info.Structures = appendUnique(info.Structures, "MAPS")
