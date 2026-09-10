@@ -63,11 +63,52 @@ func ClassifyAsset(filename string, header []byte) string {
 	}
 	return "mods"
 }
-
 // OrganizeFile moves srcPath into the classified subfolder of libDir,
 // creating it if needed. Same-volume moves use os.Rename (metadata only);
 // cross-volume falls back to copy+remove. It returns the destination path.
 func OrganizeFile(srcPath, libDir string) (string, error) {
+	folder, err := sniffFolder(srcPath)
+	if err != nil {
+		return "", err
+	}
+	destDir := filepath.Join(libDir, folder)
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return "", err
+	}
+	dest := filepath.Join(destDir, filepath.Base(srcPath))
+	if err := moveFile(srcPath, dest); err != nil {
+		return "", err
+	}
+	return dest, nil
+}
+
+// OrganizeBatch moves every srcPath into its classified subfolder of libDir,
+// creating the four library folders once up front instead of once per file.
+// It returns destination paths in input order; on error it reports how many
+// files were already moved.
+func OrganizeBatch(srcPaths []string, libDir string) ([]string, error) {
+	for _, folder := range LibraryFolders {
+		if err := os.MkdirAll(filepath.Join(libDir, folder), 0o755); err != nil {
+			return nil, err
+		}
+	}
+	dests := make([]string, 0, len(srcPaths))
+	for _, src := range srcPaths {
+		folder, err := sniffFolder(src)
+		if err != nil {
+			return dests, err
+		}
+		dest := filepath.Join(libDir, folder, filepath.Base(src))
+		if err := moveFile(src, dest); err != nil {
+			return dests, err
+		}
+		dests = append(dests, dest)
+	}
+	return dests, nil
+}
+
+// sniffFolder classifies srcPath reading at most 16 header bytes.
+func sniffFolder(srcPath string) (string, error) {
 	f, err := os.Open(srcPath)
 	if err != nil {
 		return "", err
@@ -75,22 +116,19 @@ func OrganizeFile(srcPath, libDir string) (string, error) {
 	var header [16]byte
 	n, _ := f.Read(header[:])
 	f.Close()
+	return ClassifyAsset(srcPath, header[:n]), nil
+}
 
-	folder := ClassifyAsset(srcPath, header[:n])
-	destDir := filepath.Join(libDir, folder)
-	if err := os.MkdirAll(destDir, 0o755); err != nil {
-		return "", err
-	}
-	dest := filepath.Join(destDir, filepath.Base(srcPath))
-	if err := os.Rename(srcPath, dest); err != nil {
-		if err := copyFile(srcPath, dest); err != nil {
-			return "", err
+func moveFile(src, dest string) error {
+	if err := os.Rename(src, dest); err != nil {
+		if err := copyFile(src, dest); err != nil {
+			return err
 		}
-		if rmErr := os.Remove(srcPath); rmErr != nil {
-			return "", rmErr
+		if rmErr := os.Remove(src); rmErr != nil {
+			return rmErr
 		}
 	}
-	return dest, nil
+	return nil
 }
 
 func copyFile(src, dest string) error {

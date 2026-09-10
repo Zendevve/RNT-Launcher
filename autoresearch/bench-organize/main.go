@@ -54,16 +54,13 @@ func run() error {
 	engineZip := buildEngineZip()
 
 	lib := filepath.Join(root, "library")
-	for _, d := range []string{"engines", "iwads", "wads", "mods"} {
-		if err := os.MkdirAll(filepath.Join(lib, d), 0o755); err != nil {
-			return err
-		}
+	srcs := make([]string, 0, len(names))
+	for _, n := range names {
+		srcs = append(srcs, filepath.Join(flat, n))
 	}
 	t0 := time.Now()
-	for _, n := range names {
-		if _, err := filesystem.OrganizeFile(filepath.Join(flat, n), lib); err != nil {
-			return err
-		}
+	if _, err := filesystem.OrganizeBatch(srcs, lib); err != nil {
+		return err
 	}
 	organizeDur := time.Since(t0)
 
