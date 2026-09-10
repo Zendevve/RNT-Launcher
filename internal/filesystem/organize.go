@@ -107,8 +107,26 @@ func OrganizeBatch(srcPaths []string, libDir string) ([]string, error) {
 	return dests, nil
 }
 
-// sniffFolder classifies srcPath reading at most 16 header bytes.
+// needsHeader reports whether classification can differ with header bytes:
+// only generic .wad files need the magic sniff (IWAD vs PWAD); every other
+// name is decided by extension, known IWAD basenames, or engine tokens.
+func needsHeader(filename string) bool {
+	lower := strings.ToLower(filepath.Base(filename))
+	if knownIWADNames[lower] {
+		return false
+	}
+	return strings.ToLower(filepath.Ext(lower)) == ".wad"
+}
+
+// sniffFolder classifies srcPath, reading at most 16 header bytes and only
+// when the filename alone cannot decide.
 func sniffFolder(srcPath string) (string, error) {
+	if !needsHeader(srcPath) {
+		if _, err := os.Stat(srcPath); err != nil {
+			return "", err
+		}
+		return ClassifyAsset(srcPath, nil), nil
+	}
 	f, err := os.Open(srcPath)
 	if err != nil {
 		return "", err

@@ -43,10 +43,10 @@ func TestClassifyAsset(t *testing.T) {
 func TestOrganizeBatchLayout(t *testing.T) {
 	src := t.TempDir()
 	lib := t.TempDir()
-
 	files := map[string][]byte{
 		"gzdoom.exe":      {0x4D, 0x5A},
 		"doom2.wad":       []byte("IWAD...."),
+		"mystery.wad":     []byte("IWAD...."),
 		"e1m1fix.wad":     []byte("PWAD...."),
 		"brutalv21.pk3":   []byte("PK\x03\x04.."),
 		"nerve Pandemie":  []byte("x"),
@@ -72,6 +72,7 @@ func TestOrganizeBatchLayout(t *testing.T) {
 	wantFolder := map[string]string{
 		"gzdoom.exe":     "engines",
 		"doom2.wad":      "iwads",
+		"mystery.wad":    "iwads",
 		"e1m1fix.wad":    "wads",
 		"brutalv21.pk3":  "mods",
 		"nerve Pandemie": "mods",
