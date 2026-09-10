@@ -706,9 +706,26 @@ func TestScannerService_IncrementalRescan(t *testing.T) {
 	if n, err := svc.ScanModDirectory(ctx, dir, nil); err != nil || n != 2 {
 		t.Fatalf("first scan: n=%d err=%v", n, err)
 	}
+	// User-managed columns must survive rescans, cached or not.
+	managed, err := repos.Mods.GetByPath(aPath)
+	if err != nil {
+		t.Fatalf("GetByPath(a) failed: %v", err)
+	}
+	managed.Name = "User Title"
+	managed.IsFavorite = true
+	if err := repos.Mods.Update(managed); err != nil {
+		t.Fatalf("user rename failed: %v", err)
+	}
 	// Unchanged rescan replays decisions with identical counts.
 	if n, err := svc.ScanModDirectory(ctx, dir, nil); err != nil || n != 2 {
 		t.Fatalf("unchanged rescan: n=%d err=%v", n, err)
+	}
+	kept, err := repos.Mods.GetByPath(aPath)
+	if err != nil {
+		t.Fatalf("GetByPath(a) after rescan failed: %v", err)
+	}
+	if kept.Name != "User Title" || !kept.IsFavorite {
+		t.Errorf("user columns lost on rescan: %+v", kept)
 	}
 
 	// Rewrite one file with different content size: only it is reprocessed.
