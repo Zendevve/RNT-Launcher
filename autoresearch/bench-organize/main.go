@@ -97,7 +97,8 @@ func run() error {
 	}
 	provisionDur := time.Since(t2)
 
-	t3 := time.Now()
+	// One-time setup (like fixture generation above) stays untimed: the
+	// scan phase measures per-scan service work, not startup migrations.
 	db, err := database.InitDB(":memory:")
 	if err != nil {
 		return err
@@ -109,6 +110,7 @@ func run() error {
 		database.NewEngineRepository(db),
 		nil,
 	)
+	t3 := time.Now()
 	scanRes, err := svc.ScanDirectories(context.Background(),
 		[]string{filepath.Join(lib, "mods"), filepath.Join(lib, "wads")},
 		[]string{filepath.Join(lib, "iwads")},
