@@ -688,3 +688,49 @@ func TestScannerService_ImportFile_UpdateExisting(t *testing.T) {
 		t.Fatalf("expected 1 mod in repository, got %d", len(mods))
 	}
 }
+
+func TestScannerService_IncrementalRescan(t *testing.T) {
+	svc, repos := setupTestScanner(t)
+	dir := t.TempDir()
+
+	aPath := filepath.Join(dir, "a.wad")
+	bPath := filepath.Join(dir, "b.wad")
+	if err := os.WriteFile(aPath, buildTestWAD("PWAD", []string{"MAP01"}), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bPath, buildTestWAD("PWAD", []string{"MAP02"}), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+	if n, err := svc.ScanModDirectory(ctx, dir, nil); err != nil || n != 2 {
+		t.Fatalf("first scan: n=%d err=%v", n, err)
+	}
+	// Unchanged rescan replays decisions with identical counts.
+	if n, err := svc.ScanModDirectory(ctx, dir, nil); err != nil || n != 2 {
+		t.Fatalf("unchanged rescan: n=%d err=%v", n, err)
+	}
+
+	// Rewrite one file with different content size: only it is reprocessed.
+	if err := os.WriteFile(bPath, buildTestWAD("PWAD", []string{"MAP02", "MAP03", "DECORATE"}), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := svc.ScanModDirectory(ctx, dir, nil); err != nil || n != 2 {
+		t.Fatalf("changed rescan: n=%d err=%v", n, err)
+	}
+	got, err := repos.Mods.GetByPath(bPath)
+	if err != nil {
+		t.Fatalf("GetByPath(b) failed: %v", err)
+	}
+	if got.LumpCount != 3 {
+		t.Errorf("expected refreshed LumpCount=3, got %d", got.LumpCount)
+	}
+
+	// Deleting a file drops it from future scans without error.
+	if err := os.Remove(aPath); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := svc.ScanModDirectory(ctx, dir, nil); err != nil || n != 1 {
+		t.Fatalf("post-delete scan: n=%d err=%v", n, err)
+	}
+}

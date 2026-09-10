@@ -122,6 +122,24 @@ func run() error {
 	scanDur := time.Since(t3)
 	scanned := scanRes.DiscoveredMods + scanRes.DiscoveredIWADs + scanRes.DiscoveredEngines
 
+	// Rescan with the same service: warm decision cache, so this measures
+	// incremental verification (walks plus fingerprint compares) with
+	// identical required results.
+	t4 := time.Now()
+	rescanRes, err := svc.ScanDirectories(context.Background(),
+		[]string{filepath.Join(lib, "mods"), filepath.Join(lib, "wads")},
+		[]string{filepath.Join(lib, "iwads")},
+		[]string{filepath.Join(lib, "engines")},
+		nil)
+	if err != nil {
+		return err
+	}
+	rescanDur := time.Since(t4)
+	rescanned := rescanRes.DiscoveredMods + rescanRes.DiscoveredIWADs + rescanRes.DiscoveredEngines
+	if rescanned != scanned {
+		return fmt.Errorf("rescan discovered %d, want %d", rescanned, scanned)
+	}
+
 	total := organizeDur + inspectDur + provisionDur
 	perSec := float64(inspected) / total.Seconds()
 
@@ -134,6 +152,9 @@ func run() error {
 	fmt.Printf("METRIC scan_ms=%.3f\n", float64(scanDur.Microseconds())/1000.0)
 	fmt.Printf("METRIC scan_errors=%d\n", len(scanRes.Errors))
 	fmt.Printf("METRIC scanned=%d\n", scanned)
+	fmt.Printf("METRIC rescan_ms=%.3f\n", float64(rescanDur.Microseconds())/1000.0)
+	fmt.Printf("METRIC rescan_errors=%d\n", len(rescanRes.Errors))
+	fmt.Printf("METRIC rescanned=%d\n", rescanned)
 	return nil
 }
 
