@@ -1,0 +1,261 @@
+package main
+
+// Deterministic workload for the managed-library + source-port provisioning
+// benchmark. No network, no clock-dependent fixtures, fixed PRNG seed.
+
+import (
+	"archive/zip"
+	"bytes"
+	"fmt"
+	"math/rand/v2"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"rnt-launcher/internal/filesystem"
+)
+
+const (
+	fileCount = 200
+	prngSeed1 = uint64(42)
+	prngSeed2 = uint64(0)
+)
+
+func main() {
+	if err := run(); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
+	root, err := os.MkdirTemp("", "rnt-bench-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(root)
+
+	flat := filepath.Join(root, "flat-mess")
+	if err := os.MkdirAll(flat, 0o755); err != nil {
+		return err
+	}
+	rng := rand.New(rand.NewPCG(prngSeed1, prngSeed2))
+
+	names := make([]string, 0, fileCount)
+	for i := range fileCount {
+		name, data := makeFixture(rng, i)
+		p := filepath.Join(flat, name)
+		if err := os.WriteFile(p, data, 0o644); err != nil {
+			return err
+		}
+		names = append(names, name)
+	}
+	engineZip := buildEngineZip()
+
+	lib := filepath.Join(root, "library")
+	for _, d := range []string{"engines", "iwads", "wads", "mods"} {
+		if err := os.MkdirAll(filepath.Join(lib, d), 0o755); err != nil {
+			return err
+		}
+	}
+	t0 := time.Now()
+	for _, n := range names {
+		data, err := os.ReadFile(filepath.Join(flat, n))
+		if err != nil {
+			return err
+		}
+		dest := filepath.Join(lib, classify(n, data), n)
+		if err := os.WriteFile(dest, data, 0o644); err != nil {
+			return err
+		}
+	}
+	organizeDur := time.Since(t0)
+
+	var inspected, errors int
+	t1 := time.Now()
+	err = filepath.Walk(lib, func(p string, info os.FileInfo, werr error) error {
+		if werr != nil || info.IsDir() {
+			return nil
+		}
+		inspected++
+		if _, ierr := filesystem.InspectFile(p); ierr != nil {
+			errors++
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	inspectDur := time.Since(t1)
+
+	t2 := time.Now()
+	destDir := filepath.Join(lib, "engines", "gzdoom-4-12-0")
+	if err := extractZip(engineZip, destDir); err != nil {
+		return err
+	}
+	if _, err := pickMainExecutable(destDir); err != nil {
+		return err
+	}
+	provisionDur := time.Since(t2)
+
+	total := organizeDur + inspectDur + provisionDur
+	perSec := float64(inspected) / total.Seconds()
+
+	fmt.Printf("METRIC organize_ms=%.3f\n", float64(organizeDur.Microseconds())/1000.0)
+	fmt.Printf("METRIC inspect_ms=%.3f\n", float64(inspectDur.Microseconds())/1000.0)
+	fmt.Printf("METRIC provision_ms=%.3f\n", float64(provisionDur.Microseconds())/1000.0)
+	fmt.Printf("METRIC total_ms=%.3f\n", float64(total.Microseconds())/1000.0)
+	fmt.Printf("METRIC files_per_sec=%.3f\n", perSec)
+	fmt.Printf("METRIC inspect_errors=%d\n", errors)
+	return nil
+}
+
+func classify(name string, data []byte) string {
+	lower := strings.ToLower(name)
+	if strings.HasSuffix(lower, ".exe") {
+		return "engines"
+	}
+	if strings.HasSuffix(lower, ".zip") && strings.Contains(lower, "gzdoom") {
+		return "engines"
+	}
+	base := strings.ToLower(filepath.Base(name))
+	switch base {
+	case "doom.wad", "doom2.wad", "tnt.wad", "plutonia.wad", "heretic.wad", "hexen.wad":
+		return "iwads"
+	}
+	if strings.HasSuffix(lower, ".wad") {
+		if len(data) >= 4 && string(data[:4]) == "IWAD" {
+			return "iwads"
+		}
+		return "wads"
+	}
+	return "mods"
+}
+
+func makeFixture(rng *rand.Rand, i int) (string, []byte) {
+	switch i % 5 {
+	case 0:
+		return fmt.Sprintf("map_%03d.wad", i), buildWad("PWAD", []string{"MAP01", "DECORATE"})
+	case 1:
+		if i%10 == 1 {
+			return "doom2.wad", buildWad("IWAD", []string{"MAP01", "E1M1"})
+		}
+		return fmt.Sprintf("pwad_%03d.wad", i), buildWad("PWAD", []string{"E1M1"})
+	case 2:
+		return fmt.Sprintf("mod_%03d.pk3", i), buildZip(map[string][]byte{
+			"ZSCRIPT": []byte("// zscript"),
+		})
+	case 3:
+		body := fmt.Sprintf("Patch File\nDoom version = 19\nThing %d (TROOPER)\nHit points = %d\n", i, 20+rng.IntN(100))
+		return fmt.Sprintf("patch_%03d.deh", i), []byte(body)
+	default:
+		if i%10 == 9 {
+			return fmt.Sprintf("gzdoom_port_%03d.zip", i), buildZip(map[string][]byte{
+				"gzdoom.exe": bytes.Repeat([]byte{byte(i)}, 4096),
+			})
+		}
+		return fmt.Sprintf("tex_%03d.pk3", i), buildZip(map[string][]byte{
+			"TEXTURES": []byte("texture lump"),
+		})
+	}
+}
+
+func buildWad(magic string, lumps []string) []byte {
+	buf := new(bytes.Buffer)
+	buf.WriteString(magic)
+	n := uint32(len(lumps))
+	buf.Write([]byte{byte(n), byte(n >> 8), byte(n >> 16), byte(n >> 24)})
+	for _, l := range lumps {
+		name := make([]byte, 8)
+		copy(name, l)
+		buf.Write(make([]byte, 4))
+		buf.Write(make([]byte, 4))
+		buf.Write(name)
+	}
+	return buf.Bytes()
+}
+
+func buildZip(files map[string][]byte) []byte {
+	buf := new(bytes.Buffer)
+	w := zip.NewWriter(buf)
+	for name, data := range files {
+		f, _ := w.Create(name)
+		f.Write(data)
+	}
+	w.Close()
+	return buf.Bytes()
+}
+
+func buildEngineZip() []byte {
+	return buildZip(map[string][]byte{
+		"gzdoom.exe":    bytes.Repeat([]byte{0x4D}, 8192),
+		"gzdoom.pk3":    []byte("engine assets"),
+		"brightmaps.pk3": []byte("assets"),
+	})
+}
+
+func extractZip(data []byte, destDir string) error {
+	r, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return err
+	}
+	for _, f := range r.File {
+		if f.Name == "" {
+			continue
+		}
+		target := filepath.Join(destDir, filepath.FromSlash(f.Name))
+		rel, err := filepath.Rel(destDir, target)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			return fmt.Errorf("illegal entry %q", f.Name)
+		}
+		if f.FileInfo().IsDir() {
+			if err := os.MkdirAll(target, 0o755); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return err
+		}
+		buf := new(bytes.Buffer)
+		if _, err := buf.ReadFrom(rc); err != nil {
+			rc.Close()
+			return err
+		}
+		rc.Close()
+		if err := os.WriteFile(target, buf.Bytes(), 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func pickMainExecutable(destDir string) (string, error) {
+	var best string
+	var bestSize int64 = -1
+	err := filepath.Walk(destDir, func(p string, info os.FileInfo, werr error) error {
+		if werr != nil || info.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(strings.ToLower(info.Name()), ".exe") {
+			return nil
+		}
+		if info.Size() > bestSize {
+			bestSize = info.Size()
+			best = p
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if best == "" {
+		return "", fmt.Errorf("no executable found")
+	}
+	return best, nil
+}
