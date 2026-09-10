@@ -45,6 +45,7 @@ type ModRepository interface {
 	Create(mod *domain.Mod) error
 	Update(mod *domain.Mod) error
 	UpsertByPath(mod *domain.Mod) error
+	UpsertModsBatch(mods []*domain.Mod) error
 	Delete(id string) error
 	ToggleFavorite(id string) (bool, error)
 	GetUsageCounts() (map[string]int, error)
@@ -543,6 +544,25 @@ func (r *modRepo) Update(mod *domain.Mod) error {
 // the update branch of the historical GetByPath/Create/Update sequence in a
 // single statement.
 func (r *modRepo) UpsertByPath(mod *domain.Mod) error {
+	structsJSON := normalizeModForUpsert(mod)
+	favInt := 0
+	if mod.IsFavorite {
+		favInt = 1
+	}
+
+	if _, err := r.db.Exec(modUpsertQuery, modUpsertArgs(mod, structsJSON, favInt)...); err != nil {
+		return fmt.Errorf("failed to upsert mod by path %s: %w", mod.Path, err)
+	}
+	return nil
+}
+
+// modUpsertQuery is the shared single-statement upsert: insert, or on path
+// conflict refresh only the scan-managed columns.
+const modUpsertQuery = `INSERT INTO mods (id, name, path, format, category, size, modified_at, sha256, lump_count, structures, is_favorite, external_id, version, update_url, author, description, rating, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(path) DO UPDATE SET format = excluded.format, category = excluded.category, size = excluded.size, modified_at = excluded.modified_at, sha256 = excluded.sha256, lump_count = excluded.lump_count, structures = excluded.structures, updated_at = excluded.updated_at`
+
+// normalizeModForUpsert applies the Create-equivalent normalization and
+// returns the marshaled structures JSON.
+func normalizeModForUpsert(mod *domain.Mod) string {
 	if mod.ID == "" {
 		mod.ID = uuid.NewString()
 	}
@@ -559,15 +579,44 @@ func (r *modRepo) UpsertByPath(mod *domain.Mod) error {
 	if err != nil {
 		structsJSON = []byte("[]")
 	}
+	return string(structsJSON)
+}
 
-	favInt := 0
-	if mod.IsFavorite {
-		favInt = 1
+func modUpsertArgs(mod *domain.Mod, structsJSON string, favInt int) []any {
+	return []any{mod.ID, mod.Name, mod.Path, string(mod.Format), string(mod.Category), mod.Size, mod.ModifiedAt, mod.SHA256, mod.LumpCount, structsJSON, favInt, mod.ExternalID, mod.Version, mod.UpdateURL, mod.Author, mod.Description, mod.Rating, mod.CreatedAt, mod.UpdatedAt}
+}
+
+// UpsertModsBatch writes every mod in one transaction with a single prepared
+// statement, so directory scans commit atomically instead of once per file.
+// Column semantics match UpsertByPath.
+func (r *modRepo) UpsertModsBatch(mods []*domain.Mod) error {
+	if len(mods) == 0 {
+		return nil
 	}
+	tx, err := r.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin mod upsert batch: %w", err)
+	}
+	defer tx.Rollback()
 
-	query := `INSERT INTO mods (id, name, path, format, category, size, modified_at, sha256, lump_count, structures, is_favorite, external_id, version, update_url, author, description, rating, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(path) DO UPDATE SET format = excluded.format, category = excluded.category, size = excluded.size, modified_at = excluded.modified_at, sha256 = excluded.sha256, lump_count = excluded.lump_count, structures = excluded.structures, updated_at = excluded.updated_at`
-	if _, err := r.db.Exec(query, mod.ID, mod.Name, mod.Path, string(mod.Format), string(mod.Category), mod.Size, mod.ModifiedAt, mod.SHA256, mod.LumpCount, string(structsJSON), favInt, mod.ExternalID, mod.Version, mod.UpdateURL, mod.Author, mod.Description, mod.Rating, mod.CreatedAt, mod.UpdatedAt); err != nil {
-		return fmt.Errorf("failed to upsert mod by path %s: %w", mod.Path, err)
+	stmt, err := tx.Prepare(modUpsertQuery)
+	if err != nil {
+		return fmt.Errorf("failed to prepare mod upsert batch: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, mod := range mods {
+		structsJSON := normalizeModForUpsert(mod)
+		favInt := 0
+		if mod.IsFavorite {
+			favInt = 1
+		}
+		if _, err := stmt.Exec(modUpsertArgs(mod, structsJSON, favInt)...); err != nil {
+			return fmt.Errorf("failed to upsert mod by path %s in batch: %w", mod.Path, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit mod upsert batch: %w", err)
 	}
 	return nil
 }

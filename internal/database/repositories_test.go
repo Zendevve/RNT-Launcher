@@ -969,3 +969,65 @@ func TestModRepository_UpsertByPath(t *testing.T) {
 		t.Errorf("expected 1 row after conflict upsert, got %d", len(mods))
 	}
 }
+
+func TestModRepository_UpsertModsBatch(t *testing.T) {
+	repos := setupTestDB(t)
+
+	if err := repos.Mods.UpsertModsBatch(nil); err != nil {
+		t.Fatalf("empty batch failed: %v", err)
+	}
+
+	mk := func(name, path string, size int64) *domain.Mod {
+		return &domain.Mod{
+			Name: name, Path: path, Format: domain.ModFormat("PK3"),
+			Category: domain.ModCategory("Maps"), Size: size,
+			SHA256: "h", LumpCount: 1, Structures: []string{"MAPS"},
+		}
+	}
+	batch := []*domain.Mod{
+		mk("a", filepath.Join("mods", "a.pk3"), 10),
+		mk("b", filepath.Join("mods", "b.pk3"), 20),
+		mk("c", filepath.Join("mods", "c.pk3"), 30),
+	}
+	if err := repos.Mods.UpsertModsBatch(batch); err != nil {
+		t.Fatalf("batch insert failed: %v", err)
+	}
+	for _, m := range batch {
+		if m.ID == "" {
+			t.Errorf("expected ID assignment for %s", m.Path)
+		}
+	}
+
+	// Rename one out-of-band, then re-batch with new scan data.
+	renamed, err := repos.Mods.GetByPath(batch[0].Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	renamed.Name = "User Title"
+	if err := repos.Mods.Update(renamed); err != nil {
+		t.Fatal(err)
+	}
+	batch[0].Size = 99
+	batch[1].Size = 199
+	if err := repos.Mods.UpsertModsBatch(batch); err != nil {
+		t.Fatalf("batch rescan failed: %v", err)
+	}
+
+	mods, err := repos.Mods.List(domain.ModFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mods) != 3 {
+		t.Fatalf("expected 3 rows after batch rescan, got %d", len(mods))
+	}
+	byPath := map[string]domain.Mod{}
+	for _, m := range mods {
+		byPath[m.Path] = m
+	}
+	if byPath[batch[0].Path].Name != "User Title" {
+		t.Errorf("user rename lost: %q", byPath[batch[0].Path].Name)
+	}
+	if byPath[batch[0].Path].Size != 99 || byPath[batch[1].Path].Size != 199 {
+		t.Errorf("scan columns not refreshed: %+v", byPath)
+	}
+}

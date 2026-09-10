@@ -155,13 +155,21 @@ func (s *ScannerService) ScanDirectories(ctx context.Context, modDirs, iwadDirs,
 	totalModFiles := len(allModFiles)
 	currentModIdx := 0
 
-	// Bulk inspection runs on the worker pool; the store phase below stays
-	// sequential so progress, counts, and error order match a serial scan.
+	// Bulk inspection runs on the worker pool; reporting stays sequential so
+	// progress, counts, and error order match a serial scan.
 	infos, inspectErrs := inspectFilesParallel(ctx, allModFiles)
 
+	var modBatch []*domain.Mod
+	flush := func() {
+		result.DiscoveredMods += s.flushModBatch(modBatch, func(filePath string, err error) {
+			result.Errors = append(result.Errors, fmt.Sprintf("failed to process mod %s: %v", filePath, err))
+		})
+		modBatch = nil
+	}
 	for i, filePath := range allModFiles {
 		select {
 		case <-ctx.Done():
+			flush()
 			return result, ctx.Err()
 		default:
 		}
@@ -171,24 +179,21 @@ func (s *ScannerService) ScanDirectories(ctx context.Context, modDirs, iwadDirs,
 			progressFn(currentModIdx, totalModFiles, filePath)
 		}
 
-		var isIwad bool
-		var err error
 		if inspectErrs[i] != nil {
-			err = inspectErrs[i]
-		} else {
-			isIwad, err = s.storeInspectedMod(filePath, infos[i])
-		}
-		if err != nil {
-			result.Errors = append(result.Errors, fmt.Sprintf("failed to process mod %s: %v", filePath, err))
+			result.Errors = append(result.Errors, fmt.Sprintf("failed to process mod %s: %v", filePath, inspectErrs[i]))
 			continue
 		}
-
-		if isIwad {
+		if infos[i].IsIWAD || IsKnownIWADName(filePath) {
+			if err := s.upsertIWAD(filePath, infos[i]); err != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("failed to process mod %s: %v", filePath, err))
+				continue
+			}
 			result.DiscoveredIWADs++
-		} else {
-			result.DiscoveredMods++
+			continue
 		}
+		modBatch = append(modBatch, s.buildScannedMod(filePath, infos[i]))
 	}
+	flush()
 
 	return result, nil
 }
@@ -213,9 +218,16 @@ func (s *ScannerService) ScanModDirectory(ctx context.Context, dir string, progr
 
 	infos, inspectErrs := inspectFilesParallel(ctx, candidates)
 
+	var modBatch []*domain.Mod
+	flush := func() {
+		discovered += s.flushModBatch(modBatch, func(string, error) {})
+		modBatch = nil
+	}
+
 	for i, file := range candidates {
 		select {
 		case <-ctx.Done():
+			flush()
 			return discovered, ctx.Err()
 		default:
 		}
@@ -224,17 +236,19 @@ func (s *ScannerService) ScanModDirectory(ctx context.Context, dir string, progr
 			progressFn(i+1, total, file)
 		}
 
-		var err error
 		if inspectErrs[i] != nil {
-			err = inspectErrs[i]
-		} else {
-			_, err = s.storeInspectedMod(file, infos[i])
-		}
-		if err != nil {
 			continue
 		}
-		discovered++
+		if infos[i].IsIWAD || IsKnownIWADName(file) {
+			if err := s.upsertIWAD(file, infos[i]); err != nil {
+				continue
+			}
+			discovered++
+			continue
+		}
+		modBatch = append(modBatch, s.buildScannedMod(file, infos[i]))
 	}
+	flush()
 
 	return discovered, nil
 }
@@ -514,20 +528,34 @@ func inspectFilesParallel(ctx context.Context, files []string) ([]*filesystem.Fi
 	wg.Wait()
 	return infos, errs
 }
-// storeInspectedMod routes an already-inspected file into the IWAD or Mod
-// repository. It is the sequential store half used after inspectFilesParallel
-// so bulk scans keep deterministic ordering. Mod rows go through the
-// single-statement path upsert; user-managed columns stay untouched.
-func (s *ScannerService) storeInspectedMod(filePath string, info *filesystem.FileInfo) (bool, error) {
-	if info.IsIWAD || IsKnownIWADName(filePath) {
-		err := s.upsertIWAD(filePath, info)
-		return true, err
+
+// flushModBatch writes accumulated scan builds in one transaction and returns
+// the stored count. A batch failure falls back to per-file upserts so errors
+// stay precisely attributed; a missing repository reports per file exactly
+// like the historical sequential path.
+func (s *ScannerService) flushModBatch(batch []*domain.Mod, onError func(filePath string, err error)) int {
+	if len(batch) == 0 {
+		return 0
 	}
 	if s.modRepo == nil {
-		return false, errors.New("mod repository is not configured")
+		err := errors.New("mod repository is not configured")
+		for _, mod := range batch {
+			onError(mod.Path, err)
+		}
+		return 0
 	}
-
-	return false, s.modRepo.UpsertByPath(s.buildScannedMod(filePath, info))
+	if err := s.modRepo.UpsertModsBatch(batch); err == nil {
+		return len(batch)
+	}
+	stored := 0
+	for _, mod := range batch {
+		if ferr := s.modRepo.UpsertByPath(mod); ferr != nil {
+			onError(mod.Path, ferr)
+			continue
+		}
+		stored++
+	}
+	return stored
 }
 
 // buildScannedMod constructs the Mod record a scan would store for filePath,

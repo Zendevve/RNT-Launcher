@@ -140,6 +140,15 @@ func (m *mockModRepo) UpsertByPath(mod *domain.Mod) error {
 	return nil
 }
 
+func (m *mockModRepo) UpsertModsBatch(mods []*domain.Mod) error {
+	for _, mod := range mods {
+		if err := m.UpsertByPath(mod); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (m *mockModRepo) Delete(id string) error {
 	delete(m.mods, id)
 	return nil
