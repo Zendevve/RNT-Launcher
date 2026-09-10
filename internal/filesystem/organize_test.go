@@ -153,3 +153,20 @@ func TestIsMapLumpTable(t *testing.T) {
 		}
 	}
 }
+
+func TestParseLumpNameEdges(t *testing.T) {
+	cases := map[string]string{
+		"MAP01":        "MAP01",
+		"map01":        "MAP01",
+		"MAP01\x00XX":  "MAP01",
+		"  E1M1  ":      "E1M1",
+		"decorate":     "DECORATE",
+		"\x01\x02AB\x7f": "AB",
+		"":             "",
+	}
+	for in, want := range cases {
+		if got := parseLumpName([]byte(in)); got != want {
+			t.Errorf("parseLumpName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

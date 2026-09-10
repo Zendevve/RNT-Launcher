@@ -149,19 +149,46 @@ func IsWADMagic(magic string) bool {
 }
 
 // parseLumpName reads up to 8 bytes, terminates at the first null byte, and returns trimmed uppercase ASCII.
+// It works entirely on the stack: a single string allocation for the result.
 func parseLumpName(raw []byte) string {
-	n := bytes.IndexByte(raw, 0)
-	if n != -1 {
-		raw = raw[:n]
-	}
-	var b strings.Builder
+	var tmp [8]byte
+	n := 0
 	for _, c := range raw {
+		if n >= len(tmp) {
+			break
+		}
+		if c == 0 {
+			break
+		}
 		if c >= 32 && c <= 126 {
-			b.WriteByte(c)
+			tmp[n] = c
+			n++
 		}
 	}
-	s := strings.TrimSpace(b.String())
-	return strings.ToUpper(s)
+	// Trim ASCII whitespace from both ends (matches TrimSpace on this alphabet).
+	start := 0
+	for start < n && isASCIISpace(tmp[start]) {
+		start++
+	}
+	end := n
+	for end > start && isASCIISpace(tmp[end-1]) {
+		end--
+	}
+	// Uppercase in place.
+	for i := start; i < end; i++ {
+		if tmp[i] >= 'a' && tmp[i] <= 'z' {
+			tmp[i] -= 'a' - 'A'
+		}
+	}
+	return string(tmp[start:end])
+}
+
+func isASCIISpace(c byte) bool {
+	switch c {
+	case ' ', '\t', '\n', '\v', '\f', '\r':
+		return true
+	}
+	return false
 }
 
 // WADLump represents an individual lump metadata entry in a WAD file.
