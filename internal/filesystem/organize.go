@@ -119,12 +119,11 @@ func needsHeader(filename string) bool {
 }
 
 // sniffFolder classifies srcPath, reading at most 16 header bytes and only
-// when the filename alone cannot decide.
+// when the filename alone cannot decide. Existence is reported by the open
+// or by the later rename itself; no separate pre-check (which would race the
+// move anyway).
 func sniffFolder(srcPath string) (string, error) {
 	if !needsHeader(srcPath) {
-		if _, err := os.Stat(srcPath); err != nil {
-			return "", err
-		}
 		return ClassifyAsset(srcPath, nil), nil
 	}
 	f, err := os.Open(srcPath)
