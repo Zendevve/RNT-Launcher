@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -154,7 +155,11 @@ func (s *ScannerService) ScanDirectories(ctx context.Context, modDirs, iwadDirs,
 	totalModFiles := len(allModFiles)
 	currentModIdx := 0
 
-	for _, filePath := range allModFiles {
+	// Bulk inspection runs on the worker pool; the store phase below stays
+	// sequential so progress, counts, and error order match a serial scan.
+	infos, inspectErrs := inspectFilesParallel(ctx, allModFiles)
+
+	for i, filePath := range allModFiles {
 		select {
 		case <-ctx.Done():
 			return result, ctx.Err()
@@ -166,7 +171,13 @@ func (s *ScannerService) ScanDirectories(ctx context.Context, modDirs, iwadDirs,
 			progressFn(currentModIdx, totalModFiles, filePath)
 		}
 
-		isIwad, err := s.processModFile(ctx, filePath)
+		var isIwad bool
+		var err error
+		if inspectErrs[i] != nil {
+			err = inspectErrs[i]
+		} else {
+			isIwad, err = s.storeInspectedMod(filePath, infos[i])
+		}
 		if err != nil {
 			result.Errors = append(result.Errors, fmt.Sprintf("failed to process mod %s: %v", filePath, err))
 			continue
@@ -200,6 +211,8 @@ func (s *ScannerService) ScanModDirectory(ctx context.Context, dir string, progr
 	total := len(candidates)
 	discovered := 0
 
+	infos, inspectErrs := inspectFilesParallel(ctx, candidates)
+
 	for i, file := range candidates {
 		select {
 		case <-ctx.Done():
@@ -211,7 +224,12 @@ func (s *ScannerService) ScanModDirectory(ctx context.Context, dir string, progr
 			progressFn(i+1, total, file)
 		}
 
-		_, err := s.processModFile(ctx, file)
+		var err error
+		if inspectErrs[i] != nil {
+			err = inspectErrs[i]
+		} else {
+			_, err = s.storeInspectedMod(file, infos[i])
+		}
 		if err != nil {
 			continue
 		}
@@ -264,17 +282,18 @@ func (s *ScannerService) ScanIWADDirectory(ctx context.Context, dir string) (int
 	}
 
 	discovered := 0
-	for _, file := range candidates {
+	infos, inspectErrs := inspectFilesParallel(ctx, candidates)
+	for i, file := range candidates {
 		select {
 		case <-ctx.Done():
 			return discovered, ctx.Err()
 		default:
 		}
 
-		info, err := filesystem.InspectFile(file)
-		if err != nil {
+		if inspectErrs[i] != nil {
 			continue
 		}
+		info := infos[i]
 
 		// Check if it's an IWAD or PWAD
 		if info.IsIWAD || IsKnownIWADName(file) {
@@ -459,19 +478,52 @@ func (s *ScannerService) collectModFiles(ctx context.Context, dir string) []stri
 	return candidates
 }
 
-// processModFile inspects a file and upserts it as IWAD or Mod. Returns (isIWAD, error).
-func (s *ScannerService) processModFile(ctx context.Context, filePath string) (bool, error) {
-	info, err := filesystem.InspectFile(filePath)
-	if err != nil {
-		return false, err
+// inspectFilesParallel inspects every file with a bounded worker pool and
+// returns infos and inspect errors aligned with files. Inspection is pure
+// filesystem I/O, so it parallelizes cleanly; callers MUST keep their
+// reporting and repository phases sequential to preserve exact progress,
+// counts, and error ordering against the single-connection database.
+func inspectFilesParallel(ctx context.Context, files []string) ([]*filesystem.FileInfo, []error) {
+	infos := make([]*filesystem.FileInfo, len(files))
+	errs := make([]error, len(files))
+	if len(files) == 0 {
+		return infos, errs
 	}
-
+	workers := min(runtime.NumCPU(), len(files))
+	queue := make(chan int, len(files))
+	for i := range files {
+		queue <- i
+	}
+	close(queue)
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range queue {
+				if ctx != nil && ctx.Err() != nil {
+					errs[i] = ctx.Err()
+					continue
+				}
+				info, err := filesystem.InspectFile(files[i])
+				infos[i] = info
+				errs[i] = err
+			}
+		}()
+	}
+	wg.Wait()
+	return infos, errs
+}
+// storeInspectedMod routes an already-inspected file into the IWAD or Mod
+// repository. It is the sequential store half used after inspectFilesParallel
+// so bulk scans keep deterministic ordering.
+func (s *ScannerService) storeInspectedMod(filePath string, info *filesystem.FileInfo) (bool, error) {
 	if info.IsIWAD || IsKnownIWADName(filePath) {
 		err := s.upsertIWAD(filePath, info)
 		return true, err
 	}
 
-	_, err = s.upsertMod(filePath, info)
+	_, err := s.upsertMod(filePath, info)
 	return false, err
 }
 

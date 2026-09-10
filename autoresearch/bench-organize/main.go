@@ -6,6 +6,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"fmt"
 	"math/rand/v2"
 	"os"
@@ -13,7 +14,9 @@ import (
 	"strings"
 	"time"
 
+	"rnt-launcher/internal/database"
 	"rnt-launcher/internal/filesystem"
+	"rnt-launcher/internal/scanner"
 )
 
 const (
@@ -91,6 +94,29 @@ func run() error {
 	}
 	provisionDur := time.Since(t2)
 
+	t3 := time.Now()
+	db, err := database.InitDB(":memory:")
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	svc := scanner.NewScannerService(
+		database.NewModRepository(db),
+		database.NewIWADRepository(db),
+		database.NewEngineRepository(db),
+		nil,
+	)
+	scanRes, err := svc.ScanDirectories(context.Background(),
+		[]string{filepath.Join(lib, "mods"), filepath.Join(lib, "wads")},
+		[]string{filepath.Join(lib, "iwads")},
+		[]string{filepath.Join(lib, "engines")},
+		nil)
+	if err != nil {
+		return err
+	}
+	scanDur := time.Since(t3)
+	scanned := scanRes.DiscoveredMods + scanRes.DiscoveredIWADs + scanRes.DiscoveredEngines
+
 	total := organizeDur + inspectDur + provisionDur
 	perSec := float64(inspected) / total.Seconds()
 
@@ -100,6 +126,9 @@ func run() error {
 	fmt.Printf("METRIC total_ms=%.3f\n", float64(total.Microseconds())/1000.0)
 	fmt.Printf("METRIC files_per_sec=%.3f\n", perSec)
 	fmt.Printf("METRIC inspect_errors=%d\n", errors)
+	fmt.Printf("METRIC scan_ms=%.3f\n", float64(scanDur.Microseconds())/1000.0)
+	fmt.Printf("METRIC scan_errors=%d\n", len(scanRes.Errors))
+	fmt.Printf("METRIC scanned=%d\n", scanned)
 	return nil
 }
 
