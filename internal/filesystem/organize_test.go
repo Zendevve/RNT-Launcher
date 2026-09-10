@@ -2,6 +2,7 @@ package filesystem
 
 import (
 	"bytes"
+	"encoding/binary"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -168,6 +169,53 @@ func TestParseLumpNameEdges(t *testing.T) {
 	for in, want := range cases {
 		if got := parseLumpName([]byte(in)); got != want {
 			t.Errorf("parseLumpName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestInspectValidWADParsesLumps(t *testing.T) {
+	var buf bytes.Buffer
+	lumps := []string{"MAP01", "DECORATE", "TEXTURE1", "MAP02"}
+	bodySize := 64
+	n := uint32(len(lumps))
+	ofs := uint32(12) + n*uint32(bodySize)
+	buf.WriteString("PWAD")
+	_ = binary.Write(&buf, binary.LittleEndian, n)
+	_ = binary.Write(&buf, binary.LittleEndian, ofs)
+	for range lumps {
+		buf.Write(bytes.Repeat([]byte{0xAB}, bodySize))
+	}
+	for k, name := range lumps {
+		_ = binary.Write(&buf, binary.LittleEndian, uint32(12+k*bodySize))
+		_ = binary.Write(&buf, binary.LittleEndian, uint32(bodySize))
+		var nb [8]byte
+		copy(nb[:], name)
+		buf.Write(nb[:])
+	}
+	dir := t.TempDir()
+	p := filepath.Join(dir, "valid.wad")
+	if err := os.WriteFile(p, buf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	info, err := InspectFile(p)
+	if err != nil {
+		t.Fatalf("InspectFile failed: %v", err)
+	}
+	if info.InspectionError != "" {
+		t.Fatalf("expected clean parse, got %q", info.InspectionError)
+	}
+	if info.Format != "PWAD" || info.LumpCount != 4 {
+		t.Errorf("unexpected header: %+v", info)
+	}
+	for _, want := range []string{"MAP01", "MAP02"} {
+		found := false
+		for _, m := range info.Maps {
+			if m == want {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("missing map %s in %v", want, info.Maps)
 		}
 	}
 }

@@ -162,51 +162,122 @@ func run() error {
 func makeFixture(rng *rand.Rand, i int) (string, []byte) {
 	switch i % 5 {
 	case 0:
-		return fmt.Sprintf("map_%03d.wad", i), buildWad("PWAD", []string{"MAP01", "DECORATE"})
+		if i%10 == 0 {
+			// Megawad: 32 maps plus markers (map detection at scale).
+			lumps := make([]string, 0, 38)
+			for m := 1; m <= 32; m++ {
+				lumps = append(lumps, fmt.Sprintf("MAP%02d", m))
+			}
+			lumps = append(lumps, "DECORATE", "TEXTURE1", "PNAMES", "SNDINFO", "PLAYPAL", "COLORMAP")
+			return fmt.Sprintf("map_%03d.wad", i), buildWad(rng, "PWAD", lumps, 256)
+		}
+		return fmt.Sprintf("map_%03d.wad", i), buildWad(rng, "PWAD", []string{"MAP01", "MAP02", "DECORATE", "TEXTURE1", "PNAMES", "PLAYPAL"}, 512)
 	case 1:
 		if i == 1 {
-			return "doom2.wad", buildWad("IWAD", []string{"MAP01", "E1M1"})
+			return "doom2.wad", buildWad(rng, "IWAD", []string{"MAP01", "MAP02", "E1M1", "PLAYPAL", "COLORMAP", "TEXTURE1", "TEXTURE2", "PNAMES", "DECORATE", "DEMO1"}, 512)
 		}
-		return fmt.Sprintf("pwad_%03d.wad", i), buildWad("PWAD", []string{"E1M1"})
+		return fmt.Sprintf("pwad_%03d.wad", i), buildWad(rng, "PWAD", []string{"E1M1", "THINGS", "LINEDEFS", "SIDEDEFS", "VERTEXES", "SECTORS", "REJECT", "BLOCKMAP"}, 256)
 	case 2:
-		return fmt.Sprintf("mod_%03d.pk3", i), buildZip(map[string][]byte{
-			"ZSCRIPT": []byte("// zscript"),
-		})
+		return fmt.Sprintf("mod_%03d.pk3", i), buildModPK3(rng, i, 100+i%101)
 	case 3:
-		body := fmt.Sprintf("Patch File\nDoom version = 19\nThing %d (TROOPER)\nHit points = %d\n", i, 20+rng.IntN(100))
-		return fmt.Sprintf("patch_%03d.deh", i), []byte(body)
+		head := fmt.Sprintf("Patch File\nDoom version = 19\nThing %d (TROOPER)\nHit points = %d\n", i, 20+rng.IntN(100))
+		body := append([]byte(head), fillRandom(rng, 1024+rng.IntN(4096))...)
+		return fmt.Sprintf("patch_%03d.deh", i), body
 	default:
 		if i%10 == 9 {
 			return fmt.Sprintf("gzdoom_port_%03d.zip", i), buildZip(map[string][]byte{
-				"gzdoom.exe": bytes.Repeat([]byte{byte(i)}, 4096),
+				"gzdoom.exe": fillRandom(rng, 20480+rng.IntN(20480)),
 			})
 		}
-		return fmt.Sprintf("tex_%03d.pk3", i), buildZip(map[string][]byte{
-			"TEXTURES": []byte("texture lump"),
-		})
+		return fmt.Sprintf("tex_%03d.pk3", i), buildModPK3(rng, i+1000, 120+i%81)
 	}
 }
 
-func buildWad(magic string, lumps []string) []byte {
+// fillRandom returns n deterministic incompressible bytes.
+func fillRandom(rng *rand.Rand, n int) []byte {
+	b := make([]byte, n)
+	for i := 0; i+8 <= n; i += 8 {
+		v := rng.Uint64()
+		b[i] = byte(v)
+		b[i+1] = byte(v >> 8)
+		b[i+2] = byte(v >> 16)
+		b[i+3] = byte(v >> 24)
+		b[i+4] = byte(v >> 32)
+		b[i+5] = byte(v >> 40)
+		b[i+6] = byte(v >> 48)
+		b[i+7] = byte(v >> 56)
+	}
+	for i := n - n%8; i < n; i++ {
+		b[i] = byte(rng.Uint64())
+	}
+	return b
+}
+
+// buildWad assembles a VALID wad: header, lump bodies, then a directory with
+// real offsets, so inspection parses lumps instead of erroring.
+func buildWad(rng *rand.Rand, magic string, lumps []string, bodySize int) []byte {
+	n := uint32(len(lumps))
+	dataSize := uint32(len(lumps)) * uint32(bodySize)
+	infoTableOfs := uint32(12) + dataSize
 	buf := new(bytes.Buffer)
 	buf.WriteString(magic)
-	n := uint32(len(lumps))
 	buf.Write([]byte{byte(n), byte(n >> 8), byte(n >> 16), byte(n >> 24)})
-	for _, l := range lumps {
+	buf.Write([]byte{byte(infoTableOfs), byte(infoTableOfs >> 8), byte(infoTableOfs >> 16), byte(infoTableOfs >> 24)})
+	for range lumps {
+		buf.Write(fillRandom(rng, bodySize))
+	}
+	for k, l := range lumps {
+		pos := uint32(12) + uint32(k)*uint32(bodySize)
+		sz := uint32(bodySize)
+		buf.Write([]byte{byte(pos), byte(pos >> 8), byte(pos >> 16), byte(pos >> 24)})
+		buf.Write([]byte{byte(sz), byte(sz >> 8), byte(sz >> 16), byte(sz >> 24)})
 		name := make([]byte, 8)
 		copy(name, l)
-		buf.Write(make([]byte, 4))
-		buf.Write(make([]byte, 4))
 		buf.Write(name)
 	}
 	return buf.Bytes()
+}
+
+// buildModPK3 assembles a realistic gameplay archive: script/mapinfo markers,
+// map entries, and sprite/sound/texture directory trees.
+func buildModPK3(rng *rand.Rand, seed, count int) []byte {
+	files := make(map[string][]byte, count+8)
+	files["ZSCRIPT"] = append([]byte("// zscript version \"4.10\"\n"), fillRandom(rng, 512+rng.IntN(1536))...)
+	files["MAPINFO"] = append([]byte("map MAP01 \"Entry\"\n"), fillRandom(rng, 256+rng.IntN(768))...)
+	files["DECORATE"] = append([]byte("actor Custom {}"), fillRandom(rng, 256+rng.IntN(768))...)
+	files["SNDINFO"] = append([]byte("misc/chat chat\n"), fillRandom(rng, 128+rng.IntN(384))...)
+	files["TEXTURES"] = append([]byte("texture BRICK\n"), fillRandom(rng, 256+rng.IntN(1024))...)
+	maps := 2 + seed%4
+	for m := 0; m < maps; m++ {
+		files[fmt.Sprintf("maps/MAP%02d.wad", (seed+m)%32+1)] = fillRandom(rng, 1024+rng.IntN(3072))
+	}
+	rest := count - len(files)
+	for k := 0; k < rest; k++ {
+		var name string
+		size := 256 + rng.IntN(768)
+		switch k % 4 {
+		case 0:
+			name = fmt.Sprintf("sprites/SPR%04d.png", seed*1000+k)
+		case 1:
+			name = fmt.Sprintf("sounds/SND%04d.wav", seed*1000+k)
+		case 2:
+			name = fmt.Sprintf("textures/TEX%04d.png", seed*1000+k)
+		default:
+			name = fmt.Sprintf("music/MUS%04d.ogg", seed*1000+k)
+		}
+		files[name] = fillRandom(rng, size)
+	}
+	return buildZip(files)
 }
 
 func buildZip(files map[string][]byte) []byte {
 	buf := new(bytes.Buffer)
 	w := zip.NewWriter(buf)
 	for name, data := range files {
-		f, _ := w.Create(name)
+		// Store uncompressed: deterministic, fast to generate, and the full
+		// byte volume exercises hashing realistically.
+		h := &zip.FileHeader{Name: name, Method: zip.Store}
+		f, _ := w.CreateHeader(h)
 		f.Write(data)
 	}
 	w.Close()
@@ -215,8 +286,8 @@ func buildZip(files map[string][]byte) []byte {
 
 func buildEngineZip() []byte {
 	return buildZip(map[string][]byte{
-		"gzdoom.exe":    bytes.Repeat([]byte{0x4D}, 8192),
-		"gzdoom.pk3":    []byte("engine assets"),
+		"gzdoom.exe":     bytes.Repeat([]byte{0x4D}, 8192),
+		"gzdoom.pk3":     []byte("engine assets"),
 		"brightmaps.pk3": []byte("assets"),
 	})
 }
