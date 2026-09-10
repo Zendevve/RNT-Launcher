@@ -127,6 +127,19 @@ func (m *mockModRepo) Update(mod *domain.Mod) error {
 	return nil
 }
 
+func (m *mockModRepo) UpsertByPath(mod *domain.Mod) error {
+	for _, existing := range m.mods {
+		if existing.Path == mod.Path {
+			id, name := existing.ID, existing.Name
+			*existing = *mod
+			existing.ID, existing.Name = id, name
+			return nil
+		}
+	}
+	m.mods[mod.ID] = mod
+	return nil
+}
+
 func (m *mockModRepo) Delete(id string) error {
 	delete(m.mods, id)
 	return nil

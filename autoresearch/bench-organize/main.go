@@ -83,9 +83,12 @@ func run() error {
 		return err
 	}
 	inspectDur := time.Since(t1)
-
 	t2 := time.Now()
-	destDir := filepath.Join(lib, "engines", "gzdoom-4-12-0")
+	// Stage the provisioned build outside the scanned library roots: the
+	// scan phase must never execute these synthetic binaries (AV-hooked
+	// process spawns are nondeterministic); probing is covered by the
+	// scanner's own unit tests.
+	destDir := filepath.Join(lib, "staging", "gzdoom-4-12-0")
 	if err := extractZip(engineZip, destDir); err != nil {
 		return err
 	}
