@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"regexp"
 	"strings"
 )
 
@@ -22,10 +21,23 @@ var (
 	ErrCorruptWADDirectory = errors.New("corrupt WAD directory: offset or count out of bounds")
 )
 
-var (
-	mapDoom1Regex = regexp.MustCompile(`^E[1-9]M[1-9]$`)
-	mapDoom2Regex = regexp.MustCompile(`^MAP[0-9]{2,}$`)
-)
+// isMapLump tests whether the lump name matches Doom 1 (E1M1..E9M9) or
+// Doom 2 (MAP01..MAP99+) format without regex overhead on the hot path.
+func isMapLump(name string) bool {
+	if len(name) == 4 && name[0] == 'E' && name[2] == 'M' &&
+		name[1] >= '1' && name[1] <= '9' && name[3] >= '1' && name[3] <= '9' {
+		return true
+	}
+	if len(name) >= 5 && name[0] == 'M' && name[1] == 'A' && name[2] == 'P' {
+		for i := 3; i < len(name); i++ {
+			if name[i] < '0' || name[i] > '9' {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
 
 // WADInfo contains the parsed header, lump statistics, detected maps, and structural markers of a WAD file.
 type WADInfo struct {
@@ -150,11 +162,6 @@ func parseLumpName(raw []byte) string {
 	}
 	s := strings.TrimSpace(b.String())
 	return strings.ToUpper(s)
-}
-
-// isMapLump tests whether the lump name matches Doom 1 (E1M1..E9M9) or Doom 2 (MAP01..MAP99+) format.
-func isMapLump(name string) bool {
-	return mapDoom1Regex.MatchString(name) || mapDoom2Regex.MatchString(name)
 }
 
 // WADLump represents an individual lump metadata entry in a WAD file.

@@ -61,12 +61,7 @@ func run() error {
 	}
 	t0 := time.Now()
 	for _, n := range names {
-		data, err := os.ReadFile(filepath.Join(flat, n))
-		if err != nil {
-			return err
-		}
-		dest := filepath.Join(lib, classify(n, data), n)
-		if err := os.WriteFile(dest, data, 0o644); err != nil {
+		if _, err := filesystem.OrganizeFile(filepath.Join(flat, n), lib); err != nil {
 			return err
 		}
 	}
@@ -111,34 +106,13 @@ func run() error {
 	return nil
 }
 
-func classify(name string, data []byte) string {
-	lower := strings.ToLower(name)
-	if strings.HasSuffix(lower, ".exe") {
-		return "engines"
-	}
-	if strings.HasSuffix(lower, ".zip") && strings.Contains(lower, "gzdoom") {
-		return "engines"
-	}
-	base := strings.ToLower(filepath.Base(name))
-	switch base {
-	case "doom.wad", "doom2.wad", "tnt.wad", "plutonia.wad", "heretic.wad", "hexen.wad":
-		return "iwads"
-	}
-	if strings.HasSuffix(lower, ".wad") {
-		if len(data) >= 4 && string(data[:4]) == "IWAD" {
-			return "iwads"
-		}
-		return "wads"
-	}
-	return "mods"
-}
 
 func makeFixture(rng *rand.Rand, i int) (string, []byte) {
 	switch i % 5 {
 	case 0:
 		return fmt.Sprintf("map_%03d.wad", i), buildWad("PWAD", []string{"MAP01", "DECORATE"})
 	case 1:
-		if i%10 == 1 {
+		if i == 1 {
 			return "doom2.wad", buildWad("IWAD", []string{"MAP01", "E1M1"})
 		}
 		return fmt.Sprintf("pwad_%03d.wad", i), buildWad("PWAD", []string{"E1M1"})
