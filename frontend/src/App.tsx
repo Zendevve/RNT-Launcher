@@ -19,7 +19,7 @@ import { SettingsView } from './features/settings';
 import { api } from './services/api';
 import { SearchPalette } from './features/search/SearchPalette';
 import { useCrashRecoveryToast } from './hooks/useCrashRecoveryToast';
-import type { ScanResult, ScanProgress, LaunchRecord, Engine, IWAD, UiDensity, Settings, Mod, Profile } from './types';
+import type { ScanResult, ScanProgress, LaunchRecord, Engine, IWAD, UiDensity, Settings, Mod, Profile, OrganizeReport } from './types';
 function AppContent() {
   const toast = useToast();
   useCrashRecoveryToast();
@@ -210,6 +210,18 @@ function AppContent() {
           toast.warning(
             'Doom Process Exited',
             `Exit code: ${data?.exit_code}`
+          );
+        }
+      })
+    );
+
+    unsubs.push(
+      api.onOrganizeComplete((data: OrganizeReport) => {
+        refreshData();
+        if (!data.dryRun) {
+          toast.success(
+            'Library Organized',
+            `Moved ${data.movedCount} files, imported ${data.importedMods} mods.`
           );
         }
       })

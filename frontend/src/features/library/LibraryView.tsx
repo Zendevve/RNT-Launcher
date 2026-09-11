@@ -23,6 +23,7 @@ import { ModTableRow } from './ModTableRow';
 import { ModInspectorDrawer } from './ModInspectorDrawer';
 import { AddModModal } from './AddModModal';
 import { IdgamesSearchModal } from './IdgamesSearchModal';
+import { OrganizeModal } from './OrganizeModal';
 import { Modal } from '../../components/ui/Modal';
 import { useToast } from '../../components/ui/Toast';
 
@@ -123,6 +124,7 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
   const [modForProfileAdd, setModForProfileAdd] = useState<Mod | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isIdgamesModalOpen, setIsIdgamesModalOpen] = useState(false);
+  const [isOrganizeOpen, setIsOrganizeOpen] = useState(false);
   // URL import & mod updates state
   const [isUrlImportOpen, setIsUrlImportOpen] = useState(false);
   const [urlInput, setUrlInput] = useState('');
@@ -716,6 +718,17 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
             <span>Scan Folders</span>
           </button>
 
+          {/* Organize Folder */}
+          <button
+            type="button"
+            onClick={() => setIsOrganizeOpen(true)}
+            title="Sort a messy folder into engines / iwads / wads / mods"
+            className="inline-flex items-center gap-1.5 rounded border border-[#22262d] bg-[#181c21] hover:bg-[#1f242e] px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white transition-colors"
+          >
+            <Layers className="h-3.5 w-3.5 text-zinc-400" />
+            <span>Organize</span>
+          </button>
+
           {/* /idgames Search */}
           <button
             type="button"
@@ -1129,6 +1142,16 @@ export const LibraryView: React.FC<LibraryViewProps> = () => {
         onClose={() => setIsIdgamesModalOpen(false)}
         onModImported={() => {
           setIsIdgamesModalOpen(false);
+          loadLibraryData();
+        }}
+      />
+
+      {/* Organize Folder Modal */}
+      <OrganizeModal
+        isOpen={isOrganizeOpen}
+        onClose={() => setIsOrganizeOpen(false)}
+        onOrganized={() => {
+          setIsOrganizeOpen(false);
           loadLibraryData();
         }}
       />

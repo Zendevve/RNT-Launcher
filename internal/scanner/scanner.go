@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,13 +23,29 @@ import (
 )
 
 var versionRegex = regexp.MustCompile(`(?i)(?:version\s*|v|\bg|woof!\s*|doom\s*)?(\d+\.\d+(?:\.\d+)*(?:-[a-zA-Z0-9_.-]+)?)`)
-
 // ScannerService orchestrates filesystem discovery of Mods, IWADs, and Engines.
 type ScannerService struct {
 	modRepo      database.ModRepository
 	iwadRepo     database.IWADRepository
 	engineRepo   database.EngineRepository
 	settingsRepo database.SettingsRepository
+
+	// scanCache remembers per-file scan decisions so rescans skip unchanged
+	// files. Guarded by scanMu; services may be used concurrently.
+	scanMu    sync.Mutex
+	scanCache map[string]scanCacheEntry
+}
+
+// scanCacheEntry is a replayable inspection decision for one path: equality
+// on (size, modTime) means "unchanged, reuse decision". This is mtime-based
+// invalidation as in build tools: a same-tick same-size rewrite is picked up
+// only after process restart (cold cache forces full verification), and DB
+// rows are assumed to change only through scanner/import writes.
+type scanCacheEntry struct {
+	size    int64
+	modTime int64
+	isIWAD  bool
+	errMsg  string
 }
 
 // NewScannerService creates a new initialized ScannerService instance.
@@ -133,7 +150,7 @@ func (s *ScannerService) ScanDirectories(ctx context.Context, modDirs, iwadDirs,
 	// 3. Scan Mod Directories with unified progress reporting
 	// First collect all candidate mod files to calculate accurate total progress
 	var allModFiles []string
-	validModDirs := make([]string, 0, len(modDirs))
+	allMarks := make(map[string]fileMark)
 
 	for _, dir := range modDirs {
 		cleanDir := filepath.Clean(dir)
@@ -145,18 +162,53 @@ func (s *ScannerService) ScanDirectories(ctx context.Context, modDirs, iwadDirs,
 			result.Errors = append(result.Errors, fmt.Sprintf("Mod directory invalid or not found: %s", cleanDir))
 			continue
 		}
-
-		validModDirs = append(validModDirs, cleanDir)
-		candidates := s.collectModFiles(ctx, cleanDir)
+		candidates, marks := s.collectModFiles(ctx, cleanDir)
 		allModFiles = append(allModFiles, candidates...)
+		for path, mark := range marks {
+			allMarks[path] = mark
+		}
 	}
 
 	totalModFiles := len(allModFiles)
 	currentModIdx := 0
 
-	for _, filePath := range allModFiles {
+	// Partition into cache hits (replay, no I/O) and changed files.
+	// Reporting below still visits every file in order, so progress, counts,
+	// and error order match a serial full scan exactly.
+	hits := make([]scanCacheEntry, len(allModFiles))
+	isHit := make([]bool, len(allModFiles))
+	var pending []string
+	pendingPos := make([]int, 0, len(allModFiles))
+	for i, filePath := range allModFiles {
+		mark, ok := allMarks[filePath]
+		if e, hit := s.cachedScanDecision(filePath, mark, ok); hit {
+			hits[i], isHit[i] = e, true
+			continue
+		}
+		pending = append(pending, filePath)
+		pendingPos = append(pendingPos, i)
+	}
+
+	// Bulk inspection runs on the worker pool for changed files only.
+	pInfos, pErrs := inspectFilesParallel(ctx, pending)
+	infos := make([]*filesystem.FileInfo, len(allModFiles))
+	inspectErrs := make([]error, len(allModFiles))
+	for j, pos := range pendingPos {
+		infos[pos], inspectErrs[pos] = pInfos[j], pErrs[j]
+	}
+
+	var modBatch []*pendingMod
+	flush := func() {
+		result.DiscoveredMods += s.flushModBatch(modBatch, func(filePath string, err error) {
+			result.Errors = append(result.Errors, fmt.Sprintf("failed to process mod %s: %v", filePath, err))
+		})
+		modBatch = nil
+	}
+	seen := make(map[string]bool, len(allModFiles))
+	for i, filePath := range allModFiles {
 		select {
 		case <-ctx.Done():
+			flush()
 			return result, ctx.Err()
 		default:
 		}
@@ -165,19 +217,40 @@ func (s *ScannerService) ScanDirectories(ctx context.Context, modDirs, iwadDirs,
 		if progressFn != nil {
 			progressFn(currentModIdx, totalModFiles, filePath)
 		}
+		seen[filePath] = true
 
-		isIwad, err := s.processModFile(ctx, filePath)
-		if err != nil {
-			result.Errors = append(result.Errors, fmt.Sprintf("failed to process mod %s: %v", filePath, err))
+		if isHit[i] {
+			if hits[i].errMsg != "" {
+				result.Errors = append(result.Errors, fmt.Sprintf("failed to process mod %s: %v", filePath, errors.New(hits[i].errMsg)))
+				continue
+			}
+			if hits[i].isIWAD || IsKnownIWADName(filePath) {
+				result.DiscoveredIWADs++
+			} else {
+				result.DiscoveredMods++
+			}
 			continue
 		}
-
-		if isIwad {
-			result.DiscoveredIWADs++
-		} else {
-			result.DiscoveredMods++
+		mark, hasMark := allMarks[filePath]
+		if inspectErrs[i] != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("failed to process mod %s: %v", filePath, inspectErrs[i]))
+			s.rememberScanDecision(filePath, mark, hasMark, nil, false, inspectErrs[i], nil)
+			continue
 		}
+		if infos[i].IsIWAD || IsKnownIWADName(filePath) {
+			storeErr := s.upsertIWAD(filePath, infos[i])
+			s.rememberScanDecision(filePath, mark, hasMark, infos[i], true, nil, storeErr)
+			if storeErr != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("failed to process mod %s: %v", filePath, storeErr))
+				continue
+			}
+			result.DiscoveredIWADs++
+			continue
+		}
+		modBatch = append(modBatch, &pendingMod{mod: s.buildScannedMod(filePath, infos[i]), info: infos[i], mark: mark, hasMark: hasMark})
 	}
+	flush()
+	s.pruneScanCache(seen)
 
 	return result, nil
 }
@@ -195,14 +268,41 @@ func (s *ScannerService) ScanModDirectory(ctx context.Context, dir string, progr
 	if !stat.IsDir() {
 		return 0, errors.New("path is not a directory")
 	}
-
-	candidates := s.collectModFiles(ctx, cleanDir)
+	candidates, marks := s.collectModFiles(ctx, cleanDir)
 	total := len(candidates)
 	discovered := 0
+
+	hits := make([]scanCacheEntry, len(candidates))
+	isHit := make([]bool, len(candidates))
+	var pending []string
+	pendingPos := make([]int, 0, len(candidates))
+	for i, file := range candidates {
+		if mark, ok := marks[file]; ok {
+			if e, hit := s.cachedScanDecision(file, mark, true); hit {
+				hits[i], isHit[i] = e, true
+				continue
+			}
+		}
+		pending = append(pending, file)
+		pendingPos = append(pendingPos, i)
+	}
+	pInfos, pErrs := inspectFilesParallel(ctx, pending)
+	infos := make([]*filesystem.FileInfo, len(candidates))
+	inspectErrs := make([]error, len(candidates))
+	for j, pos := range pendingPos {
+		infos[pos], inspectErrs[pos] = pInfos[j], pErrs[j]
+	}
+
+	var modBatch []*pendingMod
+	flush := func() {
+		discovered += s.flushModBatch(modBatch, func(string, error) {})
+		modBatch = nil
+	}
 
 	for i, file := range candidates {
 		select {
 		case <-ctx.Done():
+			flush()
 			return discovered, ctx.Err()
 		default:
 		}
@@ -211,12 +311,29 @@ func (s *ScannerService) ScanModDirectory(ctx context.Context, dir string, progr
 			progressFn(i+1, total, file)
 		}
 
-		_, err := s.processModFile(ctx, file)
-		if err != nil {
+		if isHit[i] {
+			if hits[i].errMsg == "" {
+				discovered++
+			}
 			continue
 		}
-		discovered++
+		mark, hasMark := marks[file]
+		if inspectErrs[i] != nil {
+			s.rememberScanDecision(file, mark, hasMark, nil, false, inspectErrs[i], nil)
+			continue
+		}
+		if infos[i].IsIWAD || IsKnownIWADName(file) {
+			storeErr := s.upsertIWAD(file, infos[i])
+			s.rememberScanDecision(file, mark, hasMark, infos[i], true, nil, storeErr)
+			if storeErr != nil {
+				continue
+			}
+			discovered++
+			continue
+		}
+		modBatch = append(modBatch, &pendingMod{mod: s.buildScannedMod(file, infos[i]), info: infos[i], mark: mark, hasMark: hasMark})
 	}
+	flush()
 
 	return discovered, nil
 }
@@ -264,17 +381,18 @@ func (s *ScannerService) ScanIWADDirectory(ctx context.Context, dir string) (int
 	}
 
 	discovered := 0
-	for _, file := range candidates {
+	infos, inspectErrs := inspectFilesParallel(ctx, candidates)
+	for i, file := range candidates {
 		select {
 		case <-ctx.Done():
 			return discovered, ctx.Err()
 		default:
 		}
 
-		info, err := filesystem.InspectFile(file)
-		if err != nil {
+		if inspectErrs[i] != nil {
 			continue
 		}
+		info := infos[i]
 
 		// Check if it's an IWAD or PWAD
 		if info.IsIWAD || IsKnownIWADName(file) {
@@ -431,9 +549,13 @@ func (s *ScannerService) ImportFile(ctx context.Context, filePath string) (*doma
 	return mod, nil
 }
 
-// collectModFiles gathers all mod files in a directory recursively.
-func (s *ScannerService) collectModFiles(ctx context.Context, dir string) []string {
+// collectModFiles gathers all mod files in a directory recursively, with a
+// size+mtime fingerprint per candidate for incremental-rescan comparison.
+// Entries whose metadata cannot be read carry no mark and are always
+// (re)inspected.
+func (s *ScannerService) collectModFiles(ctx context.Context, dir string) ([]string, map[string]fileMark) {
 	var candidates []string
+	marks := make(map[string]fileMark)
 	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -452,27 +574,188 @@ func (s *ScannerService) collectModFiles(ctx context.Context, dir string) []stri
 		}
 
 		if isModCandidate(d.Name()) {
-			candidates = append(candidates, filepath.Clean(path))
+			clean := filepath.Clean(path)
+			candidates = append(candidates, clean)
+			if info, err := d.Info(); err == nil {
+				marks[clean] = fileMark{size: info.Size(), modTime: info.ModTime().UnixNano()}
+			}
 		}
 		return nil
 	})
-	return candidates
+	return candidates, marks
 }
 
-// processModFile inspects a file and upserts it as IWAD or Mod. Returns (isIWAD, error).
-func (s *ScannerService) processModFile(ctx context.Context, filePath string) (bool, error) {
-	info, err := filesystem.InspectFile(filePath)
-	if err != nil {
-		return false, err
+// inspectFilesParallel inspects every file with a bounded worker pool and
+// returns infos and inspect errors aligned with files. Inspection is pure
+// filesystem I/O, so it parallelizes cleanly; callers MUST keep their
+// reporting and repository phases sequential to preserve exact progress,
+// counts, and error ordering against the single-connection database.
+func inspectFilesParallel(ctx context.Context, files []string) ([]*filesystem.FileInfo, []error) {
+	infos := make([]*filesystem.FileInfo, len(files))
+	errs := make([]error, len(files))
+	if len(files) == 0 {
+		return infos, errs
+	}
+	workers := min(runtime.NumCPU(), len(files))
+	queue := make(chan int, len(files))
+	for i := range files {
+		queue <- i
+	}
+	close(queue)
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range queue {
+				if ctx != nil && ctx.Err() != nil {
+					errs[i] = ctx.Err()
+					continue
+				}
+				info, err := filesystem.InspectFile(files[i])
+				infos[i] = info
+				errs[i] = err
+			}
+		}()
+	}
+	wg.Wait()
+	return infos, errs
+}
+
+// pendingMod is a built row awaiting batch flush, with the inspection result
+// and collection fingerprint needed to remember the scan decision.
+type pendingMod struct {
+	mod     *domain.Mod
+	info    *filesystem.FileInfo
+	mark    fileMark
+	hasMark bool
+}
+
+// cachedScanDecision replays a previous inspection when mark matches the
+// cached fingerprint for path.
+func (s *ScannerService) cachedScanDecision(path string, mark fileMark, hasMark bool) (scanCacheEntry, bool) {
+	if !hasMark {
+		return scanCacheEntry{}, false
+	}
+	s.scanMu.Lock()
+	defer s.scanMu.Unlock()
+	e, ok := s.scanCache[path]
+	if !ok || e.size != mark.size || e.modTime != mark.modTime {
+		return scanCacheEntry{}, false
+	}
+	return e, true
+}
+
+// rememberScanDecision records the outcome for path: clean inspections (and
+// only those) become future skip hits; inspection failures replay their
+// message; store failures are left uncached so the next scan retries them.
+func (s *ScannerService) rememberScanDecision(path string, mark fileMark, hasMark bool, info *filesystem.FileInfo, isIWAD bool, inspectErr, storeErr error) {
+	if storeErr != nil {
+		return
+	}
+	e := scanCacheEntry{isIWAD: isIWAD}
+	switch {
+	case info != nil:
+		e.size, e.modTime = info.Size, info.ModTime.UnixNano()
+	case hasMark:
+		e.size, e.modTime = mark.size, mark.modTime
+	}
+	if inspectErr != nil {
+		e.errMsg = inspectErr.Error()
+	}
+	s.scanMu.Lock()
+	defer s.scanMu.Unlock()
+	if s.scanCache == nil {
+		s.scanCache = make(map[string]scanCacheEntry)
+	}
+	s.scanCache[path] = e
+}
+
+// pruneScanCache drops decisions for paths absent from the latest full scan
+// so the cache tracks the library instead of growing without bound. Partial
+// (single-directory) scans populate but never prune.
+func (s *ScannerService) pruneScanCache(seen map[string]bool) {
+	s.scanMu.Lock()
+	defer s.scanMu.Unlock()
+	for path := range s.scanCache {
+		if !seen[path] {
+			delete(s.scanCache, path)
+		}
+	}
+}
+
+// flushModBatch writes accumulated scan builds in one transaction and returns
+// the stored count. A batch failure falls back to per-file upserts so errors
+// stay precisely attributed; a missing repository reports per file exactly
+// like the historical sequential path. Stored rows are remembered for
+// incremental rescans.
+func (s *ScannerService) flushModBatch(batch []*pendingMod, onError func(filePath string, err error)) int {
+	if len(batch) == 0 {
+		return 0
+	}
+	if s.modRepo == nil {
+		err := errors.New("mod repository is not configured")
+		for _, p := range batch {
+			onError(p.mod.Path, err)
+		}
+		return 0
+	}
+	mods := make([]*domain.Mod, 0, len(batch))
+	for _, p := range batch {
+		mods = append(mods, p.mod)
+	}
+	if err := s.modRepo.UpsertModsBatch(mods); err == nil {
+		for _, p := range batch {
+			s.rememberScanDecision(p.mod.Path, p.mark, p.hasMark, p.info, false, nil, nil)
+		}
+		return len(batch)
+	}
+	stored := 0
+	for _, p := range batch {
+		if ferr := s.modRepo.UpsertByPath(p.mod); ferr != nil {
+			onError(p.mod.Path, ferr)
+			continue
+		}
+		s.rememberScanDecision(p.mod.Path, p.mark, p.hasMark, p.info, false, nil, nil)
+		stored++
+	}
+	return stored
+}
+
+// buildScannedMod constructs the Mod record a scan would store for filePath,
+// mirroring the insert branch of upsertMod.
+func (s *ScannerService) buildScannedMod(filePath string, info *filesystem.FileInfo) *domain.Mod {
+	cleanPath := filepath.Clean(filePath)
+	base := filepath.Base(cleanPath)
+	nameStem := strings.TrimSuffix(base, filepath.Ext(base))
+
+	format := domain.DetectModFormat(cleanPath)
+	category := domain.ModCategory(info.Category)
+	if !category.IsValid() {
+		category = domain.ModCategoryOther
 	}
 
-	if info.IsIWAD || IsKnownIWADName(filePath) {
-		err := s.upsertIWAD(filePath, info)
-		return true, err
+	structures := info.Structures
+	if structures == nil {
+		structures = []string{}
 	}
 
-	_, err = s.upsertMod(filePath, info)
-	return false, err
+	now := time.Now().UTC()
+	return &domain.Mod{
+		ID:         uuid.NewString(),
+		Name:       nameStem,
+		Path:       cleanPath,
+		Format:     format,
+		Category:   category,
+		Size:       info.Size,
+		ModifiedAt: info.ModTime,
+		SHA256:     info.SHA256,
+		LumpCount:  info.LumpCount,
+		Structures: structures,
+		IsFavorite: false,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
 }
 
 func (s *ScannerService) upsertIWAD(filePath string, info *filesystem.FileInfo) error {
@@ -520,8 +803,6 @@ func (s *ScannerService) upsertMod(filePath string, info *filesystem.FileInfo) (
 	}
 
 	cleanPath := filepath.Clean(filePath)
-	base := filepath.Base(cleanPath)
-	nameStem := strings.TrimSuffix(base, filepath.Ext(base))
 
 	format := domain.DetectModFormat(cleanPath)
 	category := domain.ModCategory(info.Category)
@@ -554,25 +835,11 @@ func (s *ScannerService) upsertMod(filePath string, info *filesystem.FileInfo) (
 		return nil, err
 	}
 
-	newMod := domain.Mod{
-		ID:         uuid.NewString(),
-		Name:       nameStem,
-		Path:       cleanPath,
-		Format:     format,
-		Category:   category,
-		Size:       info.Size,
-		ModifiedAt: info.ModTime,
-		SHA256:     info.SHA256,
-		LumpCount:  info.LumpCount,
-		Structures: structures,
-		IsFavorite: false,
-		CreatedAt:  time.Now().UTC(),
-		UpdatedAt:  time.Now().UTC(),
-	}
-	if err := s.modRepo.Create(&newMod); err != nil {
+	newMod := s.buildScannedMod(filePath, info)
+	if err := s.modRepo.Create(newMod); err != nil {
 		return nil, err
 	}
-	return &newMod, nil
+	return newMod, nil
 }
 
 // isModCandidate checks if a filename extension matches recognized mod formats.

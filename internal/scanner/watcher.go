@@ -118,11 +118,14 @@ func Watch(dirs []string, interval time.Duration, onChange func()) (stop func())
 	var once sync.Once
 	var wg sync.WaitGroup
 	wg.Add(1)
+	// Snapshot synchronously so the baseline is fixed at Watch() return:
+	// a goroutine taking it later races the caller's first write and can
+	// miss it entirely, staying silent forever.
+	last := snapshotWatchDirs(dirs)
 	go func() {
 		defer wg.Done()
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
-		last := snapshotWatchDirs(dirs)
 		for {
 			select {
 			case <-done:

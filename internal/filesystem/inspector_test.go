@@ -211,6 +211,36 @@ func TestArchiveInspection(t *testing.T) {
 		}
 	})
 
+	t.Run("Mixed case separators and names", func(t *testing.T) {
+		entries := map[string]string{
+			"Maps/MAP15.WAD":      "PWAD...",
+			"Sound/SHOTGUN.WAV":   "RIFF...",
+			"ZSCRIPT":             "//",
+			"MapInfo.TXT":         "map MAP15",
+			"sprites\\HERO.PNG":   "PNG...",
+		}
+		data := buildSyntheticZip(entries)
+
+		fileInfo, err := InspectBytes(data, "mixed_case.pk3")
+		if err != nil {
+			t.Fatalf("InspectBytes failed: %v", err)
+		}
+		if len(fileInfo.Maps) != 1 || fileInfo.Maps[0] != "MAP15" {
+			t.Errorf("expected map MAP15, got %v", fileInfo.Maps)
+		}
+		for _, want := range []string{"MAPS", "SOUNDS", "ZSCRIPT", "MAPINFO", "SPRITES"} {
+			found := false
+			for _, s := range fileInfo.Structures {
+				if s == want {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("missing structure %s in %v", want, fileInfo.Structures)
+			}
+		}
+	})
+
 	t.Run("Audio only PK3", func(t *testing.T) {
 		entries := map[string]string{
 			"sndinfo.txt":         "weapons/shotgf dsshotgn",

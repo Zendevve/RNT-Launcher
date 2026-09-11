@@ -16,6 +16,7 @@ import type {
   ModUpdate,
   Profile,
   ScanResult,
+  OrganizeReport,
   Settings,
   ValidationItem,
   ValidationResult,
@@ -809,6 +810,8 @@ export const api = {
   // Scanner
   startScan: (): Promise<ScanResult> => callBackend<ScanResult>('StartScan'),
   isScanning: (): Promise<boolean> => callBackend<boolean>('IsScanning'),
+  organizeDirectory: (srcDir: string, libDir: string, dryRun: boolean): Promise<OrganizeReport> =>
+    callBackend<OrganizeReport>('OrganizeDirectory', srcDir, libDir, dryRun),
 
   // History & Settings
   listLaunchHistory: (limit: number = 50): Promise<LaunchRecord[]> =>

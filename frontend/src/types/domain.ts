@@ -296,6 +296,21 @@ export interface ScanResult {
   errors: string[]
 }
 
+export interface OrganizeMove {
+  source: string
+  destination: string
+  folder: string
+}
+
+export interface OrganizeReport {
+  dryRun: boolean
+  moves: OrganizeMove[]
+  errors: string[]
+  movedCount: number
+  importedMods: number
+  importedIWADs: number
+}
+
 export type UiDensity = 'compact' | 'comfortable'
 
 export type DefaultNavView =

@@ -899,3 +899,135 @@ func TestModRepository_GetUsageCounts(t *testing.T) {
 		t.Errorf("expected mod3 usage count to be 0, got %d", counts[mod3.ID])
 	}
 }
+
+func TestModRepository_UpsertByPath(t *testing.T) {
+	repos := setupTestDB(t)
+
+	first := &domain.Mod{
+		Name: "scan-name", Path: filepath.Join("mods", "bulk.pk3"),
+		Format: domain.ModFormat("PK3"), Category: domain.ModCategory("Maps"),
+		Size: 100, SHA256: "aaa", LumpCount: 3, Structures: []string{"MAPS"},
+	}
+	if err := repos.Mods.UpsertByPath(first); err != nil {
+		t.Fatalf("initial upsert failed: %v", err)
+	}
+	if first.ID == "" {
+		t.Error("expected ID assignment on insert")
+	}
+
+	stored, err := repos.Mods.GetByPath(first.Path)
+	if err != nil {
+		t.Fatalf("GetByPath failed: %v", err)
+	}
+	origID, origCreated := stored.ID, stored.CreatedAt
+
+	// Simulate user-managed columns diverging from scan data.
+	stored.Name = "My Custom Title"
+	stored.IsFavorite = true
+	if err := repos.Mods.Update(stored); err != nil {
+		t.Fatalf("user update failed: %v", err)
+	}
+
+	// Rescan with refreshed scan-managed columns.
+	second := &domain.Mod{
+		Name: "scan-name", Path: first.Path,
+		Format: domain.ModFormat("PK3"), Category: domain.ModCategory("Gameplay"),
+		Size: 200, SHA256: "bbb", LumpCount: 9, Structures: []string{"ZSCRIPT"},
+	}
+	if err := repos.Mods.UpsertByPath(second); err != nil {
+		t.Fatalf("conflict upsert failed: %v", err)
+	}
+
+	got, err := repos.Mods.GetByPath(first.Path)
+	if err != nil {
+		t.Fatalf("GetByPath after upsert failed: %v", err)
+	}
+	if got.ID != origID {
+		t.Errorf("ID changed: %q -> %q", origID, got.ID)
+	}
+	if !got.CreatedAt.Equal(origCreated) {
+		t.Errorf("CreatedAt changed: %v -> %v", origCreated, got.CreatedAt)
+	}
+	if got.Name != "My Custom Title" {
+		t.Errorf("user name overwritten: %q", got.Name)
+	}
+	if !got.IsFavorite {
+		t.Error("favorite flag lost")
+	}
+	if string(got.Category) != "Gameplay" || got.Size != 200 || got.SHA256 != "bbb" || got.LumpCount != 9 {
+		t.Errorf("scan columns not refreshed: %+v", got)
+	}
+	if len(got.Structures) != 1 || got.Structures[0] != "ZSCRIPT" {
+		t.Errorf("structures not refreshed: %v", got.Structures)
+	}
+
+	mods, err := repos.Mods.List(domain.ModFilter{})
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+	if len(mods) != 1 {
+		t.Errorf("expected 1 row after conflict upsert, got %d", len(mods))
+	}
+}
+
+func TestModRepository_UpsertModsBatch(t *testing.T) {
+	repos := setupTestDB(t)
+
+	if err := repos.Mods.UpsertModsBatch(nil); err != nil {
+		t.Fatalf("empty batch failed: %v", err)
+	}
+
+	mk := func(name, path string, size int64) *domain.Mod {
+		return &domain.Mod{
+			Name: name, Path: path, Format: domain.ModFormat("PK3"),
+			Category: domain.ModCategory("Maps"), Size: size,
+			SHA256: "h", LumpCount: 1, Structures: []string{"MAPS"},
+		}
+	}
+	batch := []*domain.Mod{
+		mk("a", filepath.Join("mods", "a.pk3"), 10),
+		mk("b", filepath.Join("mods", "b.pk3"), 20),
+		mk("c", filepath.Join("mods", "c.pk3"), 30),
+	}
+	if err := repos.Mods.UpsertModsBatch(batch); err != nil {
+		t.Fatalf("batch insert failed: %v", err)
+	}
+	for _, m := range batch {
+		if m.ID == "" {
+			t.Errorf("expected ID assignment for %s", m.Path)
+		}
+	}
+
+	// Rename one out-of-band, then re-batch with new scan data.
+	renamed, err := repos.Mods.GetByPath(batch[0].Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	renamed.Name = "User Title"
+	if err := repos.Mods.Update(renamed); err != nil {
+		t.Fatal(err)
+	}
+	batch[0].Size = 99
+	batch[1].Size = 199
+	if err := repos.Mods.UpsertModsBatch(batch); err != nil {
+		t.Fatalf("batch rescan failed: %v", err)
+	}
+
+	mods, err := repos.Mods.List(domain.ModFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mods) != 3 {
+		t.Fatalf("expected 3 rows after batch rescan, got %d", len(mods))
+	}
+	byPath := map[string]domain.Mod{}
+	for _, m := range mods {
+		byPath[m.Path] = m
+	}
+	if byPath[batch[0].Path].Name != "User Title" {
+		t.Errorf("user rename lost: %q", byPath[batch[0].Path].Name)
+	}
+	if byPath[batch[0].Path].Size != 99 || byPath[batch[1].Path].Size != 199 {
+		t.Errorf("scan columns not refreshed: %+v", byPath)
+	}
+}

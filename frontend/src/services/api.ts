@@ -3,6 +3,7 @@ import {
   onScanStart,
   onScanProgress,
   onScanComplete,
+  onOrganizeComplete,
   onLaunchStart,
   onLaunchExit,
 } from '../lib/events';
@@ -13,6 +14,7 @@ export const api = {
   onScanStart,
   onScanProgress,
   onScanComplete,
+  onOrganizeComplete,
   onLaunchStart,
   onLaunchExit,
   async importProfileYAML(yamlContent: string): Promise<{ profile: Profile; warnings: ValidationItem[] }> {

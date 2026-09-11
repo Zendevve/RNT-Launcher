@@ -92,22 +92,40 @@ func DetermineCategory(format string, maps []string, structures []string, filena
 	return "Other"
 }
 
+// inspectMemoryThreshold bounds the single-read fast path in InspectFile:
+// files at or under this size are read once into memory and hashed/parsed
+// from bytes, avoiding separate hash-streaming and structural pread passes.
+const inspectMemoryThreshold = 16 << 20
+
 // InspectFile inspects a file at the given disk path and extracts full metadata.
+//
+// Files under inspectMemoryThreshold take a single-read fast path (one open,
+// one read, everything else in memory); larger files stream through
+// InspectReader to bound memory use. Both paths produce identical FileInfo.
 func InspectFile(path string) (*FileInfo, error) {
-	stat, err := os.Stat(path)
+	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, ErrFileNotFound
 		}
 		return nil, err
 	}
+	stat, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
 	if stat.IsDir() {
+		f.Close()
 		return nil, ErrIsDirectory
 	}
-
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
+	if stat.Size() <= inspectMemoryThreshold {
+		data, err := io.ReadAll(f)
+		f.Close()
+		if err != nil {
+			return nil, err
+		}
+		return inspectData(data, stat.Name(), stat.ModTime(), path), nil
 	}
 	defer f.Close()
 
@@ -118,6 +136,20 @@ func InspectFile(path string) (*FileInfo, error) {
 func InspectBytes(data []byte, filename string) (*FileInfo, error) {
 	reader := bytes.NewReader(data)
 	return InspectReader(reader, int64(len(data)), filename, time.Now(), filename)
+}
+
+// inspectData inspects an in-memory file image. It is the memory-backed
+// counterpart of InspectReader and MUST produce identical FileInfo.
+func inspectData(data []byte, filename string, modTime time.Time, fullPath string) *FileInfo {
+	var header []byte
+	if len(data) > 16 {
+		header = data[:16]
+	} else {
+		header = data
+	}
+	ext := strings.ToLower(filepath.Ext(filename))
+	format := detectFormat(header, ext)
+	return buildFileInfo(bytes.NewReader(data), int64(len(data)), filename, modTime, fullPath, format, ComputeSHA256Bytes(data))
 }
 
 // InspectReader inspects an io.ReaderAt with a known size and metadata.
@@ -139,6 +171,12 @@ func InspectReader(r io.ReaderAt, size int64, filename string, modTime time.Time
 		hashStr, _ = ComputeSHA256Reader(io.NewSectionReader(r, 0, size))
 	}
 
+	return buildFileInfo(r, size, filename, modTime, fullPath, format, hashStr), nil
+}
+
+// buildFileInfo runs format-specific structural parsing and categorization
+// shared by the streaming (InspectReader) and single-read (inspectData) paths.
+func buildFileInfo(r io.ReaderAt, size int64, filename string, modTime time.Time, fullPath, format, hashStr string) *FileInfo {
 	info := &FileInfo{
 		Path:       fullPath,
 		Filename:   filename,
@@ -177,7 +215,7 @@ func InspectReader(r io.ReaderAt, size int64, filename string, modTime time.Time
 		info.Structures = []string{"DEHACKED"}
 	}
 	info.Category = DetermineCategory(info.Format, info.Maps, info.Structures, info.Filename)
-	return info, nil
+	return info
 }
 
 // detectFormat returns the detected format string by inspecting magic headers and file extensions.
