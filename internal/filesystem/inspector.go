@@ -120,11 +120,15 @@ func InspectFile(path string) (*FileInfo, error) {
 		return nil, ErrIsDirectory
 	}
 	if stat.Size() <= inspectMemoryThreshold {
-		data, err := io.ReadAll(f)
-		f.Close()
-		if err != nil {
+		// Pre-sized single read: io.ReadAll grows its buffer with one
+		// syscall per growth step, so exact-size ReadFull replaces ~log2
+		// reads with (usually) one. Identical bytes or a hard error.
+		data := make([]byte, stat.Size())
+		if _, err := io.ReadFull(f, data); err != nil {
+			f.Close()
 			return nil, err
 		}
+		f.Close()
 		return inspectData(data, stat.Name(), stat.ModTime(), path), nil
 	}
 	defer f.Close()
