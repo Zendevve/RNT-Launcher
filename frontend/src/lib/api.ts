@@ -618,10 +618,49 @@ async function mockCall<T>(methodName: string, ...args: unknown[]): Promise<T> {
     }
     case 'ensureengine': {
       const family = (args[0] as string) || 'gzdoom'
+      const requested = (args[1] as string) || 'latest'
+      if (family === 'other') throw new Error('engine family "other" cannot be auto-provisioned')
+      if (family === 'zandronum')
+        throw new Error('engine family "zandronum" has no automatic release source; download manually from https://zandronum.com/downloads')
+      const latestByFamily: Record<string, string> = {
+        gzdoom: '4.12.2',
+        'dsda-doom': '0.27.5',
+        'prboom-plus': '2.6.2',
+        woof: '14.5.0',
+        'crispy-doom': '6.0.0',
+        'chocolate-doom': '3.0.1',
+      }
+      const labelByFamily: Record<string, string> = {
+        gzdoom: 'GZDoom',
+        'dsda-doom': 'DSDA-Doom',
+        'prboom-plus': 'PrBoom+',
+        woof: 'Woof!',
+        'crispy-doom': 'Crispy Doom',
+        'chocolate-doom': 'Chocolate Doom',
+      }
+      const version = requested && requested !== 'latest' ? requested : (latestByFamily[family] ?? '1.0.0')
       const engines = getMockStorage<Engine[]>('engines', DEFAULT_MOCK_ENGINES)
       const found = engines.find((e) => e.family === family)
-      if (!found) throw new Error(`No ${family} engine registered; download it manually from the official site.`)
-      return found as T
+      if (found) {
+        const updated: Engine = { ...found, version, updatedAt: new Date().toISOString() }
+        setMockStorage(
+          'engines',
+          engines.map((e) => (e.family === family ? updated : e))
+        )
+        return updated as T
+      }
+      const label = labelByFamily[family] ?? family
+      const created: Engine = {
+        id: `eng-${family}-${Date.now()}`,
+        name: `${label} ${version}`,
+        executable: `C:/Games/Doom/Engines/${family}.exe`,
+        version,
+        family: family as Engine['family'],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+      setMockStorage('engines', [...engines, created])
+      return created as T
     }
     case 'exportprofilebundle': {
       const id = (args[0] as string) || 'profile'

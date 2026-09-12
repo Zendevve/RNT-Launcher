@@ -17,6 +17,7 @@ import {
   List as ListIcon,
   X,
   FolderSearch,
+  ExternalLink,
 } from 'lucide-react';
 import { Engine, EngineFamily } from '../../types';
 import { api } from '../../services/api';
@@ -36,6 +37,25 @@ const FAMILY_TABS: { id: string; label: string; family?: EngineFamily }[] = [
   { id: 'prboom-plus', label: 'PRBoom+', family: 'prboom-plus' },
   { id: 'other', label: 'Other', family: 'other' },
 ];
+
+// Families with GitHub-hosted releases auto-provisionable via EnsureEngine.
+// Mirrors internal/engines githubReleaseRepos. zandronum/other have no
+// automatic source: UI shows a manual-download fallback instead of Install.
+const PROVISIONABLE_FAMILIES: Record<string, true> = {
+  gzdoom: true,
+  'dsda-doom': true,
+  woof: true,
+  'crispy-doom': true,
+  'chocolate-doom': true,
+  'prboom-plus': true,
+};
+
+const MANUAL_DOWNLOAD_URLS: Record<string, string> = {
+  zandronum: 'https://zandronum.com/downloads',
+};
+
+const manualDownloadUrlFor = (family: EngineFamily): string | undefined =>
+  MANUAL_DOWNLOAD_URLS[String(family)];
 
 export const EnginesView: React.FC = () => {
   const toast = useToast();
@@ -335,21 +355,44 @@ export const EnginesView: React.FC = () => {
 
         {/* Right: Family Install/Update + Match count badge */}
         <div className="flex items-center gap-2 shrink-0">
-          {activeFamily && (
+          {activeFamily && manualDownloadUrlFor(activeFamily) ? (
+            <a
+              href={manualDownloadUrlFor(activeFamily)}
+              target="_blank"
+              rel="noreferrer"
+              title={`Download ${activeFamily} manually from ${manualDownloadUrlFor(activeFamily)} — no automatic release source`}
+              className="inline-flex items-center gap-1.5 rounded border border-[#22262d] bg-[#181c21] hover:bg-[#1f242e] px-2.5 py-1 text-[11px] font-medium text-zinc-300 hover:text-white transition-colors"
+            >
+              <ExternalLink className="h-3 w-3 text-zinc-400" />
+              <span>Manual Download</span>
+            </a>
+          ) : activeFamily && !PROVISIONABLE_FAMILIES[String(activeFamily)] ? (
             <button
               type="button"
-              onClick={() => void handleEnsureEngine(activeFamily)}
-              disabled={isProvisioningActive}
-              title={`Install or update latest ${activeFamily} release`}
-              className="inline-flex items-center gap-1.5 rounded border border-[#22262d] bg-[#181c21] hover:bg-[#1f242e] px-2.5 py-1 text-[11px] font-medium text-zinc-300 hover:text-white transition-colors disabled:opacity-60"
+              disabled
+              title="Other ports can't be auto-installed — register the executable manually via Add Source Port"
+              className="inline-flex items-center gap-1.5 rounded border border-[#22262d] bg-[#181c21] px-2.5 py-1 text-[11px] font-medium text-zinc-500 transition-colors disabled:opacity-60"
             >
-              {isProvisioningActive ? (
-                <RotateCw className="h-3 w-3 animate-spin text-zinc-400" />
-              ) : (
-                <Download className="h-3 w-3 text-zinc-400" />
-              )}
-              <span>{isProvisioningActive ? 'Installing…' : 'Install/Update'}</span>
+              <Download className="h-3 w-3 text-zinc-500" />
+              <span>Install/Update</span>
             </button>
+          ) : (
+            activeFamily && (
+              <button
+                type="button"
+                onClick={() => void handleEnsureEngine(activeFamily)}
+                disabled={isProvisioningActive}
+                title={`Install or update latest ${activeFamily} release`}
+                className="inline-flex items-center gap-1.5 rounded border border-[#22262d] bg-[#181c21] hover:bg-[#1f242e] px-2.5 py-1 text-[11px] font-medium text-zinc-300 hover:text-white transition-colors disabled:opacity-60"
+              >
+                {isProvisioningActive ? (
+                  <RotateCw className="h-3 w-3 animate-spin text-zinc-400" />
+                ) : (
+                  <Download className="h-3 w-3 text-zinc-400" />
+                )}
+                <span>{isProvisioningActive ? 'Installing…' : 'Install/Update'}</span>
+              </button>
+            )
           )}
           <span className="font-mono text-[11px] text-zinc-400 bg-[#14171c] border border-[#22262d] px-2.5 py-1 rounded">
             {filteredEngines.length} of {engines.length} ports
@@ -403,20 +446,35 @@ export const EnginesView: React.FC = () => {
                   Try clearing your search query or switching to All Engines.
                 </p>
                 <div className="mt-4 flex items-center justify-center gap-2.5">
-                  {activeFamily && (
-                    <button
-                      type="button"
-                      onClick={() => void handleEnsureEngine(activeFamily)}
-                      disabled={isProvisioningActive}
-                      className="inline-flex items-center gap-1.5 rounded-[8px] bg-[#5e7ce2] hover:bg-[#4d6bd4] px-4 py-1.5 text-xs font-[600] text-[#09090b] transition-colors disabled:opacity-60"
+                  {activeFamily && manualDownloadUrlFor(activeFamily) ? (
+                    <a
+                      href={manualDownloadUrlFor(activeFamily)}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={`Download ${activeFamily} manually from ${manualDownloadUrlFor(activeFamily)} — no automatic release source`}
+                      className="inline-flex items-center gap-1.5 rounded-[8px] bg-[#5e7ce2] hover:bg-[#4d6bd4] px-4 py-1.5 text-xs font-[600] text-[#09090b] transition-colors"
                     >
-                      {isProvisioningActive ? (
-                        <RotateCw className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Download className="h-3.5 w-3.5" />
-                      )}
-                      <span>{isProvisioningActive ? 'Installing…' : 'Install/Update'}</span>
-                    </button>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      <span>Manual Download</span>
+                    </a>
+                  ) : (
+                    activeFamily &&
+                    PROVISIONABLE_FAMILIES[String(activeFamily)] && (
+                      <button
+                        type="button"
+                        onClick={() => void handleEnsureEngine(activeFamily)}
+                        disabled={isProvisioningActive}
+                        title={`Install or update latest ${activeFamily} release`}
+                        className="inline-flex items-center gap-1.5 rounded-[8px] bg-[#5e7ce2] hover:bg-[#4d6bd4] px-4 py-1.5 text-xs font-[600] text-[#09090b] transition-colors disabled:opacity-60"
+                      >
+                        {isProvisioningActive ? (
+                          <RotateCw className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Download className="h-3.5 w-3.5" />
+                        )}
+                        <span>{isProvisioningActive ? 'Installing…' : 'Install/Update'}</span>
+                      </button>
+                    )
                   )}
                   <Button
                     variant="outline"
@@ -535,19 +593,40 @@ export const EnginesView: React.FC = () => {
                         {/* Actions */}
                         <td className="px-4 py-2.5 text-right">
                           <div className="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                            <button
-                              type="button"
-                              onClick={() => void handleEnsureEngine(engine.family)}
-                              disabled={provisioningFamilies[String(engine.family)] === true}
-                              title="Install or update latest release for this family"
-                              className="p-1.5 rounded text-zinc-400 hover:text-sky-400 hover:bg-white/[0.04] transition-colors disabled:opacity-40"
-                            >
-                              {provisioningFamilies[String(engine.family)] === true ? (
-                                <RotateCw className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
+                            {manualDownloadUrlFor(engine.family) ? (
+                              <a
+                                href={manualDownloadUrlFor(engine.family)}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={`Download ${engine.family} manually from ${manualDownloadUrlFor(engine.family)} — no automatic release source`}
+                                className="p-1.5 rounded text-zinc-400 hover:text-sky-400 hover:bg-white/[0.04] transition-colors"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                            ) : !PROVISIONABLE_FAMILIES[String(engine.family)] ? (
+                              <button
+                                type="button"
+                                disabled
+                                title="Other ports can't be auto-installed — register the executable manually"
+                                className="p-1.5 rounded text-zinc-600 transition-colors disabled:opacity-40"
+                              >
                                 <Download className="h-3.5 w-3.5" />
-                              )}
-                            </button>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => void handleEnsureEngine(engine.family)}
+                                disabled={provisioningFamilies[String(engine.family)] === true}
+                                title="Install or update latest release for this family"
+                                className="p-1.5 rounded text-zinc-400 hover:text-sky-400 hover:bg-white/[0.04] transition-colors disabled:opacity-40"
+                              >
+                                {provisioningFamilies[String(engine.family)] === true ? (
+                                  <RotateCw className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Download className="h-3.5 w-3.5" />
+                                )}
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleTestEngine(engine)}
@@ -620,19 +699,40 @@ export const EnginesView: React.FC = () => {
                       </div>
 
                       <div className="flex items-center gap-0.5 opacity-80 group-hover:opacity-100 transition-opacity">
-                        <button
-                          type="button"
-                          onClick={() => void handleEnsureEngine(engine.family)}
-                          disabled={provisioningFamilies[String(engine.family)] === true}
-                          className="p-1.5 rounded text-zinc-400 hover:text-sky-400 hover:bg-white/[0.04] transition-colors disabled:opacity-40"
-                          title="Install or Update Latest Release"
-                        >
-                          {provisioningFamilies[String(engine.family)] === true ? (
-                            <RotateCw className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
+                        {manualDownloadUrlFor(engine.family) ? (
+                          <a
+                            href={manualDownloadUrlFor(engine.family)}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={`Download ${engine.family} manually from ${manualDownloadUrlFor(engine.family)} — no automatic release source`}
+                            className="p-1.5 rounded text-zinc-400 hover:text-sky-400 hover:bg-white/[0.04] transition-colors"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        ) : !PROVISIONABLE_FAMILIES[String(engine.family)] ? (
+                          <button
+                            type="button"
+                            disabled
+                            title="Other ports can't be auto-installed — register the executable manually"
+                            className="p-1.5 rounded text-zinc-600 transition-colors disabled:opacity-40"
+                          >
                             <Download className="h-3.5 w-3.5" />
-                          )}
-                        </button>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => void handleEnsureEngine(engine.family)}
+                            disabled={provisioningFamilies[String(engine.family)] === true}
+                            className="p-1.5 rounded text-zinc-400 hover:text-sky-400 hover:bg-white/[0.04] transition-colors disabled:opacity-40"
+                            title="Install or Update Latest Release"
+                          >
+                            {provisioningFamilies[String(engine.family)] === true ? (
+                              <RotateCw className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Download className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => {

@@ -72,7 +72,7 @@ func (s *EngineService) Ensure(ctx context.Context, family domain.EngineFamily, 
 	}
 	repo, ok := githubReleaseRepos[family]
 	if !ok {
-		return nil, fmt.Errorf("engine family %q has no automatic release source; download manually from %s", family, DownloadPageURL(family))
+		return nil, fmt.Errorf("engine family %q has no GitHub release source; download manually from %s", family, DownloadPageURL(family))
 	}
 	if strings.TrimSpace(enginesDir) == "" {
 		return nil, errors.New("engines directory is required")
