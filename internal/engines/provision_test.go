@@ -447,3 +447,119 @@ func TestExtractTarGz(t *testing.T) {
 		})
 	}
 }
+
+func TestPickMainExecutable(t *testing.T) {
+	makeFile := func(t *testing.T, dir, name string, size int, mode os.FileMode) string {
+		t.Helper()
+		p := filepath.Join(dir, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(p, bytes.Repeat([]byte("x"), size), mode); err != nil {
+			t.Fatalf("write %q: %v", name, err)
+		}
+		if mode&0o111 != 0 {
+			if err := os.Chmod(p, mode); err != nil {
+				t.Fatalf("chmod %q: %v", name, err)
+			}
+		}
+		return p
+	}
+	t.Run("windows prefers family exe over larger exe", func(t *testing.T) {
+		dir := t.TempDir()
+		makeFile(t, dir, "updater.exe", 1000, 0o644)
+		want := makeFile(t, dir, "gzdoom.exe", 10, 0o644)
+		got, err := pickMainExecutable(dir, domain.EngineFamilyGZDoom, "windows")
+		if err != nil {
+			t.Fatalf("pickMainExecutable returned error: %v", err)
+		}
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+	t.Run("windows falls back to largest exe", func(t *testing.T) {
+		dir := t.TempDir()
+		makeFile(t, dir, "small.exe", 10, 0o644)
+		want := makeFile(t, dir, "big.exe", 1000, 0o644)
+		got, err := pickMainExecutable(dir, domain.EngineFamilyGZDoom, "windows")
+		if err != nil {
+			t.Fatalf("pickMainExecutable returned error: %v", err)
+		}
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+	t.Run("windows ignores extensionless binaries", func(t *testing.T) {
+		dir := t.TempDir()
+		makeFile(t, dir, "gzdoom", 1000, 0o644)
+		if _, err := pickMainExecutable(dir, domain.EngineFamilyGZDoom, "windows"); err == nil {
+			t.Fatalf("pickMainExecutable succeeded, want missing .exe error")
+		} else if !strings.Contains(err.Error(), "no .exe") {
+			t.Errorf("error = %q, want substring %q", err.Error(), "no .exe")
+		}
+	})
+	t.Run("empty goos uses runtime", func(t *testing.T) {
+		dir := t.TempDir()
+		name := "gzdoom"
+		mode := os.FileMode(0o755)
+		if runtime.GOOS == "windows" {
+			name = "gzdoom.exe"
+			mode = 0o644
+		}
+		want := makeFile(t, dir, name, 10, mode)
+		got, err := pickMainExecutable(dir, domain.EngineFamilyGZDoom, "")
+		if err != nil {
+			t.Fatalf("pickMainExecutable returned error: %v", err)
+		}
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+	if runtime.GOOS == "windows" {
+		t.Skip("exec-bit resolver cases require POSIX permissions")
+	}
+	t.Run("linux prefers family ELF over larger binary", func(t *testing.T) {
+		dir := t.TempDir()
+		makeFile(t, dir, "helper", 1000, 0o755)
+		want := makeFile(t, dir, "gzdoom", 10, 0o755)
+		got, err := pickMainExecutable(dir, domain.EngineFamilyGZDoom, "linux")
+		if err != nil {
+			t.Fatalf("pickMainExecutable returned error: %v", err)
+		}
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+	t.Run("linux ignores non-executable files", func(t *testing.T) {
+		dir := t.TempDir()
+		makeFile(t, dir, "gzdoom-huge", 100000, 0o644)
+		want := makeFile(t, dir, "gzdoom", 10, 0o755)
+		got, err := pickMainExecutable(dir, domain.EngineFamilyGZDoom, "linux")
+		if err != nil {
+			t.Fatalf("pickMainExecutable returned error: %v", err)
+		}
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+	t.Run("linux reports no executable", func(t *testing.T) {
+		dir := t.TempDir()
+		makeFile(t, dir, "readme.txt", 100, 0o644)
+		if _, err := pickMainExecutable(dir, domain.EngineFamilyGZDoom, "linux"); err == nil {
+			t.Fatalf("pickMainExecutable succeeded, want missing executable error")
+		} else if !strings.Contains(err.Error(), "no executable") {
+			t.Errorf("error = %q, want substring %q", err.Error(), "no executable")
+		}
+	})
+	t.Run("darwin finds macOS binary", func(t *testing.T) {
+		dir := t.TempDir()
+		want := makeFile(t, dir, "GZDoom.app/Contents/MacOS/gzdoom", 100, 0o755)
+		got, err := pickMainExecutable(dir, domain.EngineFamilyGZDoom, "darwin")
+		if err != nil {
+			t.Fatalf("pickMainExecutable returned error: %v", err)
+		}
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+}

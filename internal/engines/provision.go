@@ -127,7 +127,7 @@ func (s *EngineService) Ensure(ctx context.Context, family domain.EngineFamily, 
 		}
  	}
 
-	exe, err := pickMainExecutable(destDir, family)
+	exe, err := pickMainExecutable(destDir, family, runtime.GOOS)
 	if err != nil {
 		return nil, fmt.Errorf("failed to provision %s release %s: %w", family, release.TagName, err)
 	}
@@ -461,9 +461,18 @@ func familyExeTokens(family domain.EngineFamily) []string {
 	}
 }
 
-// pickMainExecutable finds the main engine binary under destDir: the largest
-// .exe whose base name matches the family, else the largest .exe overall.
-func pickMainExecutable(destDir string, family domain.EngineFamily) (string, error) {
+// pickMainExecutable finds the main engine binary under destDir: on Windows
+// the largest .exe whose base name matches the family, else the largest .exe
+// overall; on other platforms the largest executable-bit regular file whose
+// base name matches the family, else the largest executable-bit regular file
+// overall. ELF binaries and macOS executables carry no .exe extension, so an
+// extension filter would never match them. The goos parameter keeps selection
+// pure so tests stay hermetic; callers pass runtime.GOOS.
+func pickMainExecutable(destDir string, family domain.EngineFamily, goos string) (string, error) {
+	if goos == "" {
+		goos = runtime.GOOS
+	}
+	windows := goos == "windows"
 	type candidate struct {
 		path string
 		size int64
@@ -474,16 +483,30 @@ func pickMainExecutable(destDir string, family domain.EngineFamily) (string, err
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || !strings.EqualFold(filepath.Ext(path), ".exe") {
+		if d.IsDir() {
 			return nil
 		}
 		info, err := d.Info()
 		if err != nil {
 			return err
 		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		var base string
+		if windows {
+			if !strings.EqualFold(filepath.Ext(path), ".exe") {
+				return nil
+			}
+			base = strings.ToLower(strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)))
+		} else {
+			if info.Mode().Perm()&0o111 == 0 {
+				return nil
+			}
+			base = strings.ToLower(filepath.Base(path))
+		}
 		c := candidate{path: path, size: info.Size()}
 		all = append(all, c)
-		base := strings.ToLower(strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)))
 		for _, tok := range tokens {
 			if strings.Contains(base, tok) {
 				familyMatch = append(familyMatch, c)
@@ -500,7 +523,10 @@ func pickMainExecutable(destDir string, family domain.EngineFamily) (string, err
 		pool = all
 	}
 	if len(pool) == 0 {
-		return "", errors.New("extracted archive contains no .exe file")
+		if windows {
+			return "", errors.New("extracted archive contains no .exe file")
+		}
+		return "", errors.New("extracted archive contains no executable file")
 	}
 	best := pool[0]
 	for _, c := range pool[1:] {
