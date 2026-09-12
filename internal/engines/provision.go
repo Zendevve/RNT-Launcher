@@ -1,8 +1,10 @@
 package engines
 
 import (
+	"archive/tar"
 	"archive/zip"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -60,7 +63,7 @@ func DownloadPageURL(family domain.EngineFamily) string {
 // resolving version "" or "latest" to the newest GitHub release.
 // The build is extracted to enginesDir/<family>-<tag>/ and registered via
 // s.Add with Family set and Version set to the release tag.
-// Families without a GitHub release source, missing Windows assets, and any
+// Families without a GitHub release source, missing platform assets, and any
 // network/API failure return an error naming DownloadPageURL(family) so the
 // caller can open the page instead of failing silently.
 func (s *EngineService) Ensure(ctx context.Context, family domain.EngineFamily, version, enginesDir string) (*domain.Engine, error) {
@@ -98,9 +101,9 @@ func (s *EngineService) Ensure(ctx context.Context, family domain.EngineFamily, 
 		names = append(names, a.Name)
 		byName[a.Name] = a
 	}
-	assetName := pickWindowsAsset(names)
+	assetName := pickReleaseAsset(names, runtime.GOOS)
 	if assetName == "" {
-		return nil, fmt.Errorf("no Windows .zip asset found in %s release %s; download manually from %s", family, release.TagName, page)
+		return nil, missingPlatformAssetError(family, release.TagName, runtime.GOOS)
 	}
 	asset := byName[assetName]
 
@@ -108,11 +111,21 @@ func (s *EngineService) Ensure(ctx context.Context, family domain.EngineFamily, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to download %s release %s: %w (manual download: %s)", family, release.TagName, err, page)
 	}
+	lowerAsset := strings.ToLower(assetName)
+	if strings.HasSuffix(lowerAsset, ".dmg") {
+		return nil, fmt.Errorf("provisioning %s release %s requires mounting %q; download manually from %s", family, release.TagName, assetName, page)
+	}
 
 	destDir := filepath.Join(enginesDir, string(family)+"-"+sanitizeTagDir(release.TagName))
-	if err := extractZip(data, destDir); err != nil {
-		return nil, fmt.Errorf("failed to extract %s release %s: %w", family, release.TagName, err)
-	}
+	if strings.HasSuffix(lowerAsset, ".tar.gz") || strings.HasSuffix(lowerAsset, ".tgz") {
+		if err := extractTarGz(data, destDir); err != nil {
+			return nil, fmt.Errorf("failed to extract %s release %s: %w", family, release.TagName, err)
+		}
+	} else {
+		if err := extractZip(data, destDir); err != nil {
+			return nil, fmt.Errorf("failed to extract %s release %s: %w", family, release.TagName, err)
+		}
+ 	}
 
 	exe, err := pickMainExecutable(destDir, family)
 	if err != nil {
@@ -148,6 +161,69 @@ func pickWindowsAsset(names []string) string {
 		}
 	}
 	return fallback
+}
+
+// pickReleaseAsset selects the best release asset name for goos: Windows
+// prefers 64-bit over 32-bit .zips, Linux prefers .tar.gz with a .zip
+// fallback, and macOS prefers .zip with a .dmg fallback. Unknown platforms
+// fall back to Windows selection. The goos parameter keeps selection pure so
+// tests stay hermetic; callers pass runtime.GOOS.
+func pickReleaseAsset(names []string, goos string) string {
+	switch goos {
+	case "linux":
+		return pickLinuxAsset(names)
+	case "darwin":
+		return pickDarwinAsset(names)
+	default:
+		return pickWindowsAsset(names)
+	}
+}
+
+// pickLinuxAsset selects the first .tar.gz (or .tgz) whose name mentions
+// linux; falling back to the first .zip mentioning linux; otherwise "".
+func pickLinuxAsset(names []string) string {
+	fallback := ""
+	for _, n := range names {
+		lower := strings.ToLower(n)
+		if !strings.Contains(lower, "linux") {
+			continue
+		}
+		if strings.HasSuffix(lower, ".tar.gz") || strings.HasSuffix(lower, ".tgz") {
+			return n
+		}
+		if fallback == "" && strings.HasSuffix(lower, ".zip") {
+			fallback = n
+		}
+	}
+	return fallback
+}
+
+// pickDarwinAsset selects the first .zip whose name mentions mac/macos/osx/
+// darwin; falling back to the first such .dmg; otherwise "".
+func pickDarwinAsset(names []string) string {
+	fallback := ""
+	for _, n := range names {
+		lower := strings.ToLower(n)
+		if !strings.Contains(lower, "mac") && !strings.Contains(lower, "osx") && !strings.Contains(lower, "darwin") {
+			continue
+		}
+		if strings.HasSuffix(lower, ".zip") {
+			return n
+		}
+		if fallback == "" && strings.HasSuffix(lower, ".dmg") {
+			fallback = n
+		}
+	}
+	return fallback
+}
+
+// missingPlatformAssetError names the family, the platform, and the manual
+// download page so callers can fall back to a manual download.
+func missingPlatformAssetError(family domain.EngineFamily, tag, goos string) error {
+	if goos == "" {
+		goos = runtime.GOOS
+	}
+	return fmt.Errorf("no %s asset found for %s release %s; download manually from %s", goos, family, tag, DownloadPageURL(family))
 }
 
 type githubReleaseAsset struct {
@@ -289,7 +365,77 @@ func writeZipEntry(f *zip.File, target string) error {
 	if _, err := io.Copy(out, rc); err != nil {
 		return fmt.Errorf("failed to write file %q: %w", target, err)
 	}
+	if perm := f.Mode().Perm(); perm != 0 {
+		if err := os.Chmod(target, perm); err != nil {
+			return fmt.Errorf("failed to set permissions on %q: %w", target, err)
+		}
+	}
+
 	return nil
+}
+
+// extractTarGz extracts a .tar.gz/.tgz archive into destDir, rejecting
+// absolute paths and any entry escaping destDir. Regular file modes from the
+// tar header are preserved (truncated to permission bits) so provisioned
+// Linux binaries keep their executable bit.
+func extractTarGz(data []byte, destDir string) error {
+	gz, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("failed to open gzip archive: %w", err)
+	}
+	defer func() { _ = gz.Close() }()
+	tr := tar.NewReader(gz)
+	cleanDest := filepath.Clean(destDir)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("failed to read tar archive: %w", err)
+		}
+		name := filepath.FromSlash(hdr.Name)
+		if name == "" || name == "." {
+			continue
+		}
+		if filepath.IsAbs(name) {
+			return fmt.Errorf("tar entry has absolute path: %q", hdr.Name)
+		}
+		target := filepath.Join(cleanDest, name)
+		if target != cleanDest && !strings.HasPrefix(target, cleanDest+string(os.PathSeparator)) {
+			return fmt.Errorf("tar entry escapes destination: %q", hdr.Name)
+		}
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, 0o755); err != nil {
+				return fmt.Errorf("failed to create directory %q: %w", target, err)
+			}
+		case tar.TypeReg, tar.TypeRegA:
+			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				return fmt.Errorf("failed to create directory for %q: %w", target, err)
+			}
+			perm := hdr.FileInfo().Mode().Perm()
+			if perm == 0 {
+				perm = 0o644
+			}
+			out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+			if err != nil {
+				return fmt.Errorf("failed to create file %q: %w", target, err)
+			}
+			if _, err := io.Copy(out, tr); err != nil {
+				_ = out.Close()
+				return fmt.Errorf("failed to write file %q: %w", target, err)
+			}
+			if err := out.Close(); err != nil {
+				return fmt.Errorf("failed to write file %q: %w", target, err)
+			}
+			if err := os.Chmod(target, perm); err != nil {
+				return fmt.Errorf("failed to set permissions on %q: %w", target, err)
+			}
+		default:
+			continue
+		}
+	}
 }
 
 // familyExeTokens are lowercase substrings identifying each family's main

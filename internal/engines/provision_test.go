@@ -2,6 +2,8 @@ package engines
 
 import (
 	"archive/zip"
+	"archive/tar"
+	"compress/gzip"
 	"bytes"
 	"context"
 	"os"
@@ -74,6 +76,116 @@ func TestPickWindowsAsset(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := pickWindowsAsset(tt.names); got != tt.want {
 				t.Errorf("pickWindowsAsset(%v) = %q, want %q", tt.names, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPickReleaseAsset(t *testing.T) {
+	tests := []struct {
+		name  string
+		goos  string
+		names []string
+		want  string
+	}{
+		{
+			name:  "windows prefers win64 over win32",
+			goos:  "windows",
+			names: []string{"gzdoom-win32.zip", "gzdoom-win64.zip"},
+			want:  "gzdoom-win64.zip",
+		},
+		{
+			name:  "unknown goos falls back to windows picking",
+			goos:  "plan9",
+			names: []string{"gzdoom-win32.zip", "gzdoom-win64.zip"},
+			want:  "gzdoom-win64.zip",
+		},
+		{
+			name:  "linux prefers tar.gz over zip",
+			goos:  "linux",
+			names: []string{"woof-linux.zip", "woof-linux.tar.gz"},
+			want:  "woof-linux.tar.gz",
+		},
+		{
+			name:  "linux tgz counts as preferred archive",
+			goos:  "linux",
+			names: []string{"woof-linux.zip", "woof-linux.tgz"},
+			want:  "woof-linux.tgz",
+		},
+		{
+			name:  "linux zip fallback when no tarball",
+			goos:  "linux",
+			names: []string{"woof-linux.zip", "woof-win64.zip"},
+			want:  "woof-linux.zip",
+		},
+		{
+			name:  "linux ignores non-linux archives",
+			goos:  "linux",
+			names: []string{"gzdoom-win64.zip", "gzdoom-macOS.zip"},
+			want:  "",
+		},
+		{
+			name:  "darwin prefers zip over dmg",
+			goos:  "darwin",
+			names: []string{"gzdoom-macOS.dmg", "gzdoom-macOS.zip"},
+			want:  "gzdoom-macOS.zip",
+		},
+		{
+			name:  "darwin dmg fallback when no zip",
+			goos:  "darwin",
+			names: []string{"gzdoom-macOS.dmg", "gzdoom-linux.tar.gz"},
+			want:  "gzdoom-macOS.dmg",
+		},
+		{
+			name:  "darwin osx token matches",
+			goos:  "darwin",
+			names: []string{"crispy-osx.zip"},
+			want:  "crispy-osx.zip",
+		},
+		{
+			name:  "darwin darwin token matches",
+			goos:  "darwin",
+			names: []string{"prboom-darwin.dmg"},
+			want:  "prboom-darwin.dmg",
+		},
+		{
+			name:  "darwin ignores unrelated archives",
+			goos:  "darwin",
+			names: []string{"gzdoom-win64.zip", "gzdoom-linux.tar.gz"},
+			want:  "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := pickReleaseAsset(tt.names, tt.goos); got != tt.want {
+				t.Errorf("pickReleaseAsset(%v, %q) = %q, want %q", tt.names, tt.goos, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMissingPlatformAssetError(t *testing.T) {
+	tests := []struct {
+		name   string
+		family domain.EngineFamily
+		goos   string
+		wantGo string
+	}{
+		{name: "windows", family: domain.EngineFamilyGZDoom, goos: "windows", wantGo: "windows"},
+		{name: "linux", family: domain.EngineFamilyWoof, goos: "linux", wantGo: "linux"},
+		{name: "darwin", family: domain.EngineFamilyCrispyDoom, goos: "darwin", wantGo: "darwin"},
+		{name: "empty goos uses runtime", family: domain.EngineFamilyGZDoom, goos: "", wantGo: runtime.GOOS},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := missingPlatformAssetError(tt.family, "g4.12.2", tt.goos)
+			if err == nil {
+				t.Fatal("missingPlatformAssetError returned nil, want manual-download error")
+			}
+			for _, want := range []string{string(tt.family), tt.wantGo, DownloadPageURL(tt.family)} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("error = %q, want substring %q", err.Error(), want)
+				}
 			}
 		})
 	}
@@ -229,6 +341,108 @@ func TestEnsureFamiliesWithoutReleaseSource(t *testing.T) {
 				if !strings.Contains(err.Error(), want) {
 					t.Errorf("Ensure(%q) error = %q, want substring %q", tt.family, err.Error(), want)
 				}
+			}
+		})
+	}
+}
+func TestExtractTarGz(t *testing.T) {
+	buildTarGz := func(t *testing.T, names []string, mode int64) []byte {
+		t.Helper()
+		var buf bytes.Buffer
+		gz := gzip.NewWriter(&buf)
+		w := tar.NewWriter(gz)
+		for _, n := range names {
+			isDir := strings.HasSuffix(n, "/")
+			hdr := &tar.Header{Name: n, Mode: mode}
+			if isDir {
+				hdr.Typeflag = tar.TypeDir
+			} else {
+				hdr.Typeflag = tar.TypeReg
+				hdr.Size = int64(len("data"))
+			}
+			if err := w.WriteHeader(hdr); err != nil {
+				t.Fatalf("write tar header %q: %v", n, err)
+			}
+			if !isDir {
+				if _, err := w.Write([]byte("data")); err != nil {
+					t.Fatalf("write tar entry %q: %v", n, err)
+				}
+			}
+		}
+		if err := w.Close(); err != nil {
+			t.Fatalf("close tar: %v", err)
+		}
+		if err := gz.Close(); err != nil {
+			t.Fatalf("close gzip: %v", err)
+		}
+		return buf.Bytes()
+	}
+	absEntry := "/abs.txt"
+	if runtime.GOOS == "windows" {
+		absEntry = "C:/abs.txt"
+	}
+	tests := []struct {
+		name     string
+		names    []string
+		mode     int64
+		wantErr  string
+		wantFile string
+		wantMode os.FileMode
+	}{
+		{
+			name:     "valid layout extracts and preserves executable bit",
+			names:    []string{"gzdoom/", "gzdoom/gzdoom"},
+			mode:     0o755,
+			wantFile: filepath.Join("gzdoom", "gzdoom"),
+			wantMode: 0o755,
+		},
+		{
+			name:    "parent escape rejected",
+			names:   []string{"../evil.txt"},
+			mode:    0o644,
+			wantErr: "escapes destination",
+		},
+		{
+			name:    "absolute path rejected",
+			names:   []string{absEntry},
+			mode:    0o644,
+			wantErr: "absolute path",
+		},
+		{
+			name:    "corrupt gzip rejected",
+			names:   nil,
+			mode:    0o644,
+			wantErr: "gzip",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dest := t.TempDir()
+			var data []byte
+			if tt.names == nil {
+				data = []byte("not a gzip archive")
+			} else {
+				data = buildTarGz(t, tt.names, tt.mode)
+			}
+			err := extractTarGz(data, dest)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("extractTarGz returned error: %v", err)
+				}
+				fi, statErr := os.Stat(filepath.Join(dest, tt.wantFile))
+				if statErr != nil {
+					t.Fatalf("expected extracted file %q: %v", tt.wantFile, statErr)
+				}
+				if runtime.GOOS != "windows" && fi.Mode().Perm() != tt.wantMode {
+					t.Errorf("mode = %o, want %o", fi.Mode().Perm(), tt.wantMode)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("extractTarGz succeeded, want error containing %q", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("extractTarGz error = %q, want substring %q", err.Error(), tt.wantErr)
 			}
 		})
 	}

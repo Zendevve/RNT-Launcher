@@ -9,7 +9,7 @@
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Support-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/zendevve)
 [![Discord](https://img.shields.io/badge/Discord-Artano-5865F2?style=flat&logo=discord&logoColor=white)](https://discord.gg/Y4rDyTScPe)
 
-> **📥 Looking for the app? Compiled releases are published in the Artano Discord — join https://discord.gg/Y4rDyTScPe to download the latest build.** This repo hosts the source code and dev builds.
+> **📥 Looking for the app? See [Download](#download) — compiled releases are published in the Artano Discord: https://discord.gg/Y4rDyTScPe.**
 
 > **Beautifully simple. Designed from the very start to be as visually minimal and space efficient as possible. No cluttered interface. Fast and lightweight opens practically instantly, and switching is just as quick, all while having low memory and CPU usage. Fully-featured minimalism doesn't have to be a compromise. Configurable features a myriad of configurable preferences to ensure the best experience for as many people as possible. Supports all common formats.**
 
@@ -18,6 +18,12 @@
 Built with an interface-agnostic Go application core, embedded SQLite metadata database, and a high-density industrial dark desktop GUI using Wails and React.
 
 ---
+
+## Download
+
+Compiled releases of RNT Launcher ship via the Artano Discord — join https://discord.gg/Y4rDyTScPe to download the latest build.
+
+This repo is source + dev builds.
 
 ## Design Philosophy & Core Pillars
 
