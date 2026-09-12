@@ -9,6 +9,8 @@
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Support-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/zendevve)
 [![Discord](https://img.shields.io/badge/Discord-Artano-5865F2?style=flat&logo=discord&logoColor=white)](https://discord.gg/Y4rDyTScPe)
 
+> **📥 Looking for the app? See [Download](#download) — compiled releases are published in the Artano Discord: https://discord.gg/Y4rDyTScPe.**
+
 > **Beautifully simple. Designed from the very start to be as visually minimal and space efficient as possible. No cluttered interface. Fast and lightweight opens practically instantly, and switching is just as quick, all while having low memory and CPU usage. Fully-featured minimalism doesn't have to be a compromise. Configurable features a myriad of configurable preferences to ensure the best experience for as many people as possible. Supports all common formats.**
 
 **RNT Launcher** is a modern, fast, local-first cross-platform desktop application for organizing, configuring, validating, and launching Doom games and modifications.
@@ -16,6 +18,12 @@
 Built with an interface-agnostic Go application core, embedded SQLite metadata database, and a high-density industrial dark desktop GUI using Wails and React.
 
 ---
+
+## Download
+
+Compiled releases of RNT Launcher ship via the Artano Discord — join https://discord.gg/Y4rDyTScPe to download the latest build.
+
+This repo is source + dev builds.
 
 ## Design Philosophy & Core Pillars
 
@@ -159,6 +167,8 @@ Never fail at launch time. The pre-flight validator executes 5 core verification
 ### Installation & Build
 
 1. **Clone the repository**:
+> End users: grab the latest build from the Artano Discord (https://discord.gg/Y4rDyTScPe) instead of cloning — the steps below are for developers building from source.
+
    ```bash
    git clone https://github.com/zendevve/rnt-launcher.git
    cd rnt-launcher
@@ -194,9 +204,7 @@ Never fail at launch time. The pre-flight validator executes 5 core verification
 ---
 
 ## Community & Feedback
-
-Join Artano on Discord to discuss RNT Launcher, report issues, and try out early test builds:
-
+Join Artano on Discord to discuss RNT Launcher, report issues, and download the latest compiled releases (releases ship via Discord, not just early test builds):
 [![Join Discord](https://img.shields.io/badge/Discord-Artano-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/Y4rDyTScPe)
 
 Invite link: [https://discord.gg/Y4rDyTScPe](https://discord.gg/Y4rDyTScPe)
